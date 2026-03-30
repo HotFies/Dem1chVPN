@@ -4,7 +4,7 @@
 
 **Персональный VPN-сервер с управлением через Telegram**
 
-VLESS + Reality + XHTTP · Обход ТСПУ · Автоматическая установка
+VLESS + Reality + XHTTP · Ускоритель интернета · Автоматическая установка
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Xray Core](https://img.shields.io/badge/Xray--core-latest-brightgreen)](https://github.com/XTLS/Xray-core)
