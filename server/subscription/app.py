@@ -1,0 +1,165 @@
+"""
+XShield — Subscription Server
+Provides auto-updating VPN configs for clients via HTTPS.
+"""
+import base64
+import sys
+from pathlib import Path
+from contextlib import asynccontextmanager
+
+import uvicorn
+from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+# Ensure project root is in path for imports
+PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
+
+from server.bot.config import config
+from server.bot.services.user_manager import UserManager
+from server.bot.services.xray_config import XrayConfigManager
+from server.bot.services.route_manager import RouteManager
+from server.bot.database import init_db
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Startup/shutdown lifecycle handler."""
+    await init_db()
+    yield
+
+
+limiter = Limiter(key_func=get_remote_address)
+
+app = FastAPI(
+    title="XShield Subscription",
+    docs_url=None,
+    redoc_url=None,
+    lifespan=lifespan,
+)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# CORS for Mini App — restrict to configured domain
+_cors_origins = []
+if config.SUB_DOMAIN:
+    _cors_origins.append(f"https://{config.SUB_DOMAIN}:{config.SUB_EXTERNAL_PORT}")
+    _cors_origins.append(f"https://{config.SUB_DOMAIN}")
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins or ["*"],
+    allow_methods=["GET", "POST", "DELETE"],
+    allow_headers=["Content-Type", "X-Telegram-Init-Data"],
+)
+
+
+# ── Health Check ──
+
+@app.get("/health")
+async def health():
+    return {"status": "ok"}
+
+
+# ── Subscription Endpoint ──
+
+@app.get("/sub/{token}")
+@limiter.limit("30/minute")
+async def get_subscription(request: Request, token: str):
+    """
+    Subscription endpoint for V2Ray/Xray clients.
+    Returns Base64-encoded VLESS link(s) with appropriate headers.
+    """
+    mgr = UserManager()
+    user = await mgr.get_user_by_subscription_token(token)
+
+    if not user:
+        raise HTTPException(status_code=404, detail="Invalid subscription")
+
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Account disabled")
+
+    if user.is_expired:
+        raise HTTPException(status_code=403, detail="Account expired")
+
+    if user.is_traffic_exceeded:
+        raise HTTPException(status_code=403, detail="Traffic limit exceeded")
+
+    # Generate VLESS link
+    xray_mgr = XrayConfigManager()
+    vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
+
+    # Base64 encode (standard for V2Ray subscription format)
+    encoded = base64.b64encode(vless_url.encode()).decode()
+
+    # Build subscription response with proper headers
+    return Response(
+        content=encoded,
+        media_type="text/plain",
+        headers={
+            "Subscription-Userinfo": _build_userinfo(user),
+            "Content-Disposition": f'attachment; filename="{user.name}.txt"',
+            "Profile-Update-Interval": "6",
+            "Profile-Title": f"XShield - {user.name}",
+        },
+    )
+
+
+@app.get("/sub/{token}/routing")
+async def get_routing_config(token: str):
+    """Return client-side routing rules for split tunneling."""
+    mgr = UserManager()
+    user = await mgr.get_user_by_subscription_token(token)
+
+    if not user:
+        raise HTTPException(status_code=404, detail="Invalid subscription")
+
+    route_mgr = RouteManager()
+    routing = await route_mgr.generate_client_routing_config()
+    return routing
+
+
+def _build_userinfo(user) -> str:
+    """Build Subscription-Userinfo header value."""
+    parts = [
+        f"upload={user.traffic_used_up}",
+        f"download={user.traffic_used_down}",
+    ]
+    if user.traffic_limit:
+        parts.append(f"total={user.traffic_limit}")
+    if user.expiry_date:
+        import time
+        parts.append(f"expire={int(user.expiry_date.timestamp())}")
+    return "; ".join(parts)
+
+
+# ── WebApp API ──
+
+from server.subscription.webapp_api import api as webapp_api
+app.include_router(webapp_api)
+
+
+# ── Static files (Mini App) ──
+
+WEBAPP_DIR = Path(__file__).resolve().parent.parent / "webapp" / "dist"
+if WEBAPP_DIR.exists():
+    app.mount("/webapp", StaticFiles(directory=str(WEBAPP_DIR), html=True), name="webapp")
+
+
+# ── Entry Point ──
+
+def main():
+    uvicorn.run(
+        "server.subscription.app:app",
+        host=config.SUB_HOST,
+        port=config.SUB_PORT,
+        log_level="info",
+    )
+
+
+if __name__ == "__main__":
+    main()

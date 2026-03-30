@@ -1,0 +1,21 @@
+# AdGuard Home — DNS-level ad blocking + DNS-over-HTTPS
+# Xray DNS section points to 127.0.0.1:5353
+
+services:
+  adguard:
+    image: adguard/adguardhome:latest
+    container_name: xshield-adguard
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:5353:53/tcp"
+      - "127.0.0.1:5353:53/udp"
+      - "127.0.0.1:3000:3000/tcp"   # Admin panel (first setup)
+      - "127.0.0.1:8053:80/tcp"     # Admin panel (after setup)
+    volumes:
+      - ./work:/opt/adguardhome/work
+      - ./conf:/opt/adguardhome/conf
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

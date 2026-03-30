@@ -1,0 +1,237 @@
+/* XShield Mini App — Telegram-native Styles */
+
+:root {
+  --tg-bg: var(--tg-theme-bg-color, #1a1a2e);
+  --tg-text: var(--tg-theme-text-color, #e0e0e0);
+  --tg-hint: var(--tg-theme-hint-color, #999);
+  --tg-link: var(--tg-theme-link-color, #6c63ff);
+  --tg-btn: var(--tg-theme-button-color, #6c63ff);
+  --tg-btn-text: var(--tg-theme-button-text-color, #fff);
+  --tg-secondary-bg: var(--tg-theme-secondary-bg-color, #16213e);
+  --tg-header-bg: var(--tg-theme-header-bg-color, #0f3460);
+  --accent: #6c63ff;
+  --danger: #e94560;
+  --success: #48c9b0;
+  --warning: #f48c06;
+  --card-radius: 16px;
+  --gap: 12px;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--tg-bg);
+  color: var(--tg-text);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+.app { display: flex; flex-direction: column; min-height: 100vh; }
+
+/* Header */
+.app-header {
+  padding: 16px 20px;
+  text-align: center;
+  background: var(--tg-header-bg);
+  position: sticky; top: 0; z-index: 100;
+  backdrop-filter: blur(10px);
+}
+.app-header h1 { font-size: 20px; font-weight: 700; }
+
+/* Navigation */
+.app-nav {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px;
+  background: var(--tg-secondary-bg);
+  position: sticky; top: 52px; z-index: 99;
+}
+.nav-btn {
+  flex: 1;
+  display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 8px 4px;
+  background: transparent;
+  border: none;
+  border-radius: 12px;
+  color: var(--tg-hint);
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.nav-btn.active {
+  background: rgba(108, 99, 255, 0.15);
+  color: var(--accent);
+}
+
+/* Main content */
+.app-main { flex: 1; padding: var(--gap); padding-bottom: 20px; }
+
+/* Cards */
+.card {
+  background: var(--tg-secondary-bg);
+  border-radius: var(--card-radius);
+  padding: 16px;
+  margin-bottom: var(--gap);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+.card-header {
+  display: flex; justify-content: space-between; align-items: center;
+  font-size: 15px; font-weight: 600;
+  margin-bottom: 12px; padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+/* Status badge */
+.status-badge {
+  font-size: 12px; padding: 4px 10px; border-radius: 20px;
+}
+.status-badge.active { background: rgba(72, 201, 176, 0.15); color: var(--success); }
+.status-badge.inactive { background: rgba(233, 69, 96, 0.15); color: var(--danger); }
+
+/* Stats */
+.stat-row {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 6px 0; font-size: 14px;
+}
+.stat-row span:last-child { font-weight: 600; }
+.stat-item { margin-bottom: 10px; }
+.stat-item span { font-size: 13px; display: block; margin-bottom: 4px; }
+.stat-item small { font-size: 11px; color: var(--tg-hint); }
+
+/* Progress bar */
+.progress-bar {
+  width: 100%; height: 8px; background: rgba(255, 255, 255, 0.08);
+  border-radius: 4px; overflow: hidden; position: relative;
+}
+.progress-fill {
+  height: 100%; border-radius: 4px;
+  transition: width 0.5s ease;
+}
+.progress-text {
+  position: absolute; right: 4px; top: -2px;
+  font-size: 10px; color: var(--tg-hint);
+}
+
+/* Traffic grid */
+.traffic-grid { display: grid; grid-template-columns: 1fr 1fr; gap: var(--gap); }
+.traffic-item {
+  text-align: center; padding: 12px; border-radius: 12px;
+}
+.traffic-item.upload { background: rgba(108, 99, 255, 0.1); }
+.traffic-item.download { background: rgba(233, 69, 96, 0.1); }
+.traffic-label { font-size: 12px; color: var(--tg-hint); display: block; }
+.traffic-value { font-size: 20px; font-weight: 700; display: block; margin-top: 4px; }
+
+/* User cards */
+.user-card {
+  background: var(--tg-secondary-bg);
+  border-radius: var(--card-radius);
+  padding: 14px;
+  margin-bottom: var(--gap);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: opacity 0.2s;
+}
+.user-card.disabled { opacity: 0.5; }
+.user-card-header { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+.user-card-actions {
+  display: flex; gap: 8px; margin-top: 10px; padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+.btn-sm {
+  flex: 1; padding: 6px; border: none; border-radius: 8px;
+  background: rgba(108, 99, 255, 0.1); color: var(--tg-text);
+  font-size: 12px; cursor: pointer;
+}
+.btn-sm:active { transform: scale(0.95); }
+
+/* Route manager */
+.add-domain-form { margin-bottom: var(--gap); }
+.domain-input {
+  width: 100%; padding: 12px 16px; border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: var(--tg-secondary-bg); color: var(--tg-text);
+  font-size: 15px; outline: none; margin-bottom: 8px;
+}
+.domain-input:focus { border-color: var(--accent); }
+.btn-group { display: flex; gap: 8px; }
+.btn-proxy, .btn-direct {
+  flex: 1; padding: 10px; border: none; border-radius: 10px;
+  font-size: 14px; cursor: pointer; font-weight: 600;
+}
+.btn-proxy { background: rgba(108, 99, 255, 0.2); color: var(--accent); }
+.btn-direct { background: rgba(72, 201, 176, 0.2); color: var(--success); }
+
+/* Filter tabs */
+.filter-tabs { display: flex; gap: 4px; margin-bottom: var(--gap); }
+.filter-tab {
+  flex: 1; padding: 8px; border: none; border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05); color: var(--tg-hint);
+  font-size: 12px; cursor: pointer;
+}
+.filter-tab.active { background: rgba(108, 99, 255, 0.15); color: var(--accent); }
+.count { display: block; font-size: 16px; font-weight: 700; margin-top: 2px; }
+
+/* Rule list */
+.rule-item {
+  display: flex; align-items: center; gap: 8px;
+  padding: 10px 12px; border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+  margin-bottom: 4px; font-size: 13px;
+}
+.rule-domain { flex: 1; font-weight: 500; }
+.rule-source { font-size: 11px; color: var(--tg-hint); }
+.btn-delete {
+  background: none; border: none; font-size: 16px;
+  cursor: pointer; padding: 4px; opacity: 0.5;
+}
+.btn-delete:hover { opacity: 1; }
+
+/* Settings */
+.setting-card {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 14px 16px; background: var(--tg-secondary-bg);
+  border-radius: var(--card-radius); margin-bottom: var(--gap);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+.setting-info { display: flex; align-items: center; gap: 12px; }
+.setting-icon { font-size: 24px; }
+.setting-title { font-size: 15px; font-weight: 600; }
+.setting-desc { font-size: 12px; color: var(--tg-hint); margin-top: 2px; }
+
+/* Toggle switch */
+.toggle { position: relative; width: 50px; height: 28px; cursor: pointer; }
+.toggle input { display: none; }
+.toggle-slider {
+  position: absolute; inset: 0; border-radius: 14px;
+  background: rgba(255, 255, 255, 0.1);
+  transition: all 0.3s ease;
+}
+.toggle-slider::before {
+  content: ''; position: absolute;
+  width: 22px; height: 22px; border-radius: 50%;
+  background: white; top: 3px; left: 3px;
+  transition: transform 0.3s ease;
+}
+.toggle input:checked + .toggle-slider { background: var(--accent); }
+.toggle input:checked + .toggle-slider::before { transform: translateX(22px); }
+
+/* Action buttons */
+.settings-actions {
+  display: flex; flex-direction: column; gap: 8px; margin-top: var(--gap);
+}
+.btn-action {
+  padding: 12px; border: none; border-radius: 12px;
+  background: var(--tg-secondary-bg); color: var(--tg-text);
+  font-size: 14px; cursor: pointer; text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background 0.2s;
+}
+.btn-action:active { background: rgba(108, 99, 255, 0.15); }
+
+/* Utilities */
+.loading, .error, .empty-state {
+  text-align: center; padding: 40px 20px; font-size: 16px; color: var(--tg-hint);
+}
+.section-header { margin-bottom: var(--gap); }
+.section-header h2 { font-size: 18px; font-weight: 700; }

@@ -1,0 +1,61 @@
+{
+  "_comment": "XShield — Routing rules for v2rayNG (Android). Import as custom routing.",
+  "domainStrategy": "IPIfNonMatch",
+  "rules": [
+    {
+      "type": "field",
+      "outboundTag": "direct",
+      "domain": [
+        "geosite:category-ru"
+      ]
+    },
+    {
+      "type": "field",
+      "outboundTag": "direct",
+      "ip": [
+        "geoip:ru",
+        "geoip:private"
+      ]
+    },
+    {
+      "type": "field",
+      "outboundTag": "proxy",
+      "domain": [
+        "domain:youtube.com",
+        "domain:googlevideo.com",
+        "domain:ytimg.com",
+        "domain:youtu.be",
+        "domain:instagram.com",
+        "domain:cdninstagram.com",
+        "domain:discord.com",
+        "domain:discord.gg",
+        "domain:discordapp.com",
+        "domain:discord.media",
+        "domain:tiktok.com",
+        "domain:tiktokv.com",
+        "domain:tiktokcdn.com",
+        "domain:whatsapp.com",
+        "domain:whatsapp.net",
+        "domain:web.telegram.org",
+        "domain:t.me",
+        "domain:telegram.org",
+        "domain:claude.ai",
+        "domain:anthropic.com",
+        "domain:openai.com",
+        "domain:chatgpt.com",
+        "domain:chat.openai.com",
+        "domain:gemini.google.com",
+        "domain:aistudio.google.com",
+        "domain:netflix.com",
+        "domain:nflxvideo.net",
+        "domain:twitch.tv",
+        "domain:spotify.com"
+      ]
+    },
+    {
+      "type": "field",
+      "outboundTag": "proxy",
+      "port": "0-65535"
+    }
+  ]
+}

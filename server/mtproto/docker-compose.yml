@@ -1,0 +1,18 @@
+# MTProto Proxy for Telegram using mtg
+# Listens on 127.0.0.1:8443, Xray fallback sends traffic here
+
+services:
+  mtproto:
+    image: nineseconds/mtg:2
+    container_name: xshield-mtproto
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8800:8800"
+    volumes:
+      - ./config.toml:/config.toml:ro
+    command: run /config.toml
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

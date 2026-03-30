@@ -1,0 +1,32 @@
+{
+  "_comment": "XShield — Streaming mode. Routes streaming services through WARP for clean IP.",
+  "mode": "streaming",
+  "domains": [
+    "youtube.com", "googlevideo.com", "ytimg.com", "youtu.be",
+    "netflix.com", "nflxvideo.net", "nflxso.net", "nflxext.com",
+    "twitch.tv", "ttvnw.net", "jtvnw.net",
+    "disneyplus.com", "disney.com", "bamgrid.com", "dssott.com",
+    "hulu.com", "hulustream.com",
+    "spotify.com", "spotifycdn.com", "scdn.co",
+    "deezer.com",
+    "music.apple.com", "tv.apple.com",
+    "primevideo.com", "amazonvideo.com",
+    "hbomax.com", "max.com",
+    "crunchyroll.com",
+    "vimeo.com"
+  ],
+  "routing_rule": {
+    "type": "field",
+    "outboundTag": "warp",
+    "domain": [
+      "domain:youtube.com", "domain:googlevideo.com", "domain:ytimg.com",
+      "domain:netflix.com", "domain:nflxvideo.net",
+      "domain:twitch.tv", "domain:ttvnw.net",
+      "domain:disneyplus.com", "domain:disney.com",
+      "domain:hulu.com", "domain:spotify.com",
+      "domain:deezer.com", "domain:primevideo.com",
+      "domain:hbomax.com", "domain:max.com",
+      "domain:crunchyroll.com", "domain:vimeo.com"
+    ]
+  }
+}

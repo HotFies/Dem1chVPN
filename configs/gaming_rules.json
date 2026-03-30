@@ -1,0 +1,30 @@
+{
+  "_comment": "XShield — Gaming mode. Routes gaming platforms through proxy with min latency.",
+  "mode": "gaming",
+  "domains": [
+    "store.steampowered.com", "steamcommunity.com", "steamcdn-a.akamaihd.net",
+    "steamcontent.com", "steampowered.com", "steamstatic.com",
+    "discord.com", "discord.gg", "discordapp.com", "discord.media",
+    "epicgames.com", "unrealengine.com", "epicgames.dev",
+    "riotgames.com", "leagueoflegends.com", "riotcdn.net",
+    "blizzard.com", "battle.net", "blz-contentstack.com",
+    "gog.com", "gogalaxy.com",
+    "ea.com", "origin.com",
+    "ubisoft.com", "ubi.com",
+    "xbox.com", "xboxlive.com",
+    "playstation.com", "playstation.net"
+  ],
+  "routing_rule": {
+    "type": "field",
+    "outboundTag": "proxy",
+    "domain": [
+      "domain:steampowered.com", "domain:steamcommunity.com", "domain:steamcdn-a.akamaihd.net",
+      "domain:discord.com", "domain:discordapp.com",
+      "domain:epicgames.com", "domain:unrealengine.com",
+      "domain:riotgames.com", "domain:leagueoflegends.com",
+      "domain:blizzard.com", "domain:battle.net",
+      "domain:gog.com", "domain:ea.com", "domain:origin.com",
+      "domain:ubisoft.com", "domain:xbox.com", "domain:playstation.com"
+    ]
+  }
+}
