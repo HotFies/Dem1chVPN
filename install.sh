@@ -99,8 +99,8 @@ free_ports() {
 
     # Проверка что порты освободились
     for port in "${PORTS_TO_CHECK[@]}"; do
-        local pids
-        pids=$(ss -tlnp | grep ":${port} " | grep -oP 'pid=\K[0-9]+' | sort -u)
+        local pids=""
+        pids=$(ss -tlnp 2>/dev/null | grep ":${port} " 2>/dev/null | grep -oP 'pid=\K[0-9]+' 2>/dev/null | sort -u || true)
         if [ -n "$pids" ]; then
             log_warn "Порт $port всё ещё занят (PID: $pids) — убиваю процессы..."
             for pid in $pids; do
