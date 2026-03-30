@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react'
-
-interface RouteRule { id: number; domain: string; rule_type: string; added_by: string }
+import { getRoutes, addRoute, deleteRoute, type RouteRule } from '../api/client'
 
 export default function RouteManager() {
   const [rules, setRules] = useState<RouteRule[]>([])
@@ -9,27 +8,22 @@ export default function RouteManager() {
   const [loading, setLoading] = useState(true)
 
   const loadRules = () => {
-    fetch('/api/routes')
-      .then(r => r.json())
+    getRoutes()
       .then(data => { setRules(data.rules || []); setLoading(false) })
       .catch(() => setLoading(false))
   }
 
   useEffect(() => { loadRules() }, [])
 
-  const addDomain = async (type: 'proxy' | 'direct') => {
+  const handleAddDomain = async (type: 'proxy' | 'direct') => {
     if (!newDomain.trim()) return
-    await fetch('/api/routes', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ domain: newDomain.trim(), type }),
-    })
+    await addRoute(newDomain.trim(), type)
     setNewDomain('')
     loadRules()
   }
 
-  const deleteDomain = async (domain: string) => {
-    await fetch(`/api/routes/${domain}`, { method: 'DELETE' })
+  const handleDeleteDomain = async (domain: string) => {
+    await deleteRoute(domain)
     loadRules()
   }
 
@@ -47,8 +41,8 @@ export default function RouteManager() {
           className="domain-input"
         />
         <div className="btn-group">
-          <button className="btn-proxy" onClick={() => addDomain('proxy')}>🔵 PROXY</button>
-          <button className="btn-direct" onClick={() => addDomain('direct')}>🟢 DIRECT</button>
+          <button className="btn-proxy" onClick={() => handleAddDomain('proxy')}>🔵 PROXY</button>
+          <button className="btn-direct" onClick={() => handleAddDomain('direct')}>🟢 DIRECT</button>
         </div>
       </div>
 
@@ -73,7 +67,7 @@ export default function RouteManager() {
               </span>
               <span className="rule-domain">{r.domain}</span>
               <span className="rule-source">{r.added_by}</span>
-              <button className="btn-delete" onClick={() => deleteDomain(r.domain)}>🗑️</button>
+              <button className="btn-delete" onClick={() => handleDeleteDomain(r.domain)}>🗑️</button>
             </div>
           ))}
         </div>

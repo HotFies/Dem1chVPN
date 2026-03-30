@@ -1,23 +1,12 @@
 import React, { useState, useEffect } from 'react'
-
-interface User {
-  id: number; name: string; active: boolean; traffic_total: number
-  traffic_limit: number | null; expiry: string | null
-}
-
-function formatBytes(b: number): string {
-  if (b >= 1024 ** 3) return (b / 1024 ** 3).toFixed(1) + ' GB'
-  if (b >= 1024 ** 2) return (b / 1024 ** 2).toFixed(0) + ' MB'
-  return (b / 1024).toFixed(0) + ' KB'
-}
+import { getUsers, formatBytes, type User } from '../api/client'
 
 export default function UserList() {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/users')
-      .then(r => r.json())
+    getUsers()
       .then(data => { setUsers(data.users || []); setLoading(false) })
       .catch(() => setLoading(false))
   }, [])

@@ -31,11 +31,26 @@ async def users_add_start(callback: CallbackQuery, state: FSMContext):
     """Start adding a new user."""
     await callback.message.edit_text(
         "➕ <b>Добавление пользователя</b>\n\n"
-        "Введите имя нового пользователя:",
+        "Введите имя нового пользователя:\n\n"
+        "<i>Или нажмите ◀️ Отмена</i>",
+        reply_markup=back_button("menu:users"),
     )
     await state.set_state(AddUserStates.waiting_name)
     await callback.answer()
 
+
+@router.callback_query(F.data == "menu:users", AddUserStates.waiting_name)
+@router.callback_query(F.data == "menu:users", AddUserStates.waiting_traffic_limit)
+@router.callback_query(F.data == "menu:users", AddUserStates.waiting_expiry)
+async def users_add_cancel(callback: CallbackQuery, state: FSMContext):
+    """Cancel adding a user."""
+    await state.clear()
+    await callback.message.edit_text(
+        "👥 <b>Пользователи</b>\n\n"
+        "❌ Добавление отменено.",
+        reply_markup=users_menu(),
+    )
+    await callback.answer()
 
 @router.message(AddUserStates.waiting_name)
 async def users_add_name(message: Message, state: FSMContext):
@@ -115,10 +130,13 @@ async def users_add_expiry(message: Message, state: FSMContext):
     info_text = (
         f"✅ <b>Пользователь создан!</b>\n\n"
         f"{format_user_info(user)}\n\n"
-        f"🔗 <b>Ссылка подключения:</b>\n"
-        f"<code>{vless_url}</code>\n\n"
-        f"📡 <b>Подписка (автообновление):</b>\n"
-        f"<code>{sub_url}</code>"
+        f"━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"📡 <b>Подписка</b> (рекомендуется):\n"
+        f"<code>{sub_url}</code>\n"
+        f"<i>↳ Вставьте в клиент как «Подписка». Конфиг обновляется автоматически.</i>\n\n"
+        f"🔗 <b>Прямая ссылка</b> (для роутеров/старых клиентов):\n"
+        f"<code>{vless_url}</code>\n"
+        f"<i>↳ Используйте если клиент не поддерживает подписки.</i>"
     )
 
     await message.answer(info_text, reply_markup=user_actions(user.id))
@@ -127,7 +145,10 @@ async def users_add_expiry(message: Message, state: FSMContext):
     qr_file = BufferedInputFile(qr_bytes, filename=f"xshield_{user.name}.png")
     await message.answer_photo(
         qr_file,
-        caption=f"📱 QR-код для <b>{user.name}</b>\nСканируйте в v2rayNG/FoXray",
+        caption=(
+            f"📱 QR-код для <b>{user.name}</b>\n\n"
+            f"Сканируйте в v2rayNG / FoXray / V2RayTun"
+        ),
     )
 
 
@@ -209,7 +230,11 @@ async def user_link(callback: CallbackQuery):
     vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
 
     await callback.message.answer(
-        f"🔗 <b>Ссылка для {user.name}:</b>\n\n<code>{vless_url}</code>"
+        f"🔗 <b>Прямая ссылка для {user.name}:</b>\n\n"
+        f"<code>{vless_url}</code>\n\n"
+        f"<i>💡 Скопируйте и вставьте в клиент (v2rayN, v2rayNG, FoXray).\n"
+        f"Если клиент поддерживает подписки — лучше используйте 📡 Подписка.</i>",
+        reply_markup=back_button(f"user:info:{user_id}"),
     )
     await callback.answer()
 
@@ -234,7 +259,10 @@ async def user_qr(callback: CallbackQuery):
     qr_file = BufferedInputFile(qr_bytes, filename=f"xshield_{user.name}.png")
     await callback.message.answer_photo(
         qr_file,
-        caption=f"📱 QR-код для <b>{user.name}</b>",
+        caption=(
+            f"📱 QR-код для <b>{user.name}</b>\n\n"
+            f"Сканируйте в v2rayNG / FoXray / V2RayTun"
+        ),
     )
     await callback.answer()
 
@@ -308,8 +336,12 @@ async def user_subscription(callback: CallbackQuery):
     await callback.message.answer(
         f"📡 <b>Подписка для {user.name}:</b>\n\n"
         f"<code>{sub_url}</code>\n\n"
-        "Добавьте эту ссылку как «Подписку» в v2rayN/v2rayNG.\n"
-        "Конфигурация будет обновляться автоматически каждые 6 часов."
+        f"💡 <b>Как подключить:</b>\n"
+        f"• <b>v2rayN</b> (Windows): Подписки → Добавить → URL\n"
+        f"• <b>v2rayNG</b> (Android): ☰ → Группа подписок → +\n"
+        f"• <b>FoXray/V2RayTun</b> (iOS): + → Subscription → URL\n\n"
+        f"<i>Конфигурация обновляется автоматически.</i>",
+        reply_markup=back_button(f"user:info:{user_id}"),
     )
     await callback.answer()
 

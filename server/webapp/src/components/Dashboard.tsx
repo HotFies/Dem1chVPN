@@ -1,25 +1,5 @@
 import React, { useState, useEffect } from 'react'
-
-interface ServerStatus {
-  cpu: number
-  ram_used: number
-  ram_total: number
-  disk_used: number
-  disk_total: number
-  uptime: string
-  xray_running: boolean
-  xray_version: string
-  users_count: number
-  traffic_today_up: number
-  traffic_today_down: number
-}
-
-function formatBytes(bytes: number): string {
-  if (bytes >= 1024 ** 3) return (bytes / 1024 ** 3).toFixed(1) + ' GB'
-  if (bytes >= 1024 ** 2) return (bytes / 1024 ** 2).toFixed(0) + ' MB'
-  if (bytes >= 1024) return (bytes / 1024).toFixed(0) + ' KB'
-  return `${bytes} B`
-}
+import { getServerStatus, formatBytes, type ServerStatus } from '../api/client'
 
 function ProgressBar({ value, max, color }: { value: number; max: number; color: string }) {
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0
@@ -36,8 +16,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    fetch('/api/status')
-      .then(r => r.json())
+    getServerStatus()
       .then(data => { setStatus(data); setLoading(false) })
       .catch(() => setLoading(false))
   }, [])

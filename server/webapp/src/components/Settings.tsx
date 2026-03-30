@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { getSettings, toggleFeature, restartXray, updateGeo, createBackup } from '../api/client'
 
 export default function Settings() {
   const [warpEnabled, setWarpEnabled] = useState(false)
@@ -6,8 +7,7 @@ export default function Settings() {
   const [mtprotoEnabled, setMtprotoEnabled] = useState(false)
 
   useEffect(() => {
-    fetch('/api/settings')
-      .then(r => r.json())
+    getSettings()
       .then(data => {
         setWarpEnabled(data.warp_enabled || false)
         setAdguardEnabled(data.adguard_enabled || false)
@@ -16,9 +16,11 @@ export default function Settings() {
       .catch(() => {})
   }, [])
 
-  const toggle = async (feature: string, current: boolean, setter: (v: boolean) => void) => {
-    const res = await fetch(`/api/settings/${feature}/toggle`, { method: 'POST' })
-    if (res.ok) setter(!current)
+  const toggle = async (feature: 'warp' | 'adguard' | 'mtproto', current: boolean, setter: (v: boolean) => void) => {
+    try {
+      await toggleFeature(feature)
+      setter(!current)
+    } catch {}
   }
 
   return (
@@ -73,13 +75,13 @@ export default function Settings() {
       </div>
 
       <div className="settings-actions">
-        <button className="btn-action" onClick={() => fetch('/api/xray/restart', { method: 'POST' })}>
+        <button className="btn-action" onClick={() => restartXray()}>
           🔁 Перезапуск Xray
         </button>
-        <button className="btn-action" onClick={() => fetch('/api/geo/update', { method: 'POST' })}>
+        <button className="btn-action" onClick={() => updateGeo()}>
           🔄 Обновить гео-базы
         </button>
-        <button className="btn-action" onClick={() => fetch('/api/backup', { method: 'POST' })}>
+        <button className="btn-action" onClick={() => createBackup()}>
           💾 Создать бэкап
         </button>
       </div>

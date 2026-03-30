@@ -13,14 +13,10 @@ def main_menu(is_admin: bool = False) -> InlineKeyboardMarkup:
     if is_admin:
         buttons.append([
             InlineKeyboardButton(text="👥 Пользователи", callback_data="menu:users"),
-        ])
-        buttons.append([
             InlineKeyboardButton(text="🔀 Маршрутизация", callback_data="menu:routing"),
         ])
         buttons.append([
             InlineKeyboardButton(text="📊 Мониторинг", callback_data="menu:monitoring"),
-        ])
-        buttons.append([
             InlineKeyboardButton(text="⚙️ Настройки", callback_data="menu:settings"),
         ])
     else:
@@ -34,7 +30,7 @@ def main_menu(is_admin: bool = False) -> InlineKeyboardMarkup:
         ])
 
     buttons.append([
-        InlineKeyboardButton(text="❓ Помощь", callback_data="menu:help"),
+        InlineKeyboardButton(text="📖 Помощь", callback_data="menu:help"),
     ])
 
     # Mini App button (if domain configured)
@@ -52,10 +48,14 @@ def main_menu(is_admin: bool = False) -> InlineKeyboardMarkup:
 def users_menu() -> InlineKeyboardMarkup:
     """Users management menu."""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="➕ Добавить пользователя", callback_data="users:add")],
-        [InlineKeyboardButton(text="📋 Список пользователей", callback_data="users:list")],
-        [InlineKeyboardButton(text="🎟️ Создать приглашение", callback_data="users:invite")],
-        [InlineKeyboardButton(text="📊 Трафик всех", callback_data="users:traffic_all")],
+        [
+            InlineKeyboardButton(text="➕ Добавить", callback_data="users:add"),
+            InlineKeyboardButton(text="📋 Список", callback_data="users:list"),
+        ],
+        [
+            InlineKeyboardButton(text="🎟️ Приглашение", callback_data="users:invite"),
+            InlineKeyboardButton(text="📊 Трафик всех", callback_data="users:traffic_all"),
+        ],
         [InlineKeyboardButton(text="◀️ Назад", callback_data="menu:main")],
     ])
 
@@ -98,14 +98,20 @@ def routing_menu() -> InlineKeyboardMarkup:
 
 
 def monitoring_menu() -> InlineKeyboardMarkup:
-    """Monitoring menu."""
+    """Мониторинг menu."""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📈 Статус сервера", callback_data="mon:status")],
-        [InlineKeyboardButton(text="🌐 Статус Xray", callback_data="mon:xray")],
-        [InlineKeyboardButton(text="📉 Трафик за день", callback_data="mon:traffic_day")],
-        [InlineKeyboardButton(text="⚡ Speedtest", callback_data="mon:speedtest")],
-        [InlineKeyboardButton(text="🚨 Проверка IP", callback_data="mon:ip_check")],
-        [InlineKeyboardButton(text="🔔 Уведомления", callback_data="mon:alerts")],
+        [
+            InlineKeyboardButton(text="📈 Статус", callback_data="mon:status"),
+            InlineKeyboardButton(text="🌐 Xray", callback_data="mon:xray"),
+        ],
+        [
+            InlineKeyboardButton(text="📉 Трафик", callback_data="mon:traffic_day"),
+            InlineKeyboardButton(text="⚡ Speedtest", callback_data="mon:speedtest"),
+        ],
+        [
+            InlineKeyboardButton(text="🚨 Проверка IP", callback_data="mon:ip_check"),
+            InlineKeyboardButton(text="🔔 Уведомления", callback_data="mon:alerts"),
+        ],
         [InlineKeyboardButton(text="◀️ Назад", callback_data="menu:main")],
     ])
 
@@ -113,10 +119,14 @@ def monitoring_menu() -> InlineKeyboardMarkup:
 def settings_menu() -> InlineKeyboardMarkup:
     """Settings menu."""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="🔄 Обновить Xray-core", callback_data="set:update_xray")],
-        [InlineKeyboardButton(text="🔄 Обновить гео-базы", callback_data="set:update_geo")],
-        [InlineKeyboardButton(text="📝 Изменить SNI", callback_data="set:change_sni")],
-        [InlineKeyboardButton(text="🔑 Ключи Reality", callback_data="set:regen_keys")],
+        [
+            InlineKeyboardButton(text="🔄 Xray-core", callback_data="set:update_xray"),
+            InlineKeyboardButton(text="🔄 Гео-базы", callback_data="set:update_geo"),
+        ],
+        [
+            InlineKeyboardButton(text="📝 Изменить SNI", callback_data="set:change_sni"),
+            InlineKeyboardButton(text="🔑 Ключи", callback_data="set:regen_keys"),
+        ],
         [
             InlineKeyboardButton(text="💾 Бэкап", callback_data="set:backup"),
             InlineKeyboardButton(text="📥 Восстановить", callback_data="set:restore"),
@@ -167,6 +177,7 @@ def wizard_platform() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="🍎 iOS", callback_data="wiz:ios"),
         ],
         [InlineKeyboardButton(text="📡 Роутер", callback_data="wiz:router")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="menu:help")],
     ])
 
 
@@ -175,5 +186,6 @@ def wizard_connect_method() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📱 QR-код", callback_data="wiz:method_qr")],
         [InlineKeyboardButton(text="🔗 Ссылка", callback_data="wiz:method_link")],
-        [InlineKeyboardButton(text="📡 Подписка (автообновление)", callback_data="wiz:method_sub")],
+        [InlineKeyboardButton(text="📡 Подписка (рекомендуется)", callback_data="wiz:method_sub")],
+        [InlineKeyboardButton(text="◀️ Назад", callback_data="menu:help")],
     ])

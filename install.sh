@@ -79,6 +79,40 @@ get_public_ip() {
     curl -s4 https://ifconfig.me || curl -s4 https://api.ipify.org || echo "UNKNOWN"
 }
 
+# ──── Освобождение занятых портов ────
+
+free_ports() {
+    log_step "Проверка занятости портов"
+
+    local PORTS_TO_CHECK=("80" "8080" "443")
+    local SERVICES_TO_STOP=("nginx" "apache2" "httpd" "lighttpd")
+
+    # Остановка конфликтующих веб-серверов
+    for svc in "${SERVICES_TO_STOP[@]}"; do
+        if systemctl is-active --quiet "$svc" 2>/dev/null; then
+            log_warn "Обнаружен запущенный $svc — останавливаю..."
+            systemctl stop "$svc" 2>/dev/null || true
+            systemctl disable "$svc" 2>/dev/null || true
+            log_info "$svc остановлен и отключен"
+        fi
+    done
+
+    # Проверка что порты освободились
+    for port in "${PORTS_TO_CHECK[@]}"; do
+        local pids
+        pids=$(ss -tlnp | grep ":${port} " | grep -oP 'pid=\K[0-9]+' | sort -u)
+        if [ -n "$pids" ]; then
+            log_warn "Порт $port всё ещё занят (PID: $pids) — убиваю процессы..."
+            for pid in $pids; do
+                kill "$pid" 2>/dev/null || true
+            done
+            sleep 1
+        fi
+    done
+
+    log_info "Порты 80, 443, 8080 свободны"
+}
+
 validate_bot_token() {
     # Формат токена: 123456789:ABCdefGHIjklMNOpqrsTUVwxyz
     if [[ ! "$1" =~ ^[0-9]+:[A-Za-z0-9_-]{35}$ ]]; then
@@ -232,8 +266,16 @@ configure_xray() {
 
     # Генерация ключей Reality
     KEYS=$($XRAY_BIN x25519)
-    PRIVATE_KEY=$(echo "$KEYS" | grep "Private" | awk '{print $3}')
-    PUBLIC_KEY=$(echo "$KEYS" | grep "Public" | awk '{print $3}')
+    # Xray 25+ выводит "PrivateKey: xxx" и "Password (PublicKey): xxx"
+    # Старые версии: "Private key: xxx" и "Public key: xxx"
+    PRIVATE_KEY=$(echo "$KEYS" | grep -i "private" | awk '{print $NF}')
+    PUBLIC_KEY=$(echo "$KEYS" | grep -i "public" | awk '{print $NF}')
+
+    if [ -z "$PRIVATE_KEY" ] || [ -z "$PUBLIC_KEY" ]; then
+        log_error "Не удалось сгенерировать ключи Reality!"
+        log_error "Вывод xray x25519: $KEYS"
+        exit 1
+    fi
     SHORT_ID=$(openssl rand -hex 4)
     SERVER_IP=$(get_public_ip)
 
@@ -451,9 +493,23 @@ CADDYFILE
     fi
 
     systemctl enable caddy
-    systemctl restart caddy
+    systemctl restart caddy || {
+        log_warn "Caddy не смог стартовать. Возможно порт 80 занят."
+        log_warn "Попытка освободить порт 80..."
+        # Попробуем остановить что занимает порт 80
+        for svc in nginx apache2 httpd; do
+            systemctl stop "$svc" 2>/dev/null || true
+            systemctl disable "$svc" 2>/dev/null || true
+        done
+        sleep 2
+        systemctl restart caddy || log_warn "Caddy всё ещё не стартует — починим после установки"
+    }
 
-    log_info "Caddy установлен и настроен"
+    if systemctl is-active --quiet caddy; then
+        log_info "Caddy установлен и запущен"
+    else
+        log_warn "Caddy установлен, но не запущен. Проверьте: systemctl status caddy"
+    fi
 }
 
 # ──── Шаг 6.5: Сборка Mini App ────
@@ -582,8 +638,9 @@ SERVICE
     # Права на необходимые директории
     chown -R xshield:xshield "${XSHIELD_DIR}/data" "${LOG_DIR}" "${XSHIELD_DIR}/backups"
     chown xshield:xshield "${ENV_FILE}"
-    # Xray конфиг — read-only для xshield
-    chmod 644 "${XRAY_CONFIG}"
+    # Xray конфиг — xshield должен иметь доступ на запись (для добавления/удаления клиентов)
+    chown xshield:xshield "${XRAY_CONFIG}"
+    chmod 664 "${XRAY_CONFIG}"
 
     systemctl daemon-reload
     systemctl enable xshield-bot xshield-sub
@@ -778,16 +835,16 @@ async def main():
     vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
     sub_url = 'https://${SUB_DOMAIN}:${SUB_EXTERNAL_PORT}/sub/' + user.subscription_token
 
-    print(f'USER_UUID={user.uuid}')
-    print(f'USER_EMAIL={user.email}')
-    print(f'VLESS_URL={vless_url}')
-    print(f'SUB_URL={sub_url}')
+    print(f"USER_UUID='{user.uuid}'"  )
+    print(f"USER_EMAIL='{user.email}'")
+    print(f"VLESS_URL=\"{vless_url}\"")
+    print(f"SUB_URL=\"{sub_url}\"")
 
 asyncio.run(main())
 " > /tmp/xshield_first_user 2>&1
 
     if grep -q "USER_UUID=" /tmp/xshield_first_user; then
-        source /tmp/xshield_first_user
+        eval "$(cat /tmp/xshield_first_user)"
         log_info "Пользователь '${FIRST_USER_NAME}' создан"
         echo ""
         echo -e "  ${CYAN}VLESS-ссылка:${NC}"
@@ -800,6 +857,160 @@ asyncio.run(main())
         cat /tmp/xshield_first_user 2>/dev/null || true
     fi
     rm -f /tmp/xshield_first_user
+}
+
+# ──── Шаг 9.5: Добавление дефолтных правил маршрутизации ────
+
+seed_default_routes() {
+    log_step "Добавление правил маршрутизации для популярных сервисов"
+
+    "${VENV_DIR}/bin/python" -c "
+import asyncio, sys
+sys.path.insert(0, '${XSHIELD_DIR}')
+
+# ═══ PROXY — заблокированные сервисы (вкл. мобильные приложения) ═══
+PROXY_DOMAINS = [
+    # --- AI-сервисы ---
+    'openai.com', 'chat.openai.com', 'api.openai.com', 'chatgpt.com',
+    'cdn.oaistatic.com', 'files.oaiusercontent.com',
+    'claude.ai', 'anthropic.com', 'api.anthropic.com',
+    'gemini.google.com', 'bard.google.com', 'notebooklm.google.com',
+    'generativelanguage.googleapis.com', 'aistudio.google.com',
+    'copilot.microsoft.com', 'perplexity.ai',
+
+    # --- TikTok (сайт + мобильное приложение) ---
+    'tiktok.com', 'www.tiktok.com', 'm.tiktok.com',
+    'api.tiktokv.com', 'api2.musical.ly', 'api-h2.tiktokv.com',
+    'log.tiktokv.com', 'pull-l3.tiktokcdn.com',
+    'sf16-sg.tiktokcdn.com', 'v16-webapp.tiktok.com',
+    'p16-sign-sg.tiktokcdn.com', 'lf16-cdn-tos.tiktokcdn.com',
+
+    # --- Instagram / Facebook (мобильные API) ---
+    'instagram.com', 'www.instagram.com', 'i.instagram.com',
+    'graph.instagram.com', 'scontent.cdninstagram.com',
+    'facebook.com', 'www.facebook.com', 'm.facebook.com',
+    'graph.facebook.com', 'connect.facebook.net',
+
+    # --- Twitter/X ---
+    'twitter.com', 'x.com', 'api.twitter.com', 'api.x.com',
+    'abs.twimg.com', 'pbs.twimg.com', 'mobile.twitter.com',
+
+    # --- Telegram ---
+    'telegram.org', 'web.telegram.org', 't.me',
+    'core.telegram.org', 'api.telegram.org',
+
+    # --- Discord ---
+    'discord.com', 'discordapp.com', 'gateway.discord.gg',
+    'cdn.discordapp.com', 'media.discordapp.net',
+
+    # --- Spotify (сайт + приложение) ---
+    'spotify.com', 'open.spotify.com', 'api.spotify.com',
+    'apresolve.spotify.com', 'spclient.wg.spotify.com',
+    'audio-ak-spotify-com.akamaized.net',
+
+    # --- Прочие ---
+    'medium.com', 'linkedin.com', 'www.linkedin.com',
+    'notion.so', 'api.notion.com',
+    'soundcloud.com', 'api-v2.soundcloud.com',
+    'quora.com', 'reddit.com', 'www.reddit.com',
+    'imgur.com', 'i.imgur.com',
+
+    # --- Meta CDN (Instagram/Facebook приложения) ---
+    'fbcdn.net', 'scontent.fbcdn.net', 'video.fbcdn.net',
+    'static.cdninstagram.com', 'lookaside.fbsbx.com',
+    'z-m-scontent.fbcdn.net',
+
+    # --- Google (AI-сервисы приложения) ---
+    'accounts.google.com', 'bard-google.appspot.com',
+]
+
+# ═══ DIRECT — сервисы РФ (блокируют зарубежные IP) ═══
+DIRECT_DOMAINS = [
+    # --- Банки (сайт + мобильные приложения) ---
+    'sberbank.ru', 'online.sberbank.ru', 'api.sberbank.ru',
+    'mobile.online.sberbank.ru', 'node1.online.sberbank.ru',
+    'acs-3ds.sberbank.ru',
+    'tinkoff.ru', 'api.tinkoff.ru', 'business.tinkoff.ru',
+    'tbank.ru', 'www.tbank.ru', 'api.tbank.ru',
+    'api-mobile.tinkoff.ru', 'id.tinkoff.ru', 'sso.tinkoff.ru',
+    'vtb.ru', 'online.vtb.ru', 'mob.vtb.ru',
+    'alfabank.ru', 'click.alfabank.ru', 'api.alfabank.ru',
+    'sense.alfabank.ru', 'baas.alfabank.ru',
+    'gazprombank.ru', 'online.gazprombank.ru',
+    'raiffeisen.ru', 'online.raiffeisen.ru',
+    'open.ru', 'openbank.ru',
+    'sovcombank.ru', 'online.sovcombank.ru',
+    'rosbank.ru', 'online.rosbank.ru',
+    'psbank.ru', 'online.psbank.ru',
+    'uralsib.ru', 'i.uralsib.ru',
+    'mtsbank.ru', 'online.mtsbank.ru',
+    'mkb.ru', 'online.mkb.ru',
+    'pochtabank.ru',
+    'ozon.bank',
+    'tochka.com',
+
+    # --- Яндекс (все сервисы + мобильные приложения) ---
+    'yandex.ru', 'yandex.com', 'ya.ru',
+    'passport.yandex.ru', 'mail.yandex.ru',
+    'music.yandex.ru', 'market.yandex.ru',
+    'disk.yandex.ru', 'cloud.yandex.ru',
+    'taxi.yandex.ru', 'eda.yandex.ru',
+    'lavka.yandex.ru', 'go.yandex.ru',
+    'maps.yandex.ru', 'navigator.yandex.ru',
+    'kinopoisk.ru', 'hd.kinopoisk.ru',
+    'plus.yandex.ru', 'station.yandex.ru',
+    'alice.yandex.ru', 'yandex.net',
+    'avatars.mds.yandex.net', 'api.yandex.ru',
+    'yastatic.net', 'mc.yandex.ru',
+    'app.yandex.ru', 'iot.yandex.ru',
+    'push.yandex.ru', 'appmetrica.yandex.ru',
+    'mobile.yandex.net', 'api.browser.yandex.ru',
+    'sso.yandex.ru', 'oauth.yandex.ru',
+    'suggest.yandex.ru', 'yandexmarket.ru',
+
+    # --- МТС ---
+    'mts.ru', 'login.mts.ru',
+
+    # --- Мегафон ---
+    'megafon.ru', 'lk.megafon.ru',
+
+    # --- Билайн ---
+    'beeline.ru', 'my.beeline.ru',
+
+    # --- Госуслуги ---
+    'gosuslugi.ru', 'esia.gosuslugi.ru',
+
+    # --- Озон / Wildberries ---
+    'ozon.ru', 'api.ozon.ru',
+    'wildberries.ru', 'www.wildberries.ru',
+]
+
+async def main():
+    from server.bot.database import init_db
+    from server.bot.services.route_manager import RouteManager
+
+    await init_db()
+    mgr = RouteManager()
+    proxy_added = 0
+    direct_added = 0
+    for domain in PROXY_DOMAINS:
+        if await mgr.add_rule(domain, 'proxy', 'install'):
+            proxy_added += 1
+    for domain in DIRECT_DOMAINS:
+        if await mgr.add_rule(domain, 'direct', 'install'):
+            direct_added += 1
+    print(f'PROXY={proxy_added} DIRECT={direct_added}')
+
+asyncio.run(main())
+" > /tmp/xshield_routes 2>&1
+
+    if grep -q "PROXY=" /tmp/xshield_routes; then
+        eval "$(cat /tmp/xshield_routes)"
+        log_info "Маршрутизация: ${PROXY} правил PROXY (ChatGPT, TikTok и др.) + ${DIRECT} правил DIRECT (банки, Яндекс)"
+    else
+        log_warn "Не удалось добавить правила (можно добавить через бота)"
+    fi
+    rm -f /tmp/xshield_routes
 }
 
 # ──── Шаг 10: Итоговая сводка ────
@@ -867,7 +1078,7 @@ main() {
         else
             # Запуск через curl — клонируем из git
             log_info "Клонирую XShield из GitHub..."
-            git clone https://github.com/xshield-vpn/xshield.git "${XSHIELD_DIR}" || {
+            git clone https://github.com/HotFies/Dem1chVPN.git "${XSHIELD_DIR}" || {
                 log_error "Не удалось клонировать репозиторий. Запустите скрипт из каталога проекта."
                 exit 1
             }
@@ -880,30 +1091,32 @@ main() {
 
     install_dependencies
     harden_system
+    free_ports                   # Остановить nginx/apache2 и освободить порты
     install_xray
     configure_xray
     install_bot
     install_caddy
-    build_webapp
+    build_webapp || true         # Необязательно — Mini App можно собрать позже
     create_services
     setup_cron
-    create_first_user
+    create_first_user || true    # Пользователя можно создать через бота
+    seed_default_routes || true  # Правила маршрутизации
 
     # Опциональные компоненты (запрос у пользователя)
     echo ""
     read -rp "$(echo -e "${PURPLE}Установить MTProto Proxy? (y/n): ${NC}")" INSTALL_MTPROTO
     if [[ "$INSTALL_MTPROTO" =~ ^[Yy]$ ]]; then
-        setup_mtproto
+        setup_mtproto || log_warn "MTProto не установлен (можно позже)"
     fi
 
     read -rp "$(echo -e "${PURPLE}Установить AdGuard Home (блокировка рекламы)? (y/n): ${NC}")" INSTALL_ADGUARD
     if [[ "$INSTALL_ADGUARD" =~ ^[Yy]$ ]]; then
-        setup_adguard
+        setup_adguard || log_warn "AdGuard не установлен (можно позже)"
     fi
 
     read -rp "$(echo -e "${PURPLE}Установить Cloudflare WARP (двойной туннель)? (y/n): ${NC}")" INSTALL_WARP
     if [[ "$INSTALL_WARP" =~ ^[Yy]$ ]]; then
-        setup_warp
+        setup_warp || log_warn "WARP не установлен (можно позже)"
     fi
 
     show_summary

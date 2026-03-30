@@ -57,7 +57,7 @@ XShield — это готовое решение для разворачиван
 ssh root@ваш-ip
 
 apt update && apt install -y git
-git clone https://github.com/ваш-юзернейм/xshield.git /opt/xshield
+git clone https://github.com/HotFies/Dem1chVPN.git /opt/xshield
 cd /opt/xshield
 chmod +x install.sh
 ./install.sh
