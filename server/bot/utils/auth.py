@@ -1,5 +1,5 @@
 """
-XShield — Common Authentication Utilities
+Dem1chVPN — Common Authentication Utilities
 Shared admin check function used across handlers and middleware.
 """
 from ..config import config

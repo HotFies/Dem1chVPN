@@ -1,5 +1,5 @@
 /**
- * XShield — API Client
+ * Dem1chVPN — API Client
  * Handles communication between Mini App and FastAPI backend.
  */
 

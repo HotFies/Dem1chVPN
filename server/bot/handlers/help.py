@@ -1,5 +1,5 @@
 """
-XShield Bot — Help Handler
+Dem1chVPN Bot — Help Handler
 Connection instructions for all platforms.
 """
 from aiogram import Router, F
@@ -47,11 +47,11 @@ INSTRUCTIONS = {
     ),
     "ios": (
         "🍎 <b>Инструкция для iOS</b>\n\n"
-        "<b>1. Скачайте FoXray:</b>\n"
-        '   📥 <a href="https://apps.apple.com/app/foxray/id6448898396">App Store</a>\n\n'
+        "<b>1. Скачайте Streisand:</b>\n"
+        '   📥 <a href="https://apps.apple.com/app/streisand/id6450534064">App Store</a>\n\n'
         "<b>2. Добавление сервера:</b>\n"
         "   • Скопируйте VLESS-ссылку\n"
-        '   • Откройте FoXray → "+" → "Импорт из буфера"\n'
+        '   • Откройте Streisand → "+" → "Импорт из буфера"\n'
         "   • Или отсканируйте QR-код\n\n"
         "<b>3. Подписка:</b>\n"
         '   • "Настройки" → "Подписки" → "+"\n'
@@ -77,15 +77,15 @@ INSTRUCTIONS = {
         "настройки обновляются автоматически.</i>"
     ),
     "general": (
-        "📖 <b>Общая инструкция XShield</b>\n\n"
+        "📖 <b>Общая инструкция Dem1chVPN</b>\n\n"
         "<b>Как это работает:</b>\n"
-        "XShield создаёт зашифрованный туннель между вашим устройством "
+        "Dem1chVPN создаёт зашифрованный туннель между вашим устройством "
         "и VPS-сервером за рубежом. Для ТСПУ трафик выглядит как "
         "обычное HTTPS-соединение с сайтом Microsoft.\n\n"
         "<b>Клиенты для подключения:</b>\n"
         "🖥️ Windows: v2rayN\n"
         "📱 Android: v2rayNG\n"
-        "🍎 iOS: FoXray\n"
+        "🍎 iOS: Streisand\n"
         "📡 Роутер: Passwall2 / XKEEN\n\n"
         "<b>Способы подключения:</b>\n"
         "1. 🔗 <b>Ссылка</b> — скопировать и вставить\n"

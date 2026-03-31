@@ -1,5 +1,5 @@
 """
-XShield Bot — Configuration
+Dem1chVPN Bot — Configuration
 Loads settings from .env file or environment variables.
 """
 import os
@@ -43,7 +43,7 @@ class Config:
 
     # Database
     DB_PATH: str = os.getenv("DB_PATH", str(
-        Path(__file__).resolve().parent.parent / "data" / "xshield.db"
+        Path(__file__).resolve().parent.parent / "data" / "dem1chvpn.db"
     ))
 
     # Subscription server
@@ -57,7 +57,7 @@ class Config:
     GEOSITE_PATH: str = os.getenv("GEOSITE_PATH", "/usr/local/share/xray/geosite.dat")
 
     # Backup
-    BACKUP_DIR: str = os.getenv("BACKUP_DIR", "/opt/xshield/backups")
+    BACKUP_DIR: str = os.getenv("BACKUP_DIR", "/opt/dem1chvpn/backups")
 
     # Feature flags
     ADGUARD_ENABLED: bool = os.getenv("ADGUARD_ENABLED", "false").lower() == "true"
@@ -70,6 +70,8 @@ class Config:
         "claude.ai", "anthropic.com",
         "chat.openai.com", "openai.com", "chatgpt.com",
         "gemini.google.com", "bard.google.com", "aistudio.google.com",
+        "notebooklm.google.com", "notebooklm-pa.googleapis.com",
+        "generativelanguage.googleapis.com",
         # Video
         "youtube.com", "googlevideo.com", "ytimg.com", "yt.be",
         "youtu.be", "youtube-nocookie.com",
@@ -80,6 +82,8 @@ class Config:
         # Social
         "instagram.com", "cdninstagram.com",
         "tiktok.com", "tiktokv.com", "musical.ly", "tiktokcdn.com",
+        "isnssdk.com", "byteoversea.com", "ibytedtos.com",
+        "byteimg.com", "muscdn.com", "pstatp.com",
     ])
 
     def validate(self) -> list[str]:

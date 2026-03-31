@@ -1,5 +1,5 @@
 """
-XShield — Subscription Server
+Dem1chVPN — Subscription Server
 Provides auto-updating VPN configs for clients via HTTPS.
 """
 import base64
@@ -37,7 +37,7 @@ async def lifespan(app: FastAPI):
 limiter = Limiter(key_func=get_remote_address)
 
 app = FastAPI(
-    title="XShield Subscription",
+    title="Dem1chVPN Subscription",
     docs_url=None,
     redoc_url=None,
     lifespan=lifespan,
@@ -104,7 +104,7 @@ async def get_subscription(request: Request, token: str):
             "Subscription-Userinfo": _build_userinfo(user),
             "Content-Disposition": f'attachment; filename="{user.name}.txt"',
             "Profile-Update-Interval": "6",
-            "Profile-Title": f"XShield - {user.name}",
+            "Profile-Title": f"Dem1chVPN - {user.name}",
         },
     )
 

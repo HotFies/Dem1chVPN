@@ -1,5 +1,5 @@
 """
-XShield — Route Manager Service
+Dem1chVPN — Route Manager Service
 CRUD for routing rules + antifilter sync.
 """
 import aiohttp

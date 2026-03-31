@@ -1,11 +1,11 @@
-# 📡 XShield — Подключение на роутере (OpenWRT)
+# 📡 Dem1chVPN — Подключение на роутере (OpenWRT)
 
 ## Что нужно
 
 - Роутер с **OpenWRT** 22.03+ (или совместимый)
 - Пакеты: `xray-core` или `passwall2`
 - SSH-доступ к роутеру
-- Данные подключения от бота XShield
+- Данные подключения от бота Dem1chVPN
 
 ---
 
@@ -42,12 +42,12 @@ reboot
 | Port | 443 |
 | UUID | ваш UUID из бота |
 | Encryption | none |
-| Transport | XHTTP |
+| Transport | TCP |
 | TLS | Reality |
 | SNI | www.microsoft.com |
 | Public Key | ваш public key из бота |
 | Short ID | ваш short ID из бота |
-| Fingerprint | chrome |
+| Fingerprint | random |
 
 5. Сохраните и включите узел
 6. На главной вкладке Passwall2 выберите режим:
@@ -100,18 +100,19 @@ opkg install xray-core
         "port": 443,
         "users": [{
           "id": "ВАШ_UUID",
-          "encryption": "none"
+          "encryption": "none",
+          "flow": "xtls-rprx-vision"
         }]
       }]
     },
     "streamSettings": {
-      "network": "xhttp",
+      "network": "tcp",
       "security": "reality",
       "realitySettings": {
         "serverName": "www.microsoft.com",
         "publicKey": "ВАШ_PUBLIC_KEY",
         "shortId": "ВАШ_SHORT_ID",
-        "fingerprint": "chrome"
+        "fingerprint": "random"
       }
     }
   }, {

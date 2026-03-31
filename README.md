@@ -1,10 +1,10 @@
 <div align="center">
 
-# 🛡️ XShield
+# 🛡️ Dem1chVPN
 
 **Персональный VPN-сервер с управлением через Telegram**
 
-VLESS + Reality + XHTTP · Ускоритель интернета · Автоматическая установка
+VLESS + Reality + TCP · Обход ТСПУ · Автоматическая установка
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Xray Core](https://img.shields.io/badge/Xray--core-latest-brightgreen)](https://github.com/XTLS/Xray-core)
@@ -16,7 +16,7 @@ VLESS + Reality + XHTTP · Ускоритель интернета · Автом
 
 ## 🤔 Что это?
 
-XShield — это готовое решение для разворачивания **собственного VPN** на VPS-сервере. Весь трафик шифруется протоколом **VLESS + Reality**, и для ТСПУ выглядит как обычное соединение с сайтом Microsoft. Управление полностью через **Telegram-бот** — без веб-панелей и сложных конфигов.
+Dem1chVPN — это готовое решение для разворачивания **собственного VPN** на VPS-сервере. Весь трафик шифруется протоколом **VLESS + Reality**, и для ТСПУ выглядит как обычное соединение с сайтом Microsoft. Управление полностью через **Telegram-бот** — без веб-панелей и сложных конфигов.
 
 Один скрипт — и через 5 минут у тебя работающий VPN с подпиской, QR-кодами и ботом для управления.
 
@@ -24,7 +24,7 @@ XShield — это готовое решение для разворачиван
 
 | | Функция | Описание |
 |---|---------|----------|
-| 🔒 | **VLESS + Reality + XHTTP** | Максимальная маскировка от DPI/ТСПУ |
+| 🔒 | **VLESS + Reality + TCP** | Максимальная маскировка от DPI/ТСПУ |
 | 🤖 | **Telegram-бот** | Полное управление через inline-кнопки |
 | 📡 | **Подписки** | Авто-обновление конфигов на клиентах |
 | 🔀 | **Умная маршрутизация** | Российские сайты — напрямую, остальное — через VPN |
@@ -57,8 +57,8 @@ XShield — это готовое решение для разворачиван
 ssh root@ваш-ip
 
 apt update && apt install -y git
-git clone https://github.com/HotFies/Dem1chVPN.git /opt/xshield
-cd /opt/xshield
+git clone https://github.com/HotFies/Dem1chVPN.git /opt/dem1chvpn
+cd /opt/dem1chvpn
 chmod +x install.sh
 ./install.sh
 ```
@@ -80,7 +80,7 @@ chmod +x install.sh
 ┌─────────────────────────────────────────────┐
 │                   VPS                        │
 │                                              │
-│   :443  → Xray (VLESS + Reality + XHTTP)     │
+│   :443  → Xray (VLESS + Reality + TCP)       │
 │                                              │
 │   :8443 → Caddy (HTTPS) → FastAPI (:8080)    │
 │            ├── /sub/{token}  — подписки       │
@@ -95,7 +95,7 @@ chmod +x install.sh
 ## 📂 Структура проекта
 
 ```
-xshield/
+dem1chvpn/
 ├── install.sh              # Установщик (всё-в-одном)
 ├── requirements.txt        # Python-зависимости
 ├── .env.example            # Шаблон конфигурации
@@ -128,8 +128,13 @@ xshield/
 |-----------|--------|--------|
 | Windows | v2rayN | [GitHub](https://github.com/2dust/v2rayN/releases) |
 | Android | v2rayNG | [Google Play](https://play.google.com/store/apps/details?id=com.v2ray.ang) |
-| iOS | FoXray | [App Store](https://apps.apple.com/app/foxray/id6448898396) |
+| iOS | Streisand ⭐ | [App Store](https://apps.apple.com/app/streisand/id6450534064) |
+| iOS | V2Box | [App Store](https://apps.apple.com/app/v2box-v2ray-client/id6446814690) |
+| iOS | Shadowrocket | [App Store](https://apps.apple.com/app/shadowrocket/id932747118) |
+| macOS | V2Box | [App Store](https://apps.apple.com/app/v2box-v2ray-client/id6446814690) |
 | Роутер | Passwall2 / XKEEN | OpenWRT / Keenetic |
+
+> ⚠️ **V2RayTun не рекомендуется** — не поддерживает `xtls-rprx-vision` flow, имеет проблемы с маршрутизацией и стабильностью.
 
 ## 🔧 Команды бота
 

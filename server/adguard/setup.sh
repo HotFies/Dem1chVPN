@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# AdGuard Home Setup for XShield
+# AdGuard Home Setup for Dem1chVPN
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-source /opt/xshield/.env
+source /opt/dem1chvpn/.env
 
 echo "🛡️ Setting up AdGuard Home..."
 
@@ -40,13 +40,13 @@ curl -s -X POST "http://127.0.0.1:3000/control/install/configure" \
         "web": {"ip": "127.0.0.1", "port": 8053},
         "dns": {"ip": "127.0.0.1", "port": 53},
         "username": "admin",
-        "password": "xshield"
+        "password": "dem1chvpn"
     }' 2>/dev/null || true
 
 # Configure upstream DNS (DNS-over-HTTPS)
 sleep 2
 curl -s -X POST "http://127.0.0.1:8053/control/dns_config" \
-    -u "admin:xshield" \
+    -u "admin:dem1chvpn" \
     -H "Content-Type: application/json" \
     -d '{
         "upstream_dns": [
@@ -64,7 +64,7 @@ for url in \
     "https://adguardteam.github.io/HostlistsRegistry/assets/filter_2.txt" \
     "https://adguardteam.github.io/HostlistsRegistry/assets/filter_24.txt"; do
     curl -s -X POST "http://127.0.0.1:8053/control/filtering/add_url" \
-        -u "admin:xshield" \
+        -u "admin:dem1chvpn" \
         -H "Content-Type: application/json" \
         -d "{\"name\": \"$(basename $url)\", \"url\": \"$url\", \"enabled\": true}" \
         2>/dev/null || true
@@ -93,11 +93,11 @@ PYTHON
 systemctl restart xray
 
 # Update .env
-if ! grep -q "ADGUARD_ENABLED=true" /opt/xshield/.env; then
-    sed -i 's/ADGUARD_ENABLED=false/ADGUARD_ENABLED=true/' /opt/xshield/.env
+if ! grep -q "ADGUARD_ENABLED=true" /opt/dem1chvpn/.env; then
+    sed -i 's/ADGUARD_ENABLED=false/ADGUARD_ENABLED=true/' /opt/dem1chvpn/.env
 fi
 
 echo "✅ AdGuard Home installed"
 echo "   DNS: 127.0.0.1:5353"
-echo "   Admin: http://127.0.0.1:8053 (admin/xshield)"
+echo "   Admin: http://127.0.0.1:8053 (admin/dem1chvpn)"
 echo "   Ad blocking: ACTIVE"

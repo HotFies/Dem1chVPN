@@ -1,5 +1,5 @@
 """
-XShield Bot — User Management Handler
+Dem1chVPN Bot — User Management Handler
 Add/list/delete/toggle users via Telegram bot.
 """
 from aiogram import Router, F
@@ -142,12 +142,12 @@ async def users_add_expiry(message: Message, state: FSMContext):
     await message.answer(info_text, reply_markup=user_actions(user.id))
 
     # Send QR code
-    qr_file = BufferedInputFile(qr_bytes, filename=f"xshield_{user.name}.png")
+    qr_file = BufferedInputFile(qr_bytes, filename=f"dem1chvpn_{user.name}.png")
     await message.answer_photo(
         qr_file,
         caption=(
             f"📱 QR-код для <b>{user.name}</b>\n\n"
-            f"Сканируйте в v2rayNG / FoXray / V2RayTun"
+            f"Сканируйте в v2rayNG / Streisand / V2Box"
         ),
     )
 
@@ -232,7 +232,7 @@ async def user_link(callback: CallbackQuery):
     await callback.message.answer(
         f"🔗 <b>Прямая ссылка для {user.name}:</b>\n\n"
         f"<code>{vless_url}</code>\n\n"
-        f"<i>💡 Скопируйте и вставьте в клиент (v2rayN, v2rayNG, FoXray).\n"
+        f"<i>💡 Скопируйте и вставьте в клиент (v2rayN, v2rayNG, Streisand).\n"
         f"Если клиент поддерживает подписки — лучше используйте 📡 Подписка.</i>",
         reply_markup=back_button(f"user:info:{user_id}"),
     )
@@ -256,12 +256,12 @@ async def user_qr(callback: CallbackQuery):
     vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
     qr_bytes = generate_qr_code(vless_url)
 
-    qr_file = BufferedInputFile(qr_bytes, filename=f"xshield_{user.name}.png")
+    qr_file = BufferedInputFile(qr_bytes, filename=f"dem1chvpn_{user.name}.png")
     await callback.message.answer_photo(
         qr_file,
         caption=(
             f"📱 QR-код для <b>{user.name}</b>\n\n"
-            f"Сканируйте в v2rayNG / FoXray / V2RayTun"
+            f"Сканируйте в v2rayNG / Streisand / V2Box"
         ),
     )
     await callback.answer()
@@ -339,7 +339,7 @@ async def user_subscription(callback: CallbackQuery):
         f"💡 <b>Как подключить:</b>\n"
         f"• <b>v2rayN</b> (Windows): Подписки → Добавить → URL\n"
         f"• <b>v2rayNG</b> (Android): ☰ → Группа подписок → +\n"
-        f"• <b>FoXray/V2RayTun</b> (iOS): + → Subscription → URL\n\n"
+        f"• <b>Streisand/V2Box</b> (iOS): + → Subscription → URL\n\n"
         f"<i>Конфигурация обновляется автоматически.</i>",
         reply_markup=back_button(f"user:info:{user_id}"),
     )

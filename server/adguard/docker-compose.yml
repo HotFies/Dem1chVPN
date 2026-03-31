@@ -4,7 +4,7 @@
 services:
   adguard:
     image: adguard/adguardhome:latest
-    container_name: xshield-adguard
+    container_name: dem1chvpn-adguard
     restart: unless-stopped
     ports:
       - "127.0.0.1:5353:53/tcp"

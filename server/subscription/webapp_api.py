@@ -1,5 +1,5 @@
 """
-XShield — WebApp REST API
+Dem1chVPN — WebApp REST API
 REST endpoints for the Telegram Mini App.
 All admin endpoints require Telegram initData validation.
 """
@@ -234,7 +234,7 @@ async def restart_xray():
 async def update_geo():
     import asyncio
     proc = await asyncio.create_subprocess_exec(
-        "bash", "/opt/xshield/cron/update_geodata.sh",
+        "bash", "/opt/dem1chvpn/cron/update_geodata.sh",
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
     )
     await asyncio.wait_for(proc.communicate(), timeout=120)
@@ -246,8 +246,8 @@ async def create_backup():
     """Create and return backup info."""
     import asyncio
     proc = await asyncio.create_subprocess_exec(
-        "bash", "/opt/xshield/cron/backup.sh",
+        "bash", "/opt/dem1chvpn/cron/backup.sh",
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
     )
     await asyncio.wait_for(proc.communicate(), timeout=30)
-    return {"success": True, "message": "Backup created. Check /opt/xshield/backups/"}
+    return {"success": True, "message": "Backup created. Check /opt/dem1chvpn/backups/"}

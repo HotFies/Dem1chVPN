@@ -1,5 +1,5 @@
 """
-XShield — WebApp Authentication
+Dem1chVPN — WebApp Authentication
 Validates Telegram Mini App initData using HMAC-SHA256.
 See: https://core.telegram.org/bots/webapps#validating-data-received-via-the-mini-app
 """

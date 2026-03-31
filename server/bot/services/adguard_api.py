@@ -1,5 +1,5 @@
 """
-XShield — AdGuard Home API Service
+Dem1chVPN — AdGuard Home API Service
 Interact with AdGuard Home REST API.
 """
 import aiohttp
@@ -10,7 +10,7 @@ class AdGuardAPI:
     """Manage AdGuard Home via REST API."""
 
     def __init__(self, host: str = "127.0.0.1", port: int = 8053,
-                 username: str = "admin", password: str = "xshield"):
+                 username: str = "admin", password: str = "dem1chvpn"):
         self.base_url = f"http://{host}:{port}"
         self.auth = aiohttp.BasicAuth(username, password)
 

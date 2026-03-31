@@ -1,9 +1,9 @@
-# 🖥️ XShield — Подключение на Windows
+# 🖥️ Dem1chVPN — Подключение на Windows
 
 ## Что нужно
 
 - **Клиент:** [v2rayN](https://github.com/2dust/v2rayN/releases) (v6.x и выше)
-- **Ссылка подключения** или **QR-код** от бота XShield
+- **Ссылка подключения** или **QR-код** от бота Dem1chVPN
 
 ---
 

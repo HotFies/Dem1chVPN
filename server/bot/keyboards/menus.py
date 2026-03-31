@@ -1,5 +1,5 @@
 """
-XShield Bot — Inline Keyboards
+Dem1chVPN Bot — Inline Keyboards
 All bot menus and inline keyboards.
 """
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo

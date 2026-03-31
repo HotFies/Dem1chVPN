@@ -1,5 +1,5 @@
 """
-XShield Bot — Start Handler
+Dem1chVPN Bot — Start Handler
 Main menu and navigation.
 """
 from aiogram import Router, F
@@ -25,7 +25,7 @@ async def cmd_start(message: Message):
 
     if admin:
         text = (
-            "🛡️ <b>XShield — Панель управления</b>\n\n"
+            "🛡️ <b>Dem1chVPN — Панель управления</b>\n\n"
             f"👤 Привет, <b>{message.from_user.first_name}</b>!\n"
             f"🔑 Статус: <b>Администратор</b>\n\n"
             "Выберите раздел:"
@@ -33,7 +33,7 @@ async def cmd_start(message: Message):
     else:
         # Check if user exists in DB (will be implemented with user_manager)
         text = (
-            "🛡️ <b>XShield</b>\n\n"
+            "🛡️ <b>Dem1chVPN</b>\n\n"
             f"👤 Привет, <b>{message.from_user.first_name}</b>!\n\n"
             "Выберите действие:"
         )
@@ -47,7 +47,7 @@ async def cmd_start(message: Message):
 async def menu_main(callback: CallbackQuery):
     """Return to main menu."""
     admin = is_admin(callback.from_user.id)
-    text = "🛡️ <b>XShield — Главное меню</b>\n\nВыберите раздел:"
+    text = "🛡️ <b>Dem1chVPN — Главное меню</b>\n\nВыберите раздел:"
     await callback.message.edit_text(text, reply_markup=main_menu(is_admin=admin))
     await callback.answer()
 

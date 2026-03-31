@@ -1,5 +1,5 @@
 {
-  "_comment": "XShield — Streaming mode. Routes streaming services through WARP for clean IP.",
+  "_comment": "Dem1chVPN — Streaming mode. Routes streaming services through WARP for clean IP.",
   "mode": "streaming",
   "domains": [
     "youtube.com", "googlevideo.com", "ytimg.com", "youtu.be",
@@ -26,7 +26,11 @@
       "domain:hulu.com", "domain:spotify.com",
       "domain:deezer.com", "domain:primevideo.com",
       "domain:hbomax.com", "domain:max.com",
-      "domain:crunchyroll.com", "domain:vimeo.com"
+      "domain:crunchyroll.com", "domain:vimeo.com",
+      "domain:notebooklm.google.com",
+      "domain:notebooklm-pa.googleapis.com",
+      "domain:aistudio.google.com",
+      "domain:generativelanguage.googleapis.com"
     ]
   }
 }

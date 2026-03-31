@@ -1,6 +1,6 @@
 """
-XShield — Backup Service
-Backup and restore operations for XShield configuration.
+Dem1chVPN — Backup Service
+Backup and restore operations for Dem1chVPN configuration.
 """
 import os
 import io
@@ -12,11 +12,11 @@ from datetime import datetime
 
 from ..config import config
 
-logger = logging.getLogger("xshield.backup")
+logger = logging.getLogger("dem1chvpn.backup")
 
 
 class BackupManager:
-    """Manages backup and restore of XShield data."""
+    """Manages backup and restore of Dem1chVPN data."""
 
     def __init__(self):
         self.backup_dir = Path(config.BACKUP_DIR)
@@ -32,7 +32,7 @@ class BackupManager:
         Returns: (tar_gz_bytes, filename)
         """
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"xshield_{timestamp}.tar.gz"
+        filename = f"dem1chvpn_{timestamp}.tar.gz"
 
         buf = io.BytesIO()
         with tarfile.open(fileobj=buf, mode="w:gz") as tar:
@@ -42,7 +42,7 @@ class BackupManager:
 
             # Database
             if os.path.exists(config.DB_PATH):
-                tar.add(config.DB_PATH, arcname="xshield.db")
+                tar.add(config.DB_PATH, arcname="dem1chvpn.db")
 
             # .env
             env_path = str(Path(config.DB_PATH).resolve().parent.parent / ".env")
@@ -83,7 +83,7 @@ class BackupManager:
                         logger.warning(f"Path traversal attempt in backup: {name}")
                         return result
 
-                allowed_names = {"xray_config.json", "xshield.db", ".env"}
+                allowed_names = {"xray_config.json", "dem1chvpn.db", ".env"}
                 for name in members:
                     if name not in allowed_names:
                         continue
@@ -96,7 +96,7 @@ class BackupManager:
 
                         if name == "xray_config.json":
                             dest = config.XRAY_CONFIG_PATH
-                        elif name == "xshield.db":
+                        elif name == "dem1chvpn.db":
                             dest = config.DB_PATH
                         elif name == ".env":
                             dest = str(Path(config.DB_PATH).resolve().parent.parent / ".env")
@@ -129,7 +129,7 @@ class BackupManager:
         if not self.backup_dir.exists():
             return backups
 
-        for f in sorted(self.backup_dir.glob("xshield_*.tar.gz"), reverse=True):
+        for f in sorted(self.backup_dir.glob("dem1chvpn_*.tar.gz"), reverse=True):
             stat = f.stat()
             backups.append({
                 "filename": f.name,
@@ -142,7 +142,7 @@ class BackupManager:
     def _cleanup_old_backups(self, keep: int = 7):
         """Remove old backup files, keeping only the most recent ones."""
         files = sorted(
-            self.backup_dir.glob("xshield_*.tar.gz"),
+            self.backup_dir.glob("dem1chvpn_*.tar.gz"),
             key=lambda f: f.stat().st_mtime,
             reverse=True,
         )

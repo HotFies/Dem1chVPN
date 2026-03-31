@@ -1,5 +1,5 @@
 """
-XShield — Updater Service
+Dem1chVPN — Updater Service
 Handles updating Xray-core and geo databases.
 """
 import asyncio
@@ -8,7 +8,7 @@ from pathlib import Path
 
 from ..config import config
 
-logger = logging.getLogger("xshield.updater")
+logger = logging.getLogger("dem1chvpn.updater")
 
 
 class XrayUpdater:

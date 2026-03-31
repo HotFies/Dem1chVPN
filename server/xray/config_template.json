@@ -34,7 +34,8 @@
         "skipFallback": false
       }
     ],
-    "queryStrategy": "UseIPv4"
+    "queryStrategy": "UseIPv4",
+    "disableCache": false
   },
   "inbounds": [
     {
@@ -92,7 +93,7 @@
     }
   ],
   "routing": {
-    "domainStrategy": "AsIs",
+    "domainStrategy": "IPIfNonMatch",
     "rules": [
       {
         "type": "field",
@@ -101,16 +102,13 @@
       },
       {
         "type": "field",
-        "outboundTag": "blocked",
-        "ip": ["geoip:private"]
-      },
-      {
-        "type": "field",
         "outboundTag": "warp",
         "domain": [
-          "domain:notebooklm.google",
           "domain:notebooklm.google.com",
-          "domain:aistudio.google.com"
+          "domain:notebooklm-pa.googleapis.com",
+          "domain:aistudio.google.com",
+          "domain:generativelanguage.googleapis.com",
+          "domain:alkalimakersuite-pa.googleapis.com"
         ]
       },
       {
@@ -153,6 +151,11 @@
           "domain:avito.ru",
           "domain:1c.ru"
         ]
+      },
+      {
+        "type": "field",
+        "outboundTag": "blocked",
+        "ip": ["geoip:private"]
       }
     ]
   }

@@ -1,5 +1,5 @@
 """
-XShield Bot — Entry Point
+Dem1chVPN Bot — Entry Point
 Main bot application with aiogram 3.
 """
 import asyncio
@@ -20,7 +20,7 @@ log_handlers = [logging.StreamHandler(sys.stdout)]
 try:
     from logging.handlers import RotatingFileHandler
     log_handlers.append(RotatingFileHandler(
-        "/var/log/xshield/bot.log",
+        "/var/log/dem1chvpn/bot.log",
         maxBytes=5 * 1024 * 1024,  # 5 MB per file
         backupCount=3,
         encoding="utf-8",
@@ -33,12 +33,12 @@ logging.basicConfig(
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=log_handlers,
 )
-logger = logging.getLogger("xshield")
+logger = logging.getLogger("dem1chvpn")
 
 
 async def on_startup(bot: Bot):
     """Called when bot starts."""
-    logger.info("🛡️ XShield Bot starting...")
+    logger.info("🛡️ Dem1chVPN Bot starting...")
 
     # Initialize database
     await init_db()
@@ -49,13 +49,13 @@ async def on_startup(bot: Bot):
         try:
             await bot.send_message(
                 admin_id,
-                "🛡️ <b>XShield Bot запущен!</b>\n\n"
+                "🛡️ <b>Dem1chVPN Bot запущен!</b>\n\n"
                 "Используйте /start для начала работы.",
             )
         except Exception as e:
             logger.warning(f"Could not notify admin {admin_id}: {e}")
 
-    logger.info("✅ XShield Bot started successfully")
+    logger.info("✅ Dem1chVPN Bot started successfully")
 
 
 async def traffic_sync_task(bot: Bot):
@@ -117,10 +117,10 @@ async def traffic_sync_task(bot: Bot):
 
 async def on_shutdown(bot: Bot):
     """Called when bot stops."""
-    logger.info("🛡️ XShield Bot shutting down...")
+    logger.info("🛡️ Dem1chVPN Bot shutting down...")
     for admin_id in config.ADMIN_IDS:
         try:
-            await bot.send_message(admin_id, "⚠️ XShield Bot остановлен.")
+            await bot.send_message(admin_id, "⚠️ Dem1chVPN Bot остановлен.")
         except Exception:
             pass
 

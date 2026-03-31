@@ -1,5 +1,5 @@
 """
-XShield Bot — Settings Handler
+Dem1chVPN Bot — Settings Handler
 Server settings management.
 """
 from aiogram import Router, F
@@ -54,7 +54,7 @@ async def set_update_geo(callback: CallbackQuery):
     await callback.answer("🔄 Обновление гео-баз...", show_alert=True)
     import asyncio
     proc = await asyncio.create_subprocess_exec(
-        "bash", "/opt/xshield/cron/update_geodata.sh",
+        "bash", "/opt/dem1chvpn/cron/update_geodata.sh",
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
     )
     await asyncio.wait_for(proc.communicate(), timeout=120)
@@ -94,7 +94,7 @@ async def set_backup(callback: CallbackQuery):
             tar.add(config.XRAY_CONFIG_PATH, arcname="xray_config.json")
         # Database
         if os.path.exists(config.DB_PATH):
-            tar.add(config.DB_PATH, arcname="xshield.db")
+            tar.add(config.DB_PATH, arcname="dem1chvpn.db")
         # .env
         env_path = str(Path(config.DB_PATH).resolve().parent.parent / ".env")
         if os.path.exists(env_path):
@@ -103,12 +103,12 @@ async def set_backup(callback: CallbackQuery):
     buf.seek(0)
     backup_file = BufferedInputFile(
         buf.getvalue(),
-        filename=f"xshield_backup_{timestamp}.tar.gz",
+        filename=f"dem1chvpn_backup_{timestamp}.tar.gz",
     )
 
     await callback.message.answer_document(
         backup_file,
-        caption=f"💾 <b>Бэкап XShield</b>\n📅 {timestamp}\n📦 {len(buf.getvalue()) // 1024} KB",
+        caption=f"💾 <b>Бэкап Dem1chVPN</b>\n📅 {timestamp}\n📦 {len(buf.getvalue()) // 1024} KB",
     )
 
 

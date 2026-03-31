@@ -1,5 +1,5 @@
 """
-XShield — Invite Manager Service
+Dem1chVPN — Invite Manager Service
 """
 from typing import Optional
 from sqlalchemy import select

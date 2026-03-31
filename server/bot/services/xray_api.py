@@ -1,5 +1,5 @@
 """
-XShield — Xray gRPC API Client
+Dem1chVPN — Xray gRPC API Client
 Communicates with Xray Stats API for traffic monitoring and user management.
 Uses grpcio to interact with Xray's built-in gRPC API (port 10085).
 """
@@ -12,7 +12,7 @@ from google.protobuf import json_format
 
 from ..config import config
 
-logger = logging.getLogger("xshield.xray_api")
+logger = logging.getLogger("dem1chvpn.xray_api")
 
 # Xray gRPC proto definitions (generated inline to avoid proto compilation)
 # These match xray-core's app/stats/command and app/proxyman/command protos

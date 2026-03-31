@@ -1,5 +1,5 @@
 """
-XShield Bot — Monitoring Handler
+Dem1chVPN Bot — Monitoring Handler
 Server status, traffic stats, speedtest.
 """
 import psutil
@@ -39,7 +39,7 @@ async def mon_status(callback: CallbackQuery):
     user_count = await user_mgr.count_users()
 
     text = (
-        "📊 <b>Статус XShield</b>\n\n"
+        "📊 <b>Статус Dem1chVPN</b>\n\n"
         f"🖥️ <b>Сервер:</b>\n"
         f"  CPU: {progress_bar(cpu, 100)} {cpu}%\n"
         f"  RAM: {progress_bar(mem.used, mem.total)} "

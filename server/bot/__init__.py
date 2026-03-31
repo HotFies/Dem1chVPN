@@ -1,1 +1,1 @@
-# XShield Bot Package
+# Dem1chVPN Bot Package

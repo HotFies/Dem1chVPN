@@ -1,5 +1,5 @@
 """
-XShield — Xray Config Manager
+Dem1chVPN — Xray Config Manager
 Manages Xray configuration file and generates VLESS URLs.
 """
 import json
@@ -11,7 +11,7 @@ from typing import Optional
 
 from ..config import config
 
-logger = logging.getLogger("xshield.xray_config")
+logger = logging.getLogger("dem1chvpn.xray_config")
 
 
 class XrayConfigManager:
@@ -43,6 +43,7 @@ class XrayConfigManager:
                     clients.append({
                         "id": uuid,
                         "email": email,
+                        "flow": "xtls-rprx-vision",
                     })
                     inbound["settings"]["clients"] = clients
                     break
@@ -84,16 +85,17 @@ class XrayConfigManager:
         except Exception:
             return []
 
-    def generate_vless_url(self, uuid: str, remark: str = "XShield") -> str:
+    def generate_vless_url(self, uuid: str, remark: str = "Dem1chVPN") -> str:
         """Generate a VLESS connection URL."""
         params = {
             "encryption": "none",
             "security": "reality",
             "sni": config.REALITY_SNI,
-            "fp": "chrome",
+            "fp": "random",
             "pbk": config.REALITY_PUBLIC_KEY,
             "sid": config.REALITY_SHORT_ID,
             "type": "tcp",
+            "flow": "xtls-rprx-vision",
         }
 
         query = urllib.parse.urlencode(params)

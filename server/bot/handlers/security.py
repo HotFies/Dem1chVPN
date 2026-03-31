@@ -1,5 +1,5 @@
 """
-XShield Bot — Security Handler (PIN-protection middleware)
+Dem1chVPN Bot — Security Handler (PIN-protection middleware)
 Protects critical operations with PIN code confirmation.
 """
 import logging
@@ -12,7 +12,7 @@ from ..config import config
 from ..utils.auth import is_admin
 
 router = Router()
-logger = logging.getLogger("xshield.security")
+logger = logging.getLogger("dem1chvpn.security")
 
 # Actions that require PIN
 PROTECTED_PREFIXES = [

@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # ═══════════════════════════════════════════════════════
-#  🛡️ XShield — Автоматический установочный скрипт
+#  🛡️ Dem1chVPN — Автоматический установочный скрипт
 #  Устанавливает и настраивает:
 #    - Защиту сервера (SSH, UFW, fail2ban, BBR)
-#    - Xray-core (VLESS + Reality + XHTTP)
-#    - Telegram-бот XShield (Python + aiogram 3)
+#    - Xray-core (VLESS + Reality + TCP)
+#    - Telegram-бот Dem1chVPN (Python + aiogram 3)
 #    - Сервер подписок (FastAPI + Caddy HTTPS)
 #    - Cron-задачи (обновление гео-баз, мониторинг, бэкапы)
 # ═══════════════════════════════════════════════════════
@@ -21,13 +21,13 @@ CYAN='\033[0;36m'
 NC='\033[0m'
 
 # Пути
-XSHIELD_DIR="/opt/xshield"
+DEM1CHVPN_DIR="/opt/dem1chvpn"
 XRAY_CONFIG="/usr/local/etc/xray/config.json"
 XRAY_BIN="/usr/local/bin/xray"
-LOG_DIR="/var/log/xshield"
-DATA_DIR="${XSHIELD_DIR}/data"
-VENV_DIR="${XSHIELD_DIR}/venv"
-ENV_FILE="${XSHIELD_DIR}/.env"
+LOG_DIR="/var/log/dem1chvpn"
+DATA_DIR="${DEM1CHVPN_DIR}/data"
+VENV_DIR="${DEM1CHVPN_DIR}/venv"
+ENV_FILE="${DEM1CHVPN_DIR}/.env"
 
 # ──── Вспомогательные функции ────
 
@@ -173,11 +173,10 @@ install_dependencies() {
 harden_system() {
     log_step "Шаг 2: Защита сервера"
 
-    # Включение BBR + сетевая оптимизация
-    if ! sysctl net.ipv4.tcp_congestion_control 2>/dev/null | grep -q bbr; then
-        if ! grep -q "net.ipv4.tcp_congestion_control=bbr" /etc/sysctl.conf 2>/dev/null; then
-            cat >> /etc/sysctl.conf << 'SYSCTL'
-# XShield Performance
+    # Включение BBR + сетевая оптимизация (единый блок)
+    if ! grep -q "Dem1chVPN Performance" /etc/sysctl.conf 2>/dev/null; then
+        cat >> /etc/sysctl.conf << 'SYSCTL'
+# Dem1chVPN Performance
 net.core.default_qdisc=fq
 net.ipv4.tcp_congestion_control=bbr
 net.core.rmem_max=16777216
@@ -185,13 +184,14 @@ net.core.wmem_max=16777216
 net.ipv4.tcp_rmem=4096 87380 16777216
 net.ipv4.tcp_wmem=4096 65536 16777216
 net.ipv4.tcp_fastopen=3
+net.ipv4.tcp_slow_start_after_idle=0
+net.ipv4.tcp_mtu_probing=1
 SYSCTL
-        fi
-        sysctl -p 2>/dev/null || true
         log_info "TCP BBR + сетевая оптимизация включены"
     else
-        log_info "TCP BBR уже включён"
+        log_info "Оптимизация сети уже настроена"
     fi
+    sysctl -p 2>/dev/null || true
 
     # Настройка файрвола UFW
     ufw default deny incoming
@@ -206,22 +206,6 @@ SYSCTL
     systemctl enable fail2ban
     systemctl start fail2ban
     log_info "fail2ban включён"
-
-    # Оптимизация сети (только если ещё не добавлено)
-    if ! grep -q "XShield network optimization" /etc/sysctl.conf 2>/dev/null; then
-        cat >> /etc/sysctl.conf << 'SYSCTL'
-# XShield network optimization
-net.ipv4.tcp_fastopen=3
-net.ipv4.tcp_slow_start_after_idle=0
-net.ipv4.tcp_mtu_probing=1
-net.core.rmem_max=16777216
-net.core.wmem_max=16777216
-SYSCTL
-        log_info "Оптимизация сети применена"
-    else
-        log_info "Оптимизация сети уже настроена"
-    fi
-    sysctl -p 2>/dev/null || true
 
     # Опционально: смена порта SSH
     echo ""
@@ -298,7 +282,7 @@ configure_xray() {
     log_info "Публичный ключ: ${PUBLIC_KEY}"
 
     # Создание конфига из шаблона
-    TEMPLATE="${XSHIELD_DIR}/server/xray/config_template.json"
+    TEMPLATE="${DEM1CHVPN_DIR}/server/xray/config_template.json"
     cp "$TEMPLATE" "$XRAY_CONFIG"
 
     # Подстановка значений
@@ -308,10 +292,10 @@ configure_xray() {
     sed -i "s|REALITY_SHORT_ID_PLACEHOLDER|${SHORT_ID}|g" "$XRAY_CONFIG"
 
     # Сохранение ключей для .env
-    echo "XRAY_PRIVATE_KEY=${PRIVATE_KEY}" > /tmp/xshield_keys
-    echo "XRAY_PUBLIC_KEY=${PUBLIC_KEY}" >> /tmp/xshield_keys
-    echo "XRAY_SHORT_ID=${SHORT_ID}" >> /tmp/xshield_keys
-    echo "SERVER_IP=${SERVER_IP}" >> /tmp/xshield_keys
+    echo "XRAY_PRIVATE_KEY=${PRIVATE_KEY}" > /tmp/dem1chvpn_keys
+    echo "XRAY_PUBLIC_KEY=${PUBLIC_KEY}" >> /tmp/dem1chvpn_keys
+    echo "XRAY_SHORT_ID=${SHORT_ID}" >> /tmp/dem1chvpn_keys
+    echo "SERVER_IP=${SERVER_IP}" >> /tmp/dem1chvpn_keys
 
     # Включение и запуск Xray
     systemctl enable xray
@@ -325,25 +309,25 @@ configure_xray() {
     fi
 }
 
-# ──── Шаг 5: Установка бота XShield ────
+# ──── Шаг 5: Установка бота Dem1chVPN ────
 
 install_bot() {
-    log_step "Шаг 5: Установка бота XShield"
+    log_step "Шаг 5: Установка бота Dem1chVPN"
 
     # Создание директорий
-    mkdir -p "$DATA_DIR" "$LOG_DIR" "${XSHIELD_DIR}/backups"
+    mkdir -p "$DATA_DIR" "$LOG_DIR" "${DEM1CHVPN_DIR}/backups"
 
     # Создание Python venv
     python3 -m venv "$VENV_DIR"
     source "${VENV_DIR}/bin/activate"
     pip install --upgrade pip
-    pip install -r "${XSHIELD_DIR}/requirements.txt"
+    pip install -r "${DEM1CHVPN_DIR}/requirements.txt"
     deactivate
 
     log_info "Python-зависимости установлены"
 
     # Загрузка сохранённых ключей
-    source /tmp/xshield_keys
+    source /tmp/dem1chvpn_keys
 
     # Запрос токена бота с валидацией
     echo ""
@@ -390,7 +374,7 @@ install_bot() {
 
     # Создание файла .env
     cat > "$ENV_FILE" << ENVFILE
-# Конфигурация XShield
+# Конфигурация Dem1chVPN
 BOT_TOKEN=${BOT_TOKEN}
 ADMIN_IDS=${ADMIN_ID}
 PIN_CODE=${PIN_CODE}
@@ -407,7 +391,7 @@ REALITY_PUBLIC_KEY=${XRAY_PUBLIC_KEY}
 REALITY_SHORT_ID=${XRAY_SHORT_ID}
 
 # База данных
-DB_PATH=${DATA_DIR}/xshield.db
+DB_PATH=${DATA_DIR}/dem1chvpn.db
 
 # Xray
 XRAY_CONFIG_PATH=${XRAY_CONFIG}
@@ -434,7 +418,7 @@ ENVFILE
     log_info "Файл .env создан"
 
     # Очистка временных данных
-    rm -f /tmp/xshield_keys
+    rm -f /tmp/dem1chvpn_keys
 }
 
 # ──── Шаг 6: Установка Caddy (HTTPS обратный прокси) ────
@@ -477,7 +461,7 @@ ${DUCKDNS_SUBDOMAIN}.duckdns.org:8443 {
     }
 
     log {
-        output file /var/log/caddy/xshield.log
+        output file /var/log/caddy/dem1chvpn.log
     }
 }
 CADDYFILE
@@ -532,7 +516,7 @@ CADDYFILE
 build_webapp() {
     log_step "Шаг 6.5: Сборка Telegram Mini App"
 
-    WEBAPP_DIR="${XSHIELD_DIR}/server/webapp"
+    WEBAPP_DIR="${DEM1CHVPN_DIR}/server/webapp"
 
     if [ -f "${WEBAPP_DIR}/package.json" ]; then
         cd "$WEBAPP_DIR"
@@ -552,7 +536,7 @@ build_webapp() {
 setup_mtproto() {
     log_step "Шаг 6.6: Установка MTProto Proxy"
 
-    MTPROTO_DIR="${XSHIELD_DIR}/server/mtproto"
+    MTPROTO_DIR="${DEM1CHVPN_DIR}/server/mtproto"
 
     if [ -f "${MTPROTO_DIR}/setup.sh" ]; then
         chmod +x "${MTPROTO_DIR}/setup.sh"
@@ -568,7 +552,7 @@ setup_mtproto() {
 setup_adguard() {
     log_step "Шаг 6.7: Установка AdGuard Home"
 
-    ADGUARD_DIR="${XSHIELD_DIR}/server/adguard"
+    ADGUARD_DIR="${DEM1CHVPN_DIR}/server/adguard"
 
     if [ -f "${ADGUARD_DIR}/setup.sh" ]; then
         chmod +x "${ADGUARD_DIR}/setup.sh"
@@ -584,7 +568,7 @@ setup_adguard() {
 setup_warp() {
     log_step "Шаг 6.8: Установка Cloudflare WARP"
 
-    WARP_DIR="${XSHIELD_DIR}/server/warp"
+    WARP_DIR="${DEM1CHVPN_DIR}/server/warp"
     mkdir -p "$WARP_DIR"
 
     if [ -f "${WARP_DIR}/setup.sh" ]; then
@@ -602,17 +586,17 @@ create_services() {
     log_step "Шаг 7: Создание systemd-сервисов"
 
     # Сервис бота
-    cat > /etc/systemd/system/xshield-bot.service << SERVICE
+    cat > /etc/systemd/system/dem1chvpn-bot.service << SERVICE
 [Unit]
-Description=XShield Telegram Bot
+Description=Dem1chVPN Telegram Bot
 After=network.target xray.service
 Wants=xray.service
 
 [Service]
 Type=simple
-User=xshield
-Group=xshield
-WorkingDirectory=${XSHIELD_DIR}
+User=dem1chvpn
+Group=dem1chvpn
+WorkingDirectory=${DEM1CHVPN_DIR}
 EnvironmentFile=${ENV_FILE}
 ExecStart=${VENV_DIR}/bin/python -m server.bot.main
 Restart=always
@@ -625,16 +609,16 @@ WantedBy=multi-user.target
 SERVICE
 
     # Сервис подписок
-    cat > /etc/systemd/system/xshield-sub.service << SERVICE
+    cat > /etc/systemd/system/dem1chvpn-sub.service << SERVICE
 [Unit]
-Description=XShield Subscription Server
+Description=Dem1chVPN Subscription Server
 After=network.target
 
 [Service]
 Type=simple
-User=xshield
-Group=xshield
-WorkingDirectory=${XSHIELD_DIR}
+User=dem1chvpn
+Group=dem1chvpn
+WorkingDirectory=${DEM1CHVPN_DIR}
 EnvironmentFile=${ENV_FILE}
 ExecStart=${VENV_DIR}/bin/python -m server.subscription.app
 Restart=always
@@ -644,24 +628,24 @@ RestartSec=5
 WantedBy=multi-user.target
 SERVICE
 
-    # Создание системного пользователя xshield (если не существует)
-    if ! id -u xshield &>/dev/null; then
-        useradd -r -s /usr/sbin/nologin -d "${XSHIELD_DIR}" xshield
-        log_info "Пользователь xshield создан"
+    # Создание системного пользователя dem1chvpn (если не существует)
+    if ! id -u dem1chvpn &>/dev/null; then
+        useradd -r -s /usr/sbin/nologin -d "${DEM1CHVPN_DIR}" dem1chvpn
+        log_info "Пользователь dem1chvpn создан"
     fi
 
     # Права на необходимые директории
-    chown -R xshield:xshield "${XSHIELD_DIR}/data" "${LOG_DIR}" "${XSHIELD_DIR}/backups"
-    chown xshield:xshield "${ENV_FILE}"
-    # Xray конфиг — xshield должен иметь доступ на запись (для добавления/удаления клиентов)
-    chown xshield:xshield "${XRAY_CONFIG}"
+    chown -R dem1chvpn:dem1chvpn "${DEM1CHVPN_DIR}/data" "${LOG_DIR}" "${DEM1CHVPN_DIR}/backups"
+    chown dem1chvpn:dem1chvpn "${ENV_FILE}"
+    # Xray конфиг — dem1chvpn должен иметь доступ на запись (для добавления/удаления клиентов)
+    chown dem1chvpn:dem1chvpn "${XRAY_CONFIG}"
     chmod 664 "${XRAY_CONFIG}"
 
     systemctl daemon-reload
-    systemctl enable xshield-bot xshield-sub
-    systemctl start xshield-bot xshield-sub
+    systemctl enable dem1chvpn-bot dem1chvpn-sub
+    systemctl start dem1chvpn-bot dem1chvpn-sub
 
-    log_info "Сервисы созданы и запущены (пользователь: xshield)"
+    log_info "Сервисы созданы и запущены (пользователь: dem1chvpn)"
 }
 
 # ──── Шаг 8: Настройка Cron-задач ────
@@ -670,16 +654,16 @@ setup_cron() {
     log_step "Шаг 8: Настройка cron-задач"
 
     # Скрипт обновления DuckDNS
-    cat > /opt/xshield/cron/update_duckdns.sh << 'SCRIPT'
+    cat > /opt/dem1chvpn/cron/update_duckdns.sh << 'SCRIPT'
 #!/bin/bash
 set -a
-source /opt/xshield/.env
+source /opt/dem1chvpn/.env
 set +a
 curl -s "https://www.duckdns.org/update?domains=${DUCKDNS_SUBDOMAIN}&token=${DUCKDNS_TOKEN}&ip=" > /dev/null
 SCRIPT
 
     # Скрипт обновления гео-баз
-    cat > /opt/xshield/cron/update_geodata.sh << 'SCRIPT'
+    cat > /opt/dem1chvpn/cron/update_geodata.sh << 'SCRIPT'
 #!/bin/bash
 echo "[$(date)] Обновление гео-баз..."
 wget -qO /usr/local/share/xray/geoip.dat \
@@ -695,10 +679,10 @@ echo "[$(date)] Обновление гео-баз завершено"
 SCRIPT
 
     # Скрипт обновления антифильтра
-    cat > /opt/xshield/cron/update_antifilter.sh << 'SCRIPT'
+    cat > /opt/dem1chvpn/cron/update_antifilter.sh << 'SCRIPT'
 #!/bin/bash
 echo "[$(date)] Обновление списков антифильтра..."
-ANTIFILTER_DIR="/opt/xshield/data/antifilter"
+ANTIFILTER_DIR="/opt/dem1chvpn/data/antifilter"
 mkdir -p "$ANTIFILTER_DIR"
 
 wget -qO "${ANTIFILTER_DIR}/domains.lst" \
@@ -713,15 +697,15 @@ echo "[$(date)] Обновление антифильтра завершено"
 SCRIPT
 
     # Скрипт проверки блокировки IP
-    cat > /opt/xshield/cron/ip_block_check.sh << 'SCRIPT'
+    cat > /opt/dem1chvpn/cron/ip_block_check.sh << 'SCRIPT'
 #!/bin/bash
 set -a
-source /opt/xshield/.env
+source /opt/dem1chvpn/.env
 set +a
 
 # Проверка доступности IP VPS
 FAIL_COUNT=0
-CHECK_FILE="/tmp/xshield_ip_check_fail"
+CHECK_FILE="/tmp/dem1chvpn_ip_check_fail"
 
 for endpoint in \
     "https://check-host.net/check-ping?host=${SERVER_IP}" \
@@ -746,7 +730,7 @@ fi
 SCRIPT
 
     # Скрипт проверки здоровья сервисов
-    cat > /opt/xshield/cron/health_check.sh << 'SCRIPT'
+    cat > /opt/dem1chvpn/cron/health_check.sh << 'SCRIPT'
 #!/bin/bash
 if ! systemctl is-active --quiet xray; then
     echo "[$(date)] Xray упал! Перезапускаю..."
@@ -759,54 +743,54 @@ if ! systemctl is-active --quiet xray; then
     fi
 fi
 
-if ! systemctl is-active --quiet xshield-bot; then
+if ! systemctl is-active --quiet dem1chvpn-bot; then
     echo "[$(date)] Бот упал! Перезапускаю..."
-    systemctl restart xshield-bot
+    systemctl restart dem1chvpn-bot
 fi
 
-if ! systemctl is-active --quiet xshield-sub; then
+if ! systemctl is-active --quiet dem1chvpn-sub; then
     echo "[$(date)] Сервер подписок упал! Перезапускаю..."
-    systemctl restart xshield-sub
+    systemctl restart dem1chvpn-sub
 fi
 SCRIPT
 
     # Скрипт бэкапа
-    cat > /opt/xshield/cron/backup.sh << 'SCRIPT'
+    cat > /opt/dem1chvpn/cron/backup.sh << 'SCRIPT'
 #!/bin/bash
-BACKUP_DIR="/opt/xshield/backups"
+BACKUP_DIR="/opt/dem1chvpn/backups"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
-BACKUP_FILE="${BACKUP_DIR}/xshield_${TIMESTAMP}.tar.gz"
+BACKUP_FILE="${BACKUP_DIR}/dem1chvpn_${TIMESTAMP}.tar.gz"
 
 mkdir -p "$BACKUP_DIR"
 tar -czf "$BACKUP_FILE" \
     /usr/local/etc/xray/config.json \
-    /opt/xshield/data/xshield.db \
-    /opt/xshield/.env \
+    /opt/dem1chvpn/data/dem1chvpn.db \
+    /opt/dem1chvpn/.env \
     2>/dev/null
 
 # Оставляем только последние 7 бэкапов
-ls -t "${BACKUP_DIR}"/xshield_*.tar.gz | tail -n +8 | xargs rm -f 2>/dev/null
+ls -t "${BACKUP_DIR}"/dem1chvpn_*.tar.gz | tail -n +8 | xargs rm -f 2>/dev/null
 
 echo "[$(date)] Бэкап создан: ${BACKUP_FILE}"
 SCRIPT
 
-    chmod +x /opt/xshield/cron/*.sh
+    chmod +x /opt/dem1chvpn/cron/*.sh
 
     # Установка crontab
-    cat > /etc/cron.d/xshield << CRON
-# Автоматические задачи XShield
+    cat > /etc/cron.d/dem1chvpn << CRON
+# Автоматические задачи Dem1chVPN
 # Обновление гео-баз каждые 6 часов
-0 */6 * * * root /opt/xshield/cron/update_geodata.sh >> /var/log/xshield/cron.log 2>&1
+0 */6 * * * root /opt/dem1chvpn/cron/update_geodata.sh >> /var/log/dem1chvpn/cron.log 2>&1
 # Обновление антифильтра каждые 6 часов (со сдвигом 30 мин)
-30 */6 * * * root /opt/xshield/cron/update_antifilter.sh >> /var/log/xshield/cron.log 2>&1
+30 */6 * * * root /opt/dem1chvpn/cron/update_antifilter.sh >> /var/log/dem1chvpn/cron.log 2>&1
 # Проверка здоровья каждые 5 минут
-*/5 * * * * root /opt/xshield/cron/health_check.sh >> /var/log/xshield/health.log 2>&1
+*/5 * * * * root /opt/dem1chvpn/cron/health_check.sh >> /var/log/dem1chvpn/health.log 2>&1
 # Проверка блокировки IP каждые 5 минут
-*/5 * * * * root /opt/xshield/cron/ip_block_check.sh >> /var/log/xshield/ip_check.log 2>&1
+*/5 * * * * root /opt/dem1chvpn/cron/ip_block_check.sh >> /var/log/dem1chvpn/ip_check.log 2>&1
 # Ежедневный бэкап в 3:00
-0 3 * * * root /opt/xshield/cron/backup.sh >> /var/log/xshield/backup.log 2>&1
+0 3 * * * root /opt/dem1chvpn/cron/backup.sh >> /var/log/dem1chvpn/backup.log 2>&1
 # Обновление IP на DuckDNS каждые 5 минут
-*/5 * * * * root /opt/xshield/cron/update_duckdns.sh >> /var/log/xshield/duckdns.log 2>&1
+*/5 * * * * root /opt/dem1chvpn/cron/update_duckdns.sh >> /var/log/dem1chvpn/duckdns.log 2>&1
 CRON
 
     log_info "Cron-задачи настроены"
@@ -826,9 +810,9 @@ create_first_user() {
     FIRST_USER_NAME=${FIRST_USER_NAME:-Админ}
 
     # Создание пользователя через Python (heredoc — без конфликтов с bash)
-    "${VENV_DIR}/bin/python" - "${FIRST_USER_NAME}" "${SUB_DOMAIN:-}" "${SUB_EXTERNAL_PORT:-8443}" <<'PYEOF' > /tmp/xshield_first_user 2>&1
+    "${VENV_DIR}/bin/python" - "${FIRST_USER_NAME}" "${SUB_DOMAIN:-}" "${SUB_EXTERNAL_PORT:-8443}" <<'PYEOF' > /tmp/dem1chvpn_first_user 2>&1
 import asyncio, sys
-sys.path.insert(0, '/opt/xshield')
+sys.path.insert(0, '/opt/dem1chvpn')
 async def main():
     from server.bot.database import init_db
     from server.bot.services.user_manager import UserManager
@@ -851,8 +835,8 @@ async def main():
 asyncio.run(main())
 PYEOF
 
-    if grep -q "USER_UUID=" /tmp/xshield_first_user; then
-        eval "$(cat /tmp/xshield_first_user)"
+    if grep -q "USER_UUID=" /tmp/dem1chvpn_first_user; then
+        eval "$(cat /tmp/dem1chvpn_first_user)"
         log_info "Пользователь '${FIRST_USER_NAME}' создан"
         echo ""
         echo -e "  ${CYAN}VLESS-ссылка:${NC}"
@@ -862,9 +846,9 @@ PYEOF
         echo -e "  ${SUB_URL}"
     else
         log_warn "Не удалось создать пользователя (можно создать через бота позже)"
-        cat /tmp/xshield_first_user 2>/dev/null || true
+        cat /tmp/dem1chvpn_first_user 2>/dev/null || true
     fi
-    rm -f /tmp/xshield_first_user
+    rm -f /tmp/dem1chvpn_first_user
 }
 
 # ──── Шаг 9.5: Добавление дефолтных правил маршрутизации ────
@@ -874,7 +858,7 @@ seed_default_routes() {
 
     "${VENV_DIR}/bin/python" -c "
 import asyncio, sys
-sys.path.insert(0, '${XSHIELD_DIR}')
+sys.path.insert(0, '${DEM1CHVPN_DIR}')
 
 # ═══ PROXY — заблокированные сервисы (вкл. мобильные приложения) ═══
 PROXY_DOMAINS = [
@@ -883,15 +867,42 @@ PROXY_DOMAINS = [
     'cdn.oaistatic.com', 'files.oaiusercontent.com',
     'claude.ai', 'anthropic.com', 'api.anthropic.com',
     'gemini.google.com', 'bard.google.com', 'notebooklm.google.com',
+    'notebooklm-pa.googleapis.com', 'alkalimakersuite-pa.googleapis.com',
     'generativelanguage.googleapis.com', 'aistudio.google.com',
     'copilot.microsoft.com', 'perplexity.ai',
 
-    # --- TikTok (сайт + мобильное приложение) ---
+    # --- YouTube (сайт + мобильное приложение) ---
+    'youtube.com', 'www.youtube.com', 'm.youtube.com',
+    'googlevideo.com', 'ytimg.com', 'youtu.be',
+    'youtube-nocookie.com', 'yt3.ggpht.com',
+    'music.youtube.com', 'tv.youtube.com',
+
+    # --- TikTok (сайт + мобильное приложение + DM видео) ---
     'tiktok.com', 'www.tiktok.com', 'm.tiktok.com',
     'api.tiktokv.com', 'api2.musical.ly', 'api-h2.tiktokv.com',
-    'log.tiktokv.com', 'pull-l3.tiktokcdn.com',
+    'api16-normal-c-useast1a.tiktokv.com',
+    'api16-normal-c-useast2a.tiktokv.com',
+    'api16-core-c-useast1a.tiktokv.com',
+    'api16-core-va.tiktokv.com',
+    'log.tiktokv.com', 'log2.tiktokv.com',
+    'pull-l3.tiktokcdn.com', 'pull-f5-tt.tiktokcdn.com',
+    'pull-l3-hs.tiktokcdn.com', 'pull-flv-l1-mus.pstatp.com',
     'sf16-sg.tiktokcdn.com', 'v16-webapp.tiktok.com',
+    'v16m-default.akamaized.net', 'v19.tiktokcdn.com',
+    'v34.tiktokcdn.com', 'v39.tiktokcdn.com',
+    'v77.tiktokcdn.com', 'v58.tiktokcdn.com',
     'p16-sign-sg.tiktokcdn.com', 'lf16-cdn-tos.tiktokcdn.com',
+    'p16-sign-va.tiktokcdn.com', 'p77-sign-va.tiktokcdn.com',
+    'p19-sign-va.tiktokcdn.com',
+    'mon.musical.ly', 'mon.tiktokv.com',
+    'webcast.tiktok.com', 'webcast-va.tiktokv.com',
+    'mcs-va.tiktokv.com', 'mcs-useast2a.tiktokv.com',
+    'frontier-va.tiktokv.com',
+    'lf16-effectcdn-tos.tiktokcdn.com',
+    'sf16-effectcdn-tos.tiktokcdn.com',
+    'tiktokv.com', 'tiktokcdn.com', 'musical.ly',
+    'isnssdk.com', 'byteoversea.com', 'ibytedtos.com',
+    'byteimg.com', 'muscdn.com', 'bytegecko.com',
 
     # --- Instagram / Facebook (мобильные API) ---
     'instagram.com', 'www.instagram.com', 'i.instagram.com',
@@ -1010,15 +1021,15 @@ async def main():
     print(f'PROXY={proxy_added} DIRECT={direct_added}')
 
 asyncio.run(main())
-" > /tmp/xshield_routes 2>&1
+" > /tmp/dem1chvpn_routes 2>&1
 
-    if grep -q "PROXY=" /tmp/xshield_routes; then
-        eval "$(cat /tmp/xshield_routes)"
+    if grep -q "PROXY=" /tmp/dem1chvpn_routes; then
+        eval "$(cat /tmp/dem1chvpn_routes)"
         log_info "Маршрутизация: ${PROXY} правил PROXY (ChatGPT, TikTok и др.) + ${DIRECT} правил DIRECT (банки, Яндекс)"
     else
         log_warn "Не удалось добавить правила (можно добавить через бота)"
     fi
-    rm -f /tmp/xshield_routes
+    rm -f /tmp/dem1chvpn_routes
 }
 
 # ──── Шаг 10: Итоговая сводка ────
@@ -1030,7 +1041,7 @@ show_summary() {
 
     echo ""
     echo -e "${GREEN}═══════════════════════════════════════════════════${NC}"
-    echo -e "${GREEN}  🛡️  Установка XShield завершена!${NC}"
+    echo -e "${GREEN}  🛡️  Установка Dem1chVPN завершена!${NC}"
     echo -e "${GREEN}═══════════════════════════════════════════════════${NC}"
     echo ""
     echo -e "  ${CYAN}IP сервера:${NC}      ${SERVER_IP}"
@@ -1047,15 +1058,15 @@ show_summary() {
     echo ""
     echo -e "  ${YELLOW}Статус сервисов:${NC}"
     echo -e "    Xray:            $(systemctl is-active xray)"
-    echo -e "    Бот:             $(systemctl is-active xshield-bot)"
-    echo -e "    Подписки:        $(systemctl is-active xshield-sub)"
+    echo -e "    Бот:             $(systemctl is-active dem1chvpn-bot)"
+    echo -e "    Подписки:        $(systemctl is-active dem1chvpn-sub)"
     echo -e "    Caddy:           $(systemctl is-active caddy)"
     echo ""
     echo -e "  ${YELLOW}Полезные команды:${NC}"
-    echo -e "    journalctl -u xshield-bot -f    # Логи бота"
-    echo -e "    journalctl -u xray -f            # Логи Xray"
-    echo -e "    systemctl restart xshield-bot    # Перезапуск бота"
-    echo -e "    systemctl restart xray            # Перезапуск Xray"
+    echo -e "    journalctl -u dem1chvpn-bot -f    # Логи бота"
+    echo -e "    journalctl -u xray -f              # Логи Xray"
+    echo -e "    systemctl restart dem1chvpn-bot    # Перезапуск бота"
+    echo -e "    systemctl restart xray              # Перезапуск Xray"
     echo ""
     echo -e "  ${GREEN}🤖 Откройте Telegram и отправьте /start вашему боту!${NC}"
     echo ""
@@ -1067,7 +1078,7 @@ main() {
     clear
     echo -e "${BLUE}"
     echo "  ╔═══════════════════════════════════════╗"
-    echo "  ║   🛡️  XShield — Установщик v1.1       ║"
+    echo "  ║   🛡️  Dem1chVPN — Установщик v1.1     ║"
     echo "  ║   VLESS + Reality + Telegram Bot      ║"
     echo "  ╚═══════════════════════════════════════╝"
     echo -e "${NC}"
@@ -1076,26 +1087,26 @@ main() {
     check_os
 
     # Копирование/клонирование проекта если ещё не на месте
-    if [ ! -d "${XSHIELD_DIR}/server" ]; then
-        mkdir -p "$XSHIELD_DIR"
+    if [ ! -d "${DEM1CHVPN_DIR}/server" ]; then
+        mkdir -p "$DEM1CHVPN_DIR"
         SCRIPT_DIR="$(cd "$(dirname "$0")" 2>/dev/null && pwd)"
         if [ -d "${SCRIPT_DIR}/server" ]; then
             # Запуск из локальной копии — копируем файлы
             log_info "Копирую файлы проекта из ${SCRIPT_DIR}..."
-            cp -r "${SCRIPT_DIR}/"* "$XSHIELD_DIR/" 2>/dev/null || true
+            cp -r "${SCRIPT_DIR}/"* "$DEM1CHVPN_DIR/" 2>/dev/null || true
         else
             # Запуск через curl — клонируем из git
-            log_info "Клонирую XShield из GitHub..."
-            git clone https://github.com/HotFies/Dem1chVPN.git "${XSHIELD_DIR}" || {
+            log_info "Клонирую Dem1chVPN из GitHub..."
+            git clone https://github.com/HotFies/Dem1chVPN.git "${DEM1CHVPN_DIR}" || {
                 log_error "Не удалось клонировать репозиторий. Запустите скрипт из каталога проекта."
                 exit 1
             }
         fi
     else
-        log_info "Файлы проекта уже на месте в ${XSHIELD_DIR}"
+        log_info "Файлы проекта уже на месте в ${DEM1CHVPN_DIR}"
     fi
 
-    mkdir -p "${XSHIELD_DIR}/cron"
+    mkdir -p "${DEM1CHVPN_DIR}/cron"
 
     install_dependencies
     harden_system

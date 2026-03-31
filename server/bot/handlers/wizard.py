@@ -1,5 +1,5 @@
 """
-XShield Bot — Connection Wizard Handler
+Dem1chVPN Bot — Connection Wizard Handler
 Step-by-step setup guide for new users.
 """
 from aiogram import Router, F
@@ -44,7 +44,7 @@ async def self_qr(callback: CallbackQuery):
     vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
     qr_bytes = generate_qr_code(vless_url)
 
-    qr_file = BufferedInputFile(qr_bytes, filename=f"xshield_{user.name}.png")
+    qr_file = BufferedInputFile(qr_bytes, filename=f"dem1chvpn_{user.name}.png")
     await callback.message.answer_photo(qr_file, caption="📱 Ваш QR-код")
     await callback.answer()
 
@@ -76,7 +76,7 @@ async def wizard_step(callback: CallbackQuery):
     platform_apps = {
         "windows": ("v2rayN", "https://github.com/2dust/v2rayN/releases"),
         "android": ("v2rayNG", "https://play.google.com/store/apps/details?id=com.v2ray.ang"),
-        "ios": ("FoXray", "https://apps.apple.com/app/foxray/id6448898396"),
+        "ios": ("Streisand", "https://apps.apple.com/app/streisand/id6450534064"),
         "macos": ("V2BOX", "https://apps.apple.com/app/v2box-v2ray-client/id6446814690"),
         "router": ("Passwall2", "https://github.com/xiaorouji/openwrt-passwall2"),
     }
@@ -106,7 +106,7 @@ async def wizard_step(callback: CallbackQuery):
 
         if method == "qr":
             qr_bytes = generate_qr_code(vless_url)
-            qr_file = BufferedInputFile(qr_bytes, filename="xshield.png")
+            qr_file = BufferedInputFile(qr_bytes, filename="dem1chvpn.png")
             await callback.message.answer_photo(
                 qr_file,
                 caption=(

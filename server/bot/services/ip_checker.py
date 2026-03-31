@@ -1,5 +1,5 @@
 """
-XShield — IP Block Checker Service
+Dem1chVPN — IP Block Checker Service
 Detects if VPS IP is blocked by TSPU (Russian DPI).
 """
 import aiohttp
@@ -9,10 +9,10 @@ import logging
 from pathlib import Path
 from typing import Optional
 
-logger = logging.getLogger("xshield.ip_checker")
+logger = logging.getLogger("dem1chvpn.ip_checker")
 
 # Persistent state file for consecutive failure tracking
-_STATE_FILE = Path("/tmp/xshield_ip_check_state.json")
+_STATE_FILE = Path("/tmp/dem1chvpn_ip_check_state.json")
 
 
 class IPBlockChecker:

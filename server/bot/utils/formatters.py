@@ -1,5 +1,5 @@
 """
-XShield — Formatters
+Dem1chVPN — Formatters
 Human-readable formatting utilities.
 """
 from datetime import datetime, timezone

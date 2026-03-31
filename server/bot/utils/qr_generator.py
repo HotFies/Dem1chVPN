@@ -1,5 +1,5 @@
 """
-XShield — QR Code Generator
+Dem1chVPN — QR Code Generator
 Generates QR codes for VLESS connection URLs.
 """
 import io
@@ -52,7 +52,7 @@ def generate_qr_code(data: str, box_size: int = 10, border: int = 2) -> bytes:
     except (OSError, IOError):
         font = ImageFont.load_default()
 
-    text = "🛡️ XShield VPN"
+    text = "🛡️ Dem1chVPN"
     bbox = draw.textbbox((0, 0), text, font=font)
     text_width = bbox[2] - bbox[0]
     x = (canvas.width - text_width) // 2

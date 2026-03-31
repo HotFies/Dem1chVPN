@@ -1,5 +1,5 @@
 """
-XShield — MTProto Manager Service
+Dem1chVPN — MTProto Manager Service
 Manage MTProto proxy for Telegram.
 """
 import asyncio
@@ -11,13 +11,13 @@ class MTProtoManager:
     """Manages MTProto proxy (mtg in Docker)."""
 
     def __init__(self):
-        self.compose_dir = "/opt/xshield/server/mtproto"
+        self.compose_dir = "/opt/dem1chvpn/server/mtproto"
 
     async def is_running(self) -> bool:
         """Check if mtg container is running."""
         try:
             proc = await asyncio.create_subprocess_exec(
-                "docker", "inspect", "-f", "{{.State.Running}}", "xshield-mtproto",
+                "docker", "inspect", "-f", "{{.State.Running}}", "dem1chvpn-mtproto",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -95,7 +95,7 @@ class MTProtoManager:
         installed = self.is_installed()
 
         if not installed:
-            return "💬 MTProto Proxy: ❌ Не установлен\n   Запустите: /opt/xshield/server/mtproto/setup.sh"
+            return "💬 MTProto Proxy: ❌ Не установлен\n   Запустите: /opt/dem1chvpn/server/mtproto/setup.sh"
 
         status = "🟢 Работает" if running else "🔴 Остановлен"
         link = self.get_proxy_link()

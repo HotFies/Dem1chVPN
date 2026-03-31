@@ -1,5 +1,5 @@
 """
-XShield — User Manager Service
+Dem1chVPN — User Manager Service
 CRUD operations for VPN users.
 """
 import logging
@@ -10,7 +10,7 @@ from sqlalchemy import select
 
 from ..database import async_session, User
 
-logger = logging.getLogger("xshield.user_manager")
+logger = logging.getLogger("dem1chvpn.user_manager")
 
 
 class UserManager:
@@ -29,7 +29,7 @@ class UserManager:
             user_uuid = str(uuid_module.uuid4())
             # Use UUID prefix in email to guarantee uniqueness
             email_base = name.lower().replace(' ', '_').replace('@', '')[:20]
-            email = f"{email_base}_{user_uuid[:8]}@xshield"
+            email = f"{email_base}_{user_uuid[:8]}@dem1chvpn"
 
             user = User(
                 name=name,

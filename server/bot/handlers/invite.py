@@ -1,5 +1,5 @@
 """
-XShield Bot — Invite Handler
+Dem1chVPN Bot — Invite Handler
 Create and manage invitation links.
 """
 from datetime import datetime, timedelta, timezone
@@ -161,7 +161,7 @@ async def invite_activate(message: Message):
 
     # Send welcome
     await message.answer(
-        f"🎉 <b>Добро пожаловать в XShield!</b>\n\n"
+        f"🎉 <b>Добро пожаловать в Dem1chVPN!</b>\n\n"
         f"Аккаунт <b>{user.name}</b> создан.\n\n"
         f"{format_user_info(user)}\n\n"
         f"🔗 <b>Ссылка подключения:</b>\n"
@@ -174,10 +174,10 @@ async def invite_activate(message: Message):
     # Send QR
     from aiogram.types import BufferedInputFile
     qr_bytes = generate_qr_code(vless_url)
-    qr_file = BufferedInputFile(qr_bytes, filename=f"xshield_{user.name}.png")
+    qr_file = BufferedInputFile(qr_bytes, filename=f"dem1chvpn_{user.name}.png")
     await message.answer_photo(
         qr_file,
-        caption=f"📱 QR-код для <b>{user.name}</b>\nСканируйте в v2rayNG/FoXray",
+        caption=f"📱 QR-код для <b>{user.name}</b>\nСканируйте в v2rayNG/Streisand",
     )
 
     # Notify admin

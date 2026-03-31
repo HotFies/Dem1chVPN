@@ -4,7 +4,7 @@
 services:
   mtproto:
     image: nineseconds/mtg:2
-    container_name: xshield-mtproto
+    container_name: dem1chvpn-mtproto
     restart: unless-stopped
     ports:
       - "127.0.0.1:8800:8800"

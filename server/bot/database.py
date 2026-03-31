@@ -1,5 +1,5 @@
 """
-XShield Bot — Database Models & Engine
+Dem1chVPN Bot — Database Models & Engine
 Uses SQLAlchemy async with aiosqlite for SQLite.
 """
 import uuid as uuid_lib

@@ -1,5 +1,5 @@
 """
-XShield Bot — Routing Handler
+Dem1chVPN Bot — Routing Handler
 Manage proxy/direct domain routing rules.
 """
 from aiogram import Router, F
@@ -263,6 +263,7 @@ MODE_DOMAINS = {
         "twitch.tv", "ttvnw.net", "jtvnw.net",
         "disneyplus.com", "disney.com",
         "hulu.com", "spotify.com", "deezer.com",
+        "notebooklm.google.com", "aistudio.google.com",
     ],
     "gaming": [
         "store.steampowered.com", "steamcommunity.com", "steamcdn-a.akamaihd.net",
@@ -274,7 +275,8 @@ MODE_DOMAINS = {
     "economy": [
         "youtube.com", "googlevideo.com",
         "instagram.com", "cdninstagram.com",
-        "tiktok.com", "tiktokcdn.com",
+        "tiktok.com", "tiktokcdn.com", "tiktokv.com",
+        "musical.ly", "byteoversea.com", "byteimg.com",
         "discord.com", "discordapp.com",
         "web.telegram.org",
     ],

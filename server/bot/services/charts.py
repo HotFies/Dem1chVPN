@@ -1,5 +1,5 @@
 """
-XShield — Traffic Charts Generator
+Dem1chVPN — Traffic Charts Generator
 Creates PNG charts for traffic visualization using matplotlib.
 """
 import io
@@ -66,7 +66,7 @@ def generate_user_traffic_chart(
         ax.fill_between(dates_down, values_down, alpha=0.3, color="#e94560", label="↓ Download")
         ax.plot(dates_down, values_down, color="#e94560", linewidth=2)
 
-    ax.set_title(f"🛡️ XShield — {user_name}", fontsize=14, fontweight="bold", pad=15)
+    ax.set_title(f"🛡️ Dem1chVPN — {user_name}", fontsize=14, fontweight="bold", pad=15)
     ax.set_xlabel("Дата")
     ax.set_ylabel("Трафик")
     ax.yaxis.set_major_formatter(FuncFormatter(_format_bytes_axis))
@@ -118,7 +118,7 @@ def generate_overview_chart(
     ax.set_yticks(list(y_pos))
     ax.set_yticklabels(names, fontsize=11)
     ax.xaxis.set_major_formatter(FuncFormatter(_format_bytes_axis))
-    ax.set_title("🛡️ XShield — Трафик пользователей", fontsize=14,
+    ax.set_title("🛡️ Dem1chVPN — Трафик пользователей", fontsize=14,
                  fontweight="bold", pad=15)
     ax.legend(loc="lower right", framealpha=0.8)
 
@@ -150,7 +150,7 @@ def generate_server_load_chart(
                 label="RAM %", alpha=0.9)
 
     ax.set_ylim(0, 100)
-    ax.set_title("🖥️ XShield — Нагрузка сервера", fontsize=14,
+    ax.set_title("🖥️ Dem1chVPN — Нагрузка сервера", fontsize=14,
                  fontweight="bold", pad=15)
     ax.set_ylabel("Загрузка %")
     ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M"))

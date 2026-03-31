@@ -29,7 +29,7 @@ function App() {
   return (
     <div className="app">
       <header className="app-header">
-        <h1>🛡️ XShield</h1>
+        <h1>🛡️ Dem1chVPN</h1>
       </header>
 
       <nav className="app-nav">

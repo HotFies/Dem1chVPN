@@ -1,5 +1,5 @@
 {
-  "_comment": "XShield — Routing rules for v2rayN (Windows). Import this as custom routing.",
+  "_comment": "Dem1chVPN — Routing rules for v2rayN (Windows). Import this as custom routing.",
   "domainStrategy": "IPIfNonMatch",
   "rules": [
     {
@@ -27,6 +27,7 @@
         "domain:youtu.be",
         "domain:instagram.com",
         "domain:cdninstagram.com",
+        "domain:fbcdn.net",
         "domain:discord.com",
         "domain:discord.gg",
         "domain:discordapp.com",
@@ -34,6 +35,13 @@
         "domain:tiktok.com",
         "domain:tiktokv.com",
         "domain:tiktokcdn.com",
+        "domain:musical.ly",
+        "domain:isnssdk.com",
+        "domain:byteoversea.com",
+        "domain:ibytedtos.com",
+        "domain:byteimg.com",
+        "domain:muscdn.com",
+        "domain:pstatp.com",
         "domain:whatsapp.com",
         "domain:whatsapp.net",
         "domain:web.telegram.org",
@@ -46,10 +54,15 @@
         "domain:chat.openai.com",
         "domain:gemini.google.com",
         "domain:aistudio.google.com",
+        "domain:notebooklm.google.com",
+        "domain:generativelanguage.googleapis.com",
         "domain:netflix.com",
         "domain:nflxvideo.net",
         "domain:twitch.tv",
-        "domain:spotify.com"
+        "domain:spotify.com",
+        "domain:twitter.com",
+        "domain:x.com",
+        "domain:twimg.com"
       ]
     },
     {

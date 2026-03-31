@@ -1,5 +1,5 @@
 """
-XShield — Validators
+Dem1chVPN — Validators
 Input validation utilities.
 """
 import re

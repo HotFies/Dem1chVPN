@@ -1,5 +1,5 @@
 {
-  "_comment": "XShield — Gaming mode. Routes gaming platforms through proxy with min latency.",
+  "_comment": "Dem1chVPN — Gaming mode. Routes gaming platforms through proxy with min latency.",
   "mode": "gaming",
   "domains": [
     "store.steampowered.com", "steamcommunity.com", "steamcdn-a.akamaihd.net",

@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
-# MTProto Proxy Setup for XShield
+# MTProto Proxy Setup for Dem1chVPN
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-source /opt/xshield/.env
+source /opt/dem1chvpn/.env
 
 echo "🔧 Setting up MTProto Proxy..."
 
@@ -41,11 +41,11 @@ cd "$SCRIPT_DIR"
 docker compose up -d
 
 # Save secret to .env
-if ! grep -q "MTPROTO_SECRET" /opt/xshield/.env; then
-    echo "" >> /opt/xshield/.env
-    echo "# MTProto Proxy" >> /opt/xshield/.env
-    echo "MTPROTO_SECRET=${MTPROTO_SECRET}" >> /opt/xshield/.env
-    echo "MTPROTO_ENABLED=true" >> /opt/xshield/.env
+if ! grep -q "MTPROTO_SECRET" /opt/dem1chvpn/.env; then
+    echo "" >> /opt/dem1chvpn/.env
+    echo "# MTProto Proxy" >> /opt/dem1chvpn/.env
+    echo "MTPROTO_SECRET=${MTPROTO_SECRET}" >> /opt/dem1chvpn/.env
+    echo "MTPROTO_ENABLED=true" >> /opt/dem1chvpn/.env
 fi
 
 echo "✅ MTProto Proxy started"
