@@ -55,16 +55,13 @@
         "decryption": "none"
       },
       "streamSettings": {
-        "network": "xhttp",
+        "network": "tcp",
         "security": "reality",
         "realitySettings": {
           "dest": "REALITY_DEST_PLACEHOLDER",
           "serverNames": ["REALITY_SNI_PLACEHOLDER"],
           "privateKey": "REALITY_PRIVATE_KEY_PLACEHOLDER",
           "shortIds": ["REALITY_SHORT_ID_PLACEHOLDER"]
-        },
-        "xhttpSettings": {
-          "mode": "auto"
         }
       },
       "sniffing": {
@@ -85,25 +82,38 @@
     {
       "tag": "blocked",
       "protocol": "blackhole"
+    },
+    {
+      "tag": "warp",
+      "protocol": "socks",
+      "settings": {
+        "servers": [{"address": "127.0.0.1", "port": 40000}]
+      }
     }
   ],
   "routing": {
     "domainStrategy": "AsIs",
     "rules": [
       {
-        "_comment": "gRPC API",
         "type": "field",
         "inboundTag": ["api"],
         "outboundTag": "api"
       },
       {
-        "_comment": "Блокировка приватных IP",
         "type": "field",
         "outboundTag": "blocked",
         "ip": ["geoip:private"]
       },
       {
-        "_comment": "Российские домены — DIRECT (банки, Яндекс и т.д.)",
+        "type": "field",
+        "outboundTag": "warp",
+        "domain": [
+          "domain:notebooklm.google",
+          "domain:notebooklm.google.com",
+          "domain:aistudio.google.com"
+        ]
+      },
+      {
         "type": "field",
         "outboundTag": "direct",
         "domain": [
@@ -143,12 +153,6 @@
           "domain:avito.ru",
           "domain:1c.ru"
         ]
-      },
-      {
-        "_comment": "Российские IP — DIRECT",
-        "type": "field",
-        "outboundTag": "direct",
-        "ip": ["geoip:ru"]
       }
     ]
   }

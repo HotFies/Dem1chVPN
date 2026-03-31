@@ -77,7 +77,7 @@ async def mon_xray(callback: CallbackQuery):
         "🌐 <b>Статус Xray-core</b>\n\n"
         f"  Статус: {'🟢 Работает' if running else '🔴 Остановлен'}\n"
         f"  Версия: v{version}\n"
-        f"  Протокол: VLESS + XHTTP + Reality\n"
+        f"  Протокол: VLESS + TCP + Reality\n"
         f"  Порт: {config.SERVER_PORT}\n"
         f"  SNI: {config.REALITY_SNI}\n"
         f"  Клиентов в конфиге: {len(clients)}\n"

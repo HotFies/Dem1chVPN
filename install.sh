@@ -173,14 +173,22 @@ install_dependencies() {
 harden_system() {
     log_step "Шаг 2: Защита сервера"
 
-    # Включение BBR (с проверкой дубликатов)
+    # Включение BBR + сетевая оптимизация
     if ! sysctl net.ipv4.tcp_congestion_control 2>/dev/null | grep -q bbr; then
         if ! grep -q "net.ipv4.tcp_congestion_control=bbr" /etc/sysctl.conf 2>/dev/null; then
-            echo "net.core.default_qdisc=fq" >> /etc/sysctl.conf
-            echo "net.ipv4.tcp_congestion_control=bbr" >> /etc/sysctl.conf
+            cat >> /etc/sysctl.conf << 'SYSCTL'
+# XShield Performance
+net.core.default_qdisc=fq
+net.ipv4.tcp_congestion_control=bbr
+net.core.rmem_max=16777216
+net.core.wmem_max=16777216
+net.ipv4.tcp_rmem=4096 87380 16777216
+net.ipv4.tcp_wmem=4096 65536 16777216
+net.ipv4.tcp_fastopen=3
+SYSCTL
         fi
         sysctl -p 2>/dev/null || true
-        log_info "TCP BBR включён"
+        log_info "TCP BBR + сетевая оптимизация включены"
     else
         log_info "TCP BBR уже включён"
     fi
@@ -244,17 +252,24 @@ install_xray() {
     mkdir -p /var/log/xray
     chown nobody:nogroup /var/log/xray 2>/dev/null || true
 
-    # Скачивание гео-баз с заблокированными российскими сайтами
+    # Скачивание гео-баз (Loyalsoldier — полные и актуальные)
     log_info "Скачиваю гео-базы..."
     wget -qO /usr/local/share/xray/geoip.dat \
-        "https://github.com/runetfreedom/russia-blocked-geoip/releases/latest/download/geoip.dat" || \
+        "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat" || \
         wget -qO /usr/local/share/xray/geoip.dat \
         "https://github.com/v2fly/geoip/releases/latest/download/geoip.dat"
 
     wget -qO /usr/local/share/xray/geosite.dat \
-        "https://github.com/runetfreedom/russia-blocked-geoip/releases/latest/download/geosite.dat" || \
+        "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat" || \
         wget -qO /usr/local/share/xray/geosite.dat \
         "https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat"
+
+    # Проверка что файлы не пустые
+    if [ ! -s /usr/local/share/xray/geosite.dat ]; then
+        log_warn "geosite.dat пустой, скачиваю из запасного источника..."
+        wget -qO /usr/local/share/xray/geosite.dat \
+            "https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat"
+    fi
 
     log_info "Xray-core установлен"
 }
@@ -810,38 +825,31 @@ create_first_user() {
     read -rp "$(echo -e "${PURPLE}Введите имя первого VPN-пользователя (например 'Админ'): ${NC}")" FIRST_USER_NAME
     FIRST_USER_NAME=${FIRST_USER_NAME:-Админ}
 
-    # Создание пользователя через Python
-    "${VENV_DIR}/bin/python" -c "
-import asyncio
-import sys
-sys.path.insert(0, '${XSHIELD_DIR}')
-
+    # Создание пользователя через Python (heredoc — без конфликтов с bash)
+    "${VENV_DIR}/bin/python" - "${FIRST_USER_NAME}" "${SUB_DOMAIN:-}" "${SUB_EXTERNAL_PORT:-8443}" <<'PYEOF' > /tmp/xshield_first_user 2>&1
+import asyncio, sys
+sys.path.insert(0, '/opt/xshield')
 async def main():
     from server.bot.database import init_db
     from server.bot.services.user_manager import UserManager
     from server.bot.services.xray_config import XrayConfigManager
-
     await init_db()
-
-    mgr = UserManager()
-    user = await mgr.create_user('${FIRST_USER_NAME}')
+    user = await UserManager().create_user(sys.argv[1])
     if not user:
-        print('ERROR: Не удалось создать пользователя')
+        print('ERROR: failed')
         return
+    xray = XrayConfigManager()
+    await xray.add_client(user.uuid, user.email)
+    vless = xray.generate_vless_url(user.uuid, user.name)
+    sub = f'https://{sys.argv[2]}:{sys.argv[3]}/sub/{user.subscription_token}'
 
-    xray_mgr = XrayConfigManager()
-    await xray_mgr.add_client(user.uuid, user.email)
-
-    vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
-    sub_url = 'https://${SUB_DOMAIN}:${SUB_EXTERNAL_PORT}/sub/' + user.subscription_token
-
-    print(f"USER_UUID='{user.uuid}'"  )
+    print(f"USER_UUID='{user.uuid}'")
     print(f"USER_EMAIL='{user.email}'")
-    print(f"VLESS_URL=\"{vless_url}\"")
-    print(f"SUB_URL=\"{sub_url}\"")
+    print(f'VLESS_URL="{vless}"')
+    print(f'SUB_URL="{sub}"')
 
 asyncio.run(main())
-" > /tmp/xshield_first_user 2>&1
+PYEOF
 
     if grep -q "USER_UUID=" /tmp/xshield_first_user; then
         eval "$(cat /tmp/xshield_first_user)"

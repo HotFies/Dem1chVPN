@@ -93,7 +93,7 @@ class XrayConfigManager:
             "fp": "chrome",
             "pbk": config.REALITY_PUBLIC_KEY,
             "sid": config.REALITY_SHORT_ID,
-            "type": "xhttp",
+            "type": "tcp",
         }
 
         query = urllib.parse.urlencode(params)
