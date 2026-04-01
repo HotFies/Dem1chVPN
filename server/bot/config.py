@@ -12,15 +12,30 @@ ENV_PATH = Path(__file__).resolve().parent.parent.parent / ".env"
 load_dotenv(ENV_PATH)
 
 
+def _parse_admin_ids() -> list[int]:
+    """Parse ADMIN_IDS from env, silently skipping non-numeric values."""
+    ids = []
+    for x in os.getenv("ADMIN_IDS", "").split(","):
+        x = x.strip()
+        if not x:
+            continue
+        try:
+            ids.append(int(x))
+        except ValueError:
+            import logging
+            logging.getLogger("dem1chvpn.config").warning(
+                f"Skipping non-numeric ADMIN_ID: '{x}'"
+            )
+    return ids
+
+
 @dataclass
 class Config:
     """Main application configuration."""
 
     # Telegram Bot
     BOT_TOKEN: str = os.getenv("BOT_TOKEN", "")
-    ADMIN_IDS: list[int] = field(default_factory=lambda: [
-        int(x.strip()) for x in os.getenv("ADMIN_IDS", "").split(",") if x.strip()
-    ])
+    ADMIN_IDS: list[int] = field(default_factory=_parse_admin_ids)
     PIN_CODE: str = os.getenv("PIN_CODE", "0000")
 
     # Xray
@@ -63,6 +78,10 @@ class Config:
     ADGUARD_ENABLED: bool = os.getenv("ADGUARD_ENABLED", "false").lower() == "true"
     WARP_ENABLED: bool = os.getenv("WARP_ENABLED", "false").lower() == "true"
     MTPROTO_ENABLED: bool = os.getenv("MTPROTO_ENABLED", "false").lower() == "true"
+
+    # Automation
+    TRAFFIC_RESET_DAY: int = int(os.getenv("TRAFFIC_RESET_DAY", "1"))  # Day of month (1-28)
+    XRAY_AUTO_UPDATE: bool = os.getenv("XRAY_AUTO_UPDATE", "true").lower() == "true"
 
     # Default proxy domains (pre-configured for user's needs)
     DEFAULT_PROXY_DOMAINS: list[str] = field(default_factory=lambda: [

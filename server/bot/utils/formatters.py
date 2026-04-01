@@ -30,6 +30,17 @@ def format_user_info(user) -> str:
     if user.is_traffic_exceeded:
         status = "📊 Лимит трафика"
 
+    # Online detection
+    online = "⚪ Офлайн"
+    if user.is_active and user.last_seen_at:
+        from datetime import timedelta
+        delta = datetime.now(timezone.utc) - user.last_seen_at
+        if delta < timedelta(seconds=120):
+            online = "🟢 Онлайн"
+        elif delta < timedelta(hours=1):
+            minutes = int(delta.total_seconds() // 60)
+            online = f"🕐 {minutes} мин назад"
+
     traffic_up = format_traffic(user.traffic_used_up)
     traffic_down = format_traffic(user.traffic_used_down)
     traffic_total = format_traffic(user.traffic_total)
@@ -47,6 +58,7 @@ def format_user_info(user) -> str:
 
     return (
         f"📋 Статус: {status}\n"
+        f"🌐 Сеть: {online}\n"
         f"📊 Трафик: {traffic_total} / {traffic_limit}\n"
         f"  ↑ Upload: {traffic_up}\n"
         f"  ↓ Download: {traffic_down}\n"

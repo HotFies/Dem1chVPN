@@ -43,6 +43,8 @@ class User(Base):
 
     # Status
     is_active = Column(Boolean, default=True)
+    warning_sent = Column(Boolean, default=False)  # True = 80% traffic warning was sent
+    last_seen_at = Column(DateTime, nullable=True)  # Last time user had traffic (online detection)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))
@@ -144,6 +146,38 @@ class BackupRecord(Base):
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
 
+class AuditLog(Base):
+    """Admin action log for accountability."""
+    __tablename__ = "audit_log"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    action = Column(String(100), nullable=False)        # e.g. "user_created", "user_deleted"
+    admin_id = Column(BigInteger, nullable=True)         # Telegram ID of admin
+    target_user_id = Column(Integer, nullable=True)      # DB user ID (if applicable)
+    details = Column(Text, nullable=True)                # Additional info (JSON or text)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    def __repr__(self):
+        return f"<AuditLog(action='{self.action}', admin={self.admin_id})>"
+
+
+class Ticket(Base):
+    """Support ticket from user to admin."""
+    __tablename__ = "tickets"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_telegram_id = Column(BigInteger, nullable=False)
+    user_name = Column(String(200), nullable=True)
+    message = Column(Text, nullable=False)
+    reply = Column(Text, nullable=True)
+    is_resolved = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    resolved_at = Column(DateTime, nullable=True)
+
+    def __repr__(self):
+        return f"<Ticket(id={self.id}, user={self.user_name}, resolved={self.is_resolved})>"
+
+
 # ──────────────────────────────────────────────
 # Database engine & session
 # ──────────────────────────────────────────────
@@ -177,8 +211,3 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-
-async def get_session() -> AsyncSession:
-    """Get a new async session."""
-    async with async_session() as session:
-        yield session

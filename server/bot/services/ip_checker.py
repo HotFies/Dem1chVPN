@@ -1,6 +1,6 @@
 """
 Dem1chVPN — IP Block Checker Service
-Detects if VPS IP is blocked by TSPU (Russian DPI).
+Checks if VPS IP is accessible from target regions.
 """
 import aiohttp
 import asyncio
@@ -149,7 +149,7 @@ class IPBlockChecker:
         )
 
         text = (
-            f"🚨 <b>Проверка блокировки IP</b>\n\n"
+            f"🚨 <b>Проверка доступности IP</b>\n\n"
             f"  IP: <code>{self.server_ip}</code>\n"
             f"  Доступность VPS: {vps}\n"
             f"  Доступность из РФ: {russia}\n"
@@ -157,7 +157,7 @@ class IPBlockChecker:
 
         if result.get("blocked"):
             text += (
-                f"\n  ⚠️ <b>IP ЗАБЛОКИРОВАН ТСПУ!</b>\n"
+                f"\n  ⚠️ <b>IP НЕДОСТУПЕН ИЗ РЕГИОНА!</b>\n"
                 f"  Неудачных проверок подряд: {self.consecutive_failures}\n\n"
                 f"  Рекомендации:\n"
                 f"  • Включить WARP double-hop\n"
@@ -165,6 +165,6 @@ class IPBlockChecker:
                 f"  • Сменить SNI"
             )
         else:
-            text += f"\n  🟢 IP не заблокирован"
+            text += f"\n  🟢 IP доступен"
 
         return text

@@ -203,3 +203,45 @@ export function formatPercent(used: number, total: number): number {
   if (total === 0) return 0;
   return Math.round((used / total) * 100);
 }
+
+// ── Tickets ──
+
+export interface Ticket {
+  id: number;
+  user_telegram_id?: number;
+  user_name?: string;
+  message: string;
+  reply: string | null;
+  is_resolved: boolean;
+  created_at: string | null;
+  resolved_at: string | null;
+}
+
+export async function getMyTickets(): Promise<{ tickets: Ticket[] }> {
+  return apiRequest<{ tickets: Ticket[] }>('/tickets/my');
+}
+
+export async function createTicket(message: string): Promise<{ id: number }> {
+  return apiRequest<{ id: number }>('/tickets', {
+    method: 'POST',
+    body: JSON.stringify({ message }),
+  });
+}
+
+export async function getAllTickets(status: string = 'all'): Promise<{ tickets: Ticket[] }> {
+  return apiRequest<{ tickets: Ticket[] }>(`/tickets?status=${status}`);
+}
+
+export async function replyToTicket(ticketId: number, reply: string) {
+  return apiRequest<{ success: boolean }>(`/tickets/${ticketId}/reply`, {
+    method: 'POST',
+    body: JSON.stringify({ reply }),
+  });
+}
+
+export async function closeTicket(ticketId: number) {
+  return apiRequest<{ success: boolean }>(`/tickets/${ticketId}/close`, {
+    method: 'POST',
+  });
+}
+

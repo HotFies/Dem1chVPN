@@ -251,3 +251,167 @@ async def create_backup():
     )
     await asyncio.wait_for(proc.communicate(), timeout=30)
     return {"success": True, "message": "Backup created. Check /opt/dem1chvpn/backups/"}
+
+
+# ── Tickets ──
+
+from server.bot.services.ticket_manager import TicketManager
+
+
+async def _get_auth_user(request: Request) -> dict:
+    """Get authenticated user info (any user, not just admin)."""
+    return await require_auth(request)
+
+
+async def _require_vpn_user(request: Request) -> dict:
+    """Require that user is a VPN user (has account in DB)."""
+    auth = await require_auth(request)
+    user_id = auth.get("user_id")
+    if not user_id:
+        raise HTTPException(401, "User ID not found")
+    mgr = UserManager()
+    user = await mgr.get_user_by_telegram_id(user_id)
+    if not user:
+        raise HTTPException(403, "Only VPN users can create tickets")
+    auth["vpn_user"] = user
+    return auth
+
+
+async def _send_bot_message(chat_id: int, text: str):
+    """Send a message via Bot API directly (no bot instance needed)."""
+    import aiohttp
+    url = f"https://api.telegram.org/bot{config.BOT_TOKEN}/sendMessage"
+    async with aiohttp.ClientSession() as session:
+        await session.post(url, json={
+            "chat_id": chat_id,
+            "text": text,
+            "parse_mode": "HTML",
+        })
+
+
+@api.get("/tickets/my")
+async def get_my_tickets(request: Request):
+    """Get tickets for current user (VPN users only)."""
+    auth = await _require_vpn_user(request)
+    user_id = auth["user_id"]
+    ticket_mgr = TicketManager()
+    tickets = await ticket_mgr.get_user_tickets(user_id)
+    return {
+        "tickets": [
+            {
+                "id": t.id,
+                "message": t.message,
+                "reply": t.reply,
+                "is_resolved": t.is_resolved,
+                "created_at": t.created_at.isoformat() if t.created_at else None,
+                "resolved_at": t.resolved_at.isoformat() if t.resolved_at else None,
+            }
+            for t in tickets
+        ]
+    }
+
+
+@api.post("/tickets")
+async def create_ticket(request: Request):
+    """Create a new ticket (VPN users only)."""
+    auth = await _require_vpn_user(request)
+    data = await request.json()
+    message = data.get("message", "").strip()
+
+    if not message or len(message) < 5:
+        raise HTTPException(400, "Message must be at least 5 characters")
+
+    ticket_mgr = TicketManager()
+    ticket = await ticket_mgr.create_ticket(
+        user_telegram_id=auth["user_id"],
+        user_name=auth.get("first_name", "User"),
+        message=message[:2000],
+    )
+
+    # Notify admin(s) via Bot API
+    for admin_id in config.ADMIN_IDS:
+        try:
+            await _send_bot_message(
+                admin_id,
+                f"🎫 <b>Новый тикет #{ticket.id}</b>\n\n"
+                f"👤 От: <b>{auth.get('first_name', 'User')}</b>\n"
+                f"📝 {message[:500]}",
+            )
+        except Exception:
+            pass
+
+    return {
+        "id": ticket.id,
+        "created_at": ticket.created_at.isoformat() if ticket.created_at else None,
+    }
+
+
+@api.get("/tickets", dependencies=[Depends(require_admin)])
+async def list_all_tickets(status: str = "all"):
+    """List all tickets (admin only). Filter: open, closed, all."""
+    ticket_mgr = TicketManager()
+
+    if status == "open":
+        tickets = await ticket_mgr.get_open_tickets()
+    elif status == "closed":
+        tickets = await ticket_mgr.get_closed_tickets()
+    else:
+        tickets = await ticket_mgr.get_all_tickets()
+
+    return {
+        "tickets": [
+            {
+                "id": t.id,
+                "user_telegram_id": t.user_telegram_id,
+                "user_name": t.user_name,
+                "message": t.message,
+                "reply": t.reply,
+                "is_resolved": t.is_resolved,
+                "created_at": t.created_at.isoformat() if t.created_at else None,
+                "resolved_at": t.resolved_at.isoformat() if t.resolved_at else None,
+            }
+            for t in tickets
+        ]
+    }
+
+
+@api.post("/tickets/{ticket_id}/reply", dependencies=[Depends(require_admin)])
+async def reply_to_ticket(ticket_id: int, request: Request):
+    """Reply to a ticket and mark as resolved (admin only)."""
+    data = await request.json()
+    reply_text = data.get("reply", "").strip()
+
+    if not reply_text:
+        raise HTTPException(400, "Reply text required")
+
+    ticket_mgr = TicketManager()
+    ticket = await ticket_mgr.resolve_ticket(ticket_id, reply_text)
+
+    if not ticket:
+        raise HTTPException(404, "Ticket not found")
+
+    # Send reply to user via Bot API
+    try:
+        await _send_bot_message(
+            ticket.user_telegram_id,
+            f"💬 <b>Ответ на ваш тикет #{ticket_id}</b>\n\n"
+            f"{reply_text}\n\n"
+            f"<i>— Администратор Dem1chVPN</i>",
+        )
+    except Exception:
+        pass
+
+    return {"success": True, "id": ticket_id}
+
+
+@api.post("/tickets/{ticket_id}/close", dependencies=[Depends(require_admin)])
+async def close_ticket(ticket_id: int):
+    """Close a ticket without reply (admin only)."""
+    ticket_mgr = TicketManager()
+    ticket = await ticket_mgr.resolve_ticket(ticket_id)
+
+    if not ticket:
+        raise HTTPException(404, "Ticket not found")
+
+    return {"success": True, "id": ticket_id}
+

@@ -99,7 +99,11 @@ class RouteManager:
         return result
 
     async def generate_client_routing_config(self) -> dict:
-        """Generate routing config for client subscription."""
+        """Generate routing config for client subscription (split-tunneling).
+
+        Only our curated list of Russian domains goes DIRECT.
+        Everything else goes through proxy (VPN).
+        """
         proxy_domains = await self.get_proxy_domains()
         direct_domains = await self.get_direct_domains()
 
@@ -110,9 +114,7 @@ class RouteManager:
                     {
                         "type": "field",
                         "outboundTag": "direct",
-                        "domain": [f"domain:{d}" for d in direct_domains] + [
-                            "geosite:category-ru",
-                        ],
+                        "domain": [f"domain:{d}" for d in direct_domains],
                     },
                     {
                         "type": "field",
@@ -124,8 +126,11 @@ class RouteManager:
                         "outboundTag": "proxy",
                         "domain": [f"domain:{d}" for d in proxy_domains],
                     },
-                    # Default: unmatched traffic goes direct (safe default)
-                    # User can switch to "Global" mode in client for full proxy
+                    {
+                        "type": "field",
+                        "outboundTag": "proxy",
+                        "port": "0-65535",
+                    },
                 ],
             }
         }

@@ -271,6 +271,15 @@ def _decode_varint(data: bytes, pos: int) -> tuple[int, int]:
     return value, pos
 
 
+def _varint_to_signed64(value: int) -> int:
+    """Convert unsigned varint to signed int64 (protobuf int64 encoding).
+    Negative int64 values are encoded as 10-byte varints (large unsigned numbers).
+    """
+    if value >= (1 << 63):
+        value -= (1 << 64)
+    return value
+
+
 def _deserialize_stat(data: bytes) -> _Stat:
     """Minimal protobuf deserializer for Stat message."""
     stat = _Stat()
@@ -288,8 +297,8 @@ def _deserialize_stat(data: bytes) -> _Stat:
             i += length
         elif wire_type == 0:  # Varint
             value, i = _decode_varint(data, i)
-            if field_num == 2:  # value
-                stat.value = value
+            if field_num == 2:  # value (int64 — may be negative)
+                stat.value = _varint_to_signed64(value)
         else:
             break  # Unknown wire type
     return stat

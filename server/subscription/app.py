@@ -3,6 +3,7 @@ Dem1chVPN — Subscription Server
 Provides auto-updating VPN configs for clients via HTTPS.
 """
 import base64
+import json
 import sys
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -96,16 +97,35 @@ async def get_subscription(request: Request, token: str):
     # Base64 encode (standard for V2Ray subscription format)
     encoded = base64.b64encode(vless_url.encode()).decode()
 
+    # Build V2RayTun routing header (base64-encoded routing rules)
+    routing_header = await _build_routing_header()
+
     # Build subscription response with proper headers
+    headers = {
+        "Subscription-Userinfo": _build_userinfo(user),
+        "Content-Disposition": f'attachment; filename="{user.name}.txt"',
+        "Profile-Update-Interval": "6",
+        "Profile-Title": f"base64:{base64.b64encode(f'Dem1chVPN - {user.name}'.encode()).decode()}",
+    }
+    if routing_header:
+        headers["routing"] = routing_header
+
+    # Fragment header — tells V2RayN/V2RayNG to fragment TLS ClientHello
+    # This helps bypass DPI throttling by Russian ISPs (Rostelecom, MTS, etc.)
+    # Clients that don't support this header will simply ignore it
+    fragment_config = {
+        "packets": "tlshello",
+        "length": "100-200",
+        "interval": "10-20",
+    }
+    headers["fragment"] = base64.b64encode(
+        json.dumps(fragment_config).encode()
+    ).decode()
+
     return Response(
         content=encoded,
         media_type="text/plain",
-        headers={
-            "Subscription-Userinfo": _build_userinfo(user),
-            "Content-Disposition": f'attachment; filename="{user.name}.txt"',
-            "Profile-Update-Interval": "6",
-            "Profile-Title": f"Dem1chVPN - {user.name}",
-        },
+        headers=headers,
     )
 
 
@@ -135,6 +155,58 @@ def _build_userinfo(user) -> str:
         import time
         parts.append(f"expire={int(user.expiry_date.timestamp())}")
     return "; ".join(parts)
+
+
+async def _build_routing_header() -> str | None:
+    """Build base64-encoded routing JSON for V2RayTun header.
+
+    V2RayTun reads the 'routing' HTTP header from the subscription response
+    and auto-applies the routing rules on the client.
+    Docs: https://v2raytun.gitbook.io/overview/supported-headers#routing
+    """
+    try:
+        route_mgr = RouteManager()
+        direct_domains = await route_mgr.get_direct_domains()
+        proxy_domains = await route_mgr.get_proxy_domains()
+
+        if not direct_domains and not proxy_domains:
+            return None
+
+        routing = {
+            "domainStrategy": "IPIfNonMatch",
+            "domainMatcher": "hybrid",
+            "rules": [],
+        }
+
+        if direct_domains:
+            routing["rules"].append({
+                "type": "field",
+                "outboundTag": "direct",
+                "domain": [f"domain:{d}" for d in direct_domains],
+            })
+            routing["rules"].append({
+                "type": "field",
+                "outboundTag": "direct",
+                "ip": ["geoip:ru", "geoip:private"],
+            })
+
+        if proxy_domains:
+            routing["rules"].append({
+                "type": "field",
+                "outboundTag": "proxy",
+                "domain": [f"domain:{d}" for d in proxy_domains],
+            })
+
+        # Catch-all: everything else goes through proxy
+        routing["rules"].append({
+            "type": "field",
+            "outboundTag": "proxy",
+            "port": "0-65535",
+        })
+
+        return base64.b64encode(json.dumps(routing).encode()).decode()
+    except Exception:
+        return None
 
 
 # ── WebApp API ──

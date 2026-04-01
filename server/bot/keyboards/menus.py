@@ -2,6 +2,7 @@
 Dem1chVPN Bot — Inline Keyboards
 All bot menus and inline keyboards.
 """
+import math
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
 from ..config import config
 
@@ -28,6 +29,14 @@ def main_menu(is_admin: bool = False) -> InlineKeyboardMarkup:
         buttons.append([
             InlineKeyboardButton(text="📊 Мой трафик", callback_data="self:traffic"),
         ])
+        # Ticket button → Mini App
+        if config.SUB_DOMAIN:
+            buttons.append([
+                InlineKeyboardButton(
+                    text="🎫 Тикет",
+                    web_app=WebAppInfo(url=f"{config.sub_base_url}/webapp/#tickets"),
+                ),
+            ])
 
     buttons.append([
         InlineKeyboardButton(text="📖 Помощь", callback_data="menu:help"),
@@ -50,7 +59,7 @@ def users_menu() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [
             InlineKeyboardButton(text="➕ Добавить", callback_data="users:add"),
-            InlineKeyboardButton(text="📋 Список", callback_data="users:list"),
+            InlineKeyboardButton(text="📋 Список", callback_data="users:list:0"),
         ],
         [
             InlineKeyboardButton(text="🎟️ Приглашение", callback_data="users:invite"),
@@ -60,9 +69,44 @@ def users_menu() -> InlineKeyboardMarkup:
     ])
 
 
-def user_actions(user_id: int) -> InlineKeyboardMarkup:
+def user_list_keyboard(
+    users_on_page: list,
+    page: int,
+    total_count: int,
+    per_page: int = 8,
+) -> InlineKeyboardMarkup:
+    """Paginated user list keyboard."""
+    buttons = []
+    for u in users_on_page:
+        status = "🟢" if u.is_active and not u.is_expired else "🔴"
+        buttons.append([
+            InlineKeyboardButton(
+                text=f"{status} {u.name}",
+                callback_data=f"user:info:{u.id}",
+            )
+        ])
+
+    # Pagination row
+    total_pages = math.ceil(total_count / per_page) if total_count > 0 else 1
+    if total_pages > 1:
+        nav = []
+        if page > 0:
+            nav.append(InlineKeyboardButton(text="◀️", callback_data=f"users:list:{page - 1}"))
+        nav.append(InlineKeyboardButton(
+            text=f"{page + 1}/{total_pages}",
+            callback_data="noop",
+        ))
+        if page < total_pages - 1:
+            nav.append(InlineKeyboardButton(text="▶️", callback_data=f"users:list:{page + 1}"))
+        buttons.append(nav)
+
+    buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="menu:users")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
+
+
+def user_actions(user_id: int, has_telegram: bool = False) -> InlineKeyboardMarkup:
     """Actions for a specific user."""
-    return InlineKeyboardMarkup(inline_keyboard=[
+    buttons = [
         [
             InlineKeyboardButton(text="🔗 Ссылка", callback_data=f"user:link:{user_id}"),
             InlineKeyboardButton(text="📱 QR", callback_data=f"user:qr:{user_id}"),
@@ -72,11 +116,25 @@ def user_actions(user_id: int) -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="📡 Подписка", callback_data=f"user:sub:{user_id}"),
         ],
         [
-            InlineKeyboardButton(text="⏸️ Блок/Разблок", callback_data=f"user:toggle:{user_id}"),
-            InlineKeyboardButton(text="🗑️ Удалить", callback_data=f"user:delete:{user_id}"),
+            InlineKeyboardButton(text="📆 Продлить", callback_data=f"user:extend:{user_id}"),
+            InlineKeyboardButton(text="🔄 Сброс трафика", callback_data=f"user:reset_traffic:{user_id}"),
         ],
-        [InlineKeyboardButton(text="◀️ Назад", callback_data="users:list")],
+        [
+            InlineKeyboardButton(text="📊 Лимит", callback_data=f"user:set_limit:{user_id}"),
+            InlineKeyboardButton(text="📈 График", callback_data=f"user:chart:{user_id}"),
+        ],
+    ]
+    # Link Telegram button (only if not linked)
+    if not has_telegram:
+        buttons.append([
+            InlineKeyboardButton(text="🔗 Привязать Telegram", callback_data=f"user:link_tg:{user_id}"),
+        ])
+    buttons.append([
+        InlineKeyboardButton(text="⏸️ Блок/Разблок", callback_data=f"user:toggle:{user_id}"),
+        InlineKeyboardButton(text="🗑️ Удалить", callback_data=f"user:delete:{user_id}"),
     ])
+    buttons.append([InlineKeyboardButton(text="◀️ К списку", callback_data="users:list:0")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
 def routing_menu() -> InlineKeyboardMarkup:
@@ -99,21 +157,33 @@ def routing_menu() -> InlineKeyboardMarkup:
 
 def monitoring_menu() -> InlineKeyboardMarkup:
     """Мониторинг menu."""
-    return InlineKeyboardMarkup(inline_keyboard=[
+    buttons = [
         [
             InlineKeyboardButton(text="📈 Статус", callback_data="mon:status"),
             InlineKeyboardButton(text="🌐 Xray", callback_data="mon:xray"),
         ],
         [
+            InlineKeyboardButton(text="👁 Онлайн", callback_data="mon:online"),
             InlineKeyboardButton(text="📉 Трафик", callback_data="mon:traffic_day"),
-            InlineKeyboardButton(text="⚡ Speedtest", callback_data="mon:speedtest"),
         ],
         [
+            InlineKeyboardButton(text="⚡ Speedtest", callback_data="mon:speedtest"),
             InlineKeyboardButton(text="🚨 Проверка IP", callback_data="mon:ip_check"),
-            InlineKeyboardButton(text="🔔 Уведомления", callback_data="mon:alerts"),
         ],
-        [InlineKeyboardButton(text="◀️ Назад", callback_data="menu:main")],
-    ])
+    ]
+    # Tickets → Mini App (if domain configured)
+    ticket_row = []
+    if config.SUB_DOMAIN:
+        ticket_row.append(InlineKeyboardButton(
+            text="🎫 Тикеты",
+            web_app=WebAppInfo(url=f"{config.sub_base_url}/webapp/#tickets"),
+        ))
+    else:
+        ticket_row.append(InlineKeyboardButton(text="🎫 Тикеты", callback_data="tickets:list"))
+    ticket_row.append(InlineKeyboardButton(text="🔔 Уведомления", callback_data="mon:alerts"))
+    buttons.append(ticket_row)
+    buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="menu:main")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
 def settings_menu() -> InlineKeyboardMarkup:
@@ -131,6 +201,10 @@ def settings_menu() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="💾 Бэкап", callback_data="set:backup"),
             InlineKeyboardButton(text="📥 Восстановить", callback_data="set:restore"),
         ],
+        [
+            InlineKeyboardButton(text="🌐 WARP", callback_data="set:warp_status"),
+            InlineKeyboardButton(text="📢 Рассылка", callback_data="set:broadcast"),
+        ],
         [InlineKeyboardButton(text="🔁 Перезапуск Xray", callback_data="set:restart")],
         [InlineKeyboardButton(text="◀️ Назад", callback_data="menu:main")],
     ])
@@ -143,6 +217,8 @@ def help_menu() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="🖥️ Windows", callback_data="help:windows")],
         [InlineKeyboardButton(text="📱 Android", callback_data="help:android")],
         [InlineKeyboardButton(text="🍎 iOS", callback_data="help:ios")],
+        [InlineKeyboardButton(text="🍎 macOS", callback_data="help:macos")],
+        [InlineKeyboardButton(text="🐧 Linux", callback_data="help:linux")],
         [InlineKeyboardButton(text="📡 Роутер", callback_data="help:router")],
         [InlineKeyboardButton(text="◀️ Назад", callback_data="menu:main")],
     ])
@@ -163,6 +239,26 @@ def back_button(target: str = "menu:main") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="◀️ Назад", callback_data=target)],
     ])
+
+
+def cancel_button(target: str = "menu:main") -> InlineKeyboardMarkup:
+    """Single cancel button for FSM states."""
+    return InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="❌ Отмена", callback_data=target)],
+    ])
+
+
+def ticket_list_keyboard(tickets: list) -> InlineKeyboardMarkup:
+    """Keyboard with list of open tickets."""
+    buttons = []
+    for t in tickets:
+        status = "🔵" if not t.is_resolved else "✅"
+        label = f"{status} #{t.id} — {(t.user_name or 'User')[:20]}"
+        buttons.append([
+            InlineKeyboardButton(text=label, callback_data=f"ticket:view:{t.id}")
+        ])
+    buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="menu:monitoring")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
 def wizard_platform() -> InlineKeyboardMarkup:
@@ -189,3 +285,6 @@ def wizard_connect_method() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="📡 Подписка (рекомендуется)", callback_data="wiz:method_sub")],
         [InlineKeyboardButton(text="◀️ Назад", callback_data="menu:help")],
     ])
+
+
+

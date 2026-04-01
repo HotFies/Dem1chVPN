@@ -13,6 +13,7 @@ from ..keyboards.menus import monitoring_menu, back_button
 from ..services.xray_config import XrayConfigManager
 from ..services.user_manager import UserManager
 from ..utils.formatters import format_traffic, format_uptime, progress_bar
+from ..utils.telegram_helpers import safe_edit_text, try_lock_operation, release_op_lock
 
 router = Router()
 
@@ -34,9 +35,11 @@ async def mon_status(callback: CallbackQuery):
     xray_running = await xray_mgr.is_xray_running()
     xray_version = await xray_mgr.get_xray_version()
 
-    # User count
+    # User count + online
     user_mgr = UserManager()
     user_count = await user_mgr.count_users()
+    online_users = await user_mgr.get_online_users()
+    online_count = len(online_users)
 
     text = (
         "📊 <b>Статус Dem1chVPN</b>\n\n"
@@ -49,7 +52,8 @@ async def mon_status(callback: CallbackQuery):
         f"  Uptime: {format_uptime(uptime_secs)}\n\n"
         f"🌐 <b>Xray:</b> {'🟢 Работает' if xray_running else '🔴 Остановлен'}"
         f" (v{xray_version})\n"
-        f"👥 <b>Пользователей:</b> {user_count}\n"
+        f"👥 <b>Пользователей:</b> {user_count}  "
+        f"(🟢 онлайн: {online_count})\n"
     )
 
     # Network stats
@@ -60,7 +64,30 @@ async def mon_status(callback: CallbackQuery):
         f"  ↓ Получено: {format_traffic(net.bytes_recv)}\n"
     )
 
-    await callback.message.edit_text(text, reply_markup=monitoring_menu())
+    await safe_edit_text(callback.message, text, reply_markup=monitoring_menu())
+    await callback.answer()
+
+
+@router.callback_query(F.data == "mon:online")
+async def mon_online(callback: CallbackQuery):
+    """Show currently connected users."""
+    user_mgr = UserManager()
+    online = await user_mgr.get_online_users(threshold_seconds=120)
+    total_users = await user_mgr.count_users()
+
+    if online:
+        lines = [f"👁 <b>Онлайн-пользователи ({len(online)}/{total_users}):</b>\n"]
+        for u in online:
+            lines.append(f"  🟢 <b>{u.name}</b> — {format_traffic(u.traffic_total)}")
+    else:
+        lines = [f"👁 <b>Онлайн-пользователи (0/{total_users}):</b>\n"]
+        lines.append("  Сейчас никто не подключён.")
+
+    await safe_edit_text(
+        callback.message,
+        "\n".join(lines),
+        reply_markup=monitoring_menu(),
+    )
     await callback.answer()
 
 
@@ -83,7 +110,7 @@ async def mon_xray(callback: CallbackQuery):
         f"  Клиентов в конфиге: {len(clients)}\n"
     )
 
-    await callback.message.edit_text(text, reply_markup=monitoring_menu())
+    await safe_edit_text(callback.message, text, reply_markup=monitoring_menu())
     await callback.answer()
 
 
@@ -119,7 +146,8 @@ async def mon_traffic_day(callback: CallbackQuery):
         f"  Σ Итого: {format_traffic(total_up + total_down)}"
     )
 
-    await callback.message.edit_text(
+    await safe_edit_text(
+        callback.message,
         "\n".join(lines),
         reply_markup=monitoring_menu(),
     )
@@ -142,7 +170,10 @@ async def mon_traffic_day(callback: CallbackQuery):
 
 @router.callback_query(F.data == "mon:speedtest")
 async def mon_speedtest(callback: CallbackQuery):
-    """Run speedtest on VPS."""
+    """Run speedtest on VPS (with operation lock)."""
+    if not await try_lock_operation(callback, "speedtest", "⏳ Speedtest уже запущен, подождите..."):
+        return
+
     await callback.answer("⚡ Запуск speedtest... (30–60 сек)", show_alert=True)
 
     try:
@@ -173,21 +204,30 @@ async def mon_speedtest(callback: CallbackQuery):
         text = "❌ Speedtest: таймаут (>90 сек)"
     except Exception as e:
         text = f"❌ Ошибка speedtest: {e}"
+    finally:
+        release_op_lock("speedtest")
 
-    await callback.message.edit_text(text, reply_markup=monitoring_menu())
+    await safe_edit_text(callback.message, text, reply_markup=monitoring_menu())
 
 
 @router.callback_query(F.data == "mon:alerts")
 async def mon_alerts(callback: CallbackQuery):
     """Alert settings."""
-    await callback.message.edit_text(
+    await safe_edit_text(
+        callback.message,
         "🔔 <b>Настройки уведомлений</b>\n\n"
         "Автоматические уведомления:\n"
         "  ✅ Xray упал → автоперезапуск\n"
         "  ✅ Трафик 80% лимита → предупреждение\n"
+        "  ✅ Лимит трафика → автоблокировка\n"
+        "  ✅ Срок аккаунта истёк → автоблокировка\n"
         "  ✅ Гео-базы обновлены\n"
-        "  ✅ IP заблокирован ТСПУ\n\n"
-        "<i>Уведомления всегда отправляются администраторам.</i>",
+        "  ✅ IP недоступен из региона\n\n"
+        "Уведомления пользователям:\n"
+        "  ✅ Блокировка / разблокировка\n"
+        "  ✅ Истечение срока / лимита\n\n"
+        "<i>Уведомления всегда отправляются администраторам.\n"
+        "Пользователям — если привязан Telegram-аккаунт.</i>",
         reply_markup=monitoring_menu(),
     )
     await callback.answer()
@@ -199,10 +239,15 @@ async def mon_ip_check(callback: CallbackQuery):
     from ..config import config
     from ..services.ip_checker import IPBlockChecker
 
+    if not await try_lock_operation(callback, "ip_check", "⏳ Проверка IP уже выполняется..."):
+        return
+
     await callback.answer("🔍 Проверяю IP... (10-15 сек)", show_alert=True)
 
-    checker = IPBlockChecker(config.SERVER_IP)
-    text = await checker.get_formatted_status()
+    try:
+        checker = IPBlockChecker(config.SERVER_IP)
+        text = await checker.get_formatted_status()
+    finally:
+        release_op_lock("ip_check")
 
-    await callback.message.edit_text(text, reply_markup=monitoring_menu())
-
+    await safe_edit_text(callback.message, text, reply_markup=monitoring_menu())

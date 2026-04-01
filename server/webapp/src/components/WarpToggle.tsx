@@ -69,7 +69,7 @@ export default function WarpToggle() {
     {
       key: 'mtproto' as const,
       label: '💬 MTProto Proxy',
-      description: 'Прокси для Telegram при блокировке',
+      description: 'Прокси для стабильной работы Telegram',
       enabled: settings.mtproto_enabled,
     },
   ];

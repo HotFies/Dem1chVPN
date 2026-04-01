@@ -10,6 +10,7 @@ from ..keyboards.menus import wizard_platform, wizard_connect_method, back_butto
 from ..services.user_manager import UserManager
 from ..services.xray_config import XrayConfigManager
 from ..utils.qr_generator import generate_qr_code
+from ..utils.telegram_helpers import safe_edit_text, remove_keyboard
 
 router = Router()
 
@@ -25,8 +26,12 @@ async def self_link(callback: CallbackQuery):
 
     xray_mgr = XrayConfigManager()
     vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
+
+    # Remove old keyboard, send new message
+    await remove_keyboard(callback.message)
     await callback.message.answer(
-        f"🔗 <b>Ваша ссылка подключения:</b>\n\n<code>{vless_url}</code>"
+        f"🔗 <b>Ваша ссылка подключения:</b>\n\n<code>{vless_url}</code>",
+        reply_markup=back_button("menu:main"),
     )
     await callback.answer()
 
@@ -44,6 +49,7 @@ async def self_qr(callback: CallbackQuery):
     vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
     qr_bytes = generate_qr_code(vless_url)
 
+    await remove_keyboard(callback.message)
     qr_file = BufferedInputFile(qr_bytes, filename=f"dem1chvpn_{user.name}.png")
     await callback.message.answer_photo(qr_file, caption="📱 Ваш QR-код")
     await callback.answer()
@@ -59,7 +65,8 @@ async def self_traffic(callback: CallbackQuery):
         return
 
     from ..utils.formatters import format_user_info
-    await callback.message.edit_text(
+    await safe_edit_text(
+        callback.message,
         f"📊 <b>Ваш аккаунт</b>\n\n{format_user_info(user)}",
         reply_markup=back_button("menu:main"),
     )
@@ -76,14 +83,15 @@ async def wizard_step(callback: CallbackQuery):
     platform_apps = {
         "windows": ("v2rayN", "https://github.com/2dust/v2rayN/releases"),
         "android": ("v2rayNG", "https://play.google.com/store/apps/details?id=com.v2ray.ang"),
-        "ios": ("Streisand", "https://apps.apple.com/app/streisand/id6450534064"),
-        "macos": ("V2BOX", "https://apps.apple.com/app/v2box-v2ray-client/id6446814690"),
+        "ios": ("V2RayTun", "https://apps.apple.com/app/v2raytun/id6476628951"),
+        "macos": ("V2RayTun", "https://apps.apple.com/app/v2raytun/id6476628951"),
         "router": ("Passwall2", "https://github.com/xiaorouji/openwrt-passwall2"),
     }
 
     if step in platform_apps:
         app_name, url = platform_apps[step]
-        await callback.message.edit_text(
+        await safe_edit_text(
+            callback.message,
             f"🧙 <b>Мастер подключения — Шаг 2</b>\n\n"
             f"📱 Для вашей платформы нужно:\n\n"
             f"1. Скачайте <b>{app_name}</b>:\n"
@@ -103,6 +111,9 @@ async def wizard_step(callback: CallbackQuery):
 
         xray_mgr = XrayConfigManager()
         vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
+
+        # Remove old keyboard for all methods (send new message)
+        await remove_keyboard(callback.message)
 
         if method == "qr":
             qr_bytes = generate_qr_code(vless_url)

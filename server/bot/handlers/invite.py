@@ -1,16 +1,19 @@
 """
 Dem1chVPN Bot — Invite Handler
 Create and manage invitation links.
+Uses CommandStart with deep_link filter to handle invite activation BEFORE the generic /start.
 """
 from datetime import datetime, timedelta, timezone
 
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message
+from aiogram.filters import CommandStart
+from aiogram.filters.command import CommandObject
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
 from ..config import config
-from ..keyboards.menus import back_button
+from ..keyboards.menus import back_button, cancel_button, main_menu
 from ..services.user_manager import UserManager
 from ..services.xray_config import XrayConfigManager
 from ..services.invite_manager import InviteManager
@@ -28,11 +31,32 @@ class InviteStates(StatesGroup):
 
 @router.callback_query(F.data == "users:invite")
 async def invite_start(callback: CallbackQuery, state: FSMContext):
-    await callback.message.edit_text(
+    from ..utils.telegram_helpers import safe_edit_text
+    await safe_edit_text(
+        callback.message,
         "🎟️ <b>Создание приглашения</b>\n\n"
-        "Введите имя для нового пользователя:"
+        "Введите имя для нового пользователя:",
+        reply_markup=cancel_button("menu:users"),
     )
     await state.set_state(InviteStates.waiting_name)
+    await callback.answer()
+
+
+# ── Cancel invite FSM ──
+
+@router.callback_query(F.data == "menu:users", InviteStates.waiting_name)
+@router.callback_query(F.data == "menu:users", InviteStates.waiting_limit)
+@router.callback_query(F.data == "menu:users", InviteStates.waiting_days)
+async def invite_cancel(callback: CallbackQuery, state: FSMContext):
+    """Cancel invite creation."""
+    from ..utils.telegram_helpers import safe_edit_text
+    from ..keyboards.menus import users_menu
+    await state.clear()
+    await safe_edit_text(
+        callback.message,
+        "👥 <b>Пользователи</b>\n\n❌ Создание приглашения отменено.",
+        reply_markup=users_menu(),
+    )
     await callback.answer()
 
 
@@ -40,12 +64,16 @@ async def invite_start(callback: CallbackQuery, state: FSMContext):
 async def invite_name(message: Message, state: FSMContext):
     name = message.text.strip()
     if not name or len(name) > 50:
-        await message.answer("❌ Имя от 1 до 50 символов:")
+        await message.answer(
+            "❌ Имя от 1 до 50 символов:",
+            reply_markup=cancel_button("menu:users"),
+        )
         return
     await state.update_data(name=name)
     await message.answer(
         f"👤 Имя: <b>{name}</b>\n\n"
-        "📊 Лимит трафика в ГБ (0 = безлимит):"
+        "📊 Лимит трафика в ГБ (0 = безлимит):",
+        reply_markup=cancel_button("menu:users"),
     )
     await state.set_state(InviteStates.waiting_limit)
 
@@ -57,14 +85,18 @@ async def invite_limit(message: Message, state: FSMContext):
         if gb < 0:
             raise ValueError
     except ValueError:
-        await message.answer("❌ Введите число:")
+        await message.answer(
+            "❌ Введите число:",
+            reply_markup=cancel_button("menu:users"),
+        )
         return
 
     traffic_limit = int(gb * 1024 ** 3) if gb > 0 else None
     await state.update_data(traffic_limit=traffic_limit, traffic_gb=gb)
     await message.answer(
         f"📊 Лимит: <b>{'♾️' if not traffic_limit else f'{gb} GB'}</b>\n\n"
-        "⏰ Срок действия аккаунта в днях (0 = бессрочно):"
+        "⏰ Срок действия аккаунта в днях (0 = бессрочно):",
+        reply_markup=cancel_button("menu:users"),
     )
     await state.set_state(InviteStates.waiting_days)
 
@@ -76,7 +108,10 @@ async def invite_days(message: Message, state: FSMContext):
         if days < 0:
             raise ValueError
     except ValueError:
-        await message.answer("❌ Введите целое число:")
+        await message.answer(
+            "❌ Введите целое число:",
+            reply_markup=cancel_button("menu:users"),
+        )
         return
 
     data = await state.get_data()
@@ -89,6 +124,14 @@ async def invite_days(message: Message, state: FSMContext):
         traffic_limit=data.get("traffic_limit"),
         days_valid=days if days > 0 else None,
         created_by=message.from_user.id,
+    )
+
+    # Audit log
+    user_mgr = UserManager()
+    await user_mgr.log_action(
+        "invite_created",
+        admin_id=message.from_user.id,
+        details=f"Name: {data['name']}, code: {invite.code}",
     )
 
     # Bot username for the link
@@ -114,11 +157,75 @@ async def invite_days(message: Message, state: FSMContext):
 
 
 # ── Handle invite deep link ──
+# This handler uses CommandStart with a magic_filter to catch /start inv_XXXX
+# It MUST be registered before the generic /start handler (in main.py router order)
 
-@router.message(F.text.startswith("/start inv_"))
-async def invite_activate(message: Message):
-    """Activate an invitation link."""
-    code = message.text.replace("/start inv_", "").strip()
+@router.message(CommandStart(deep_link=True, magic=F.args.startswith(("inv_", "link_"))))
+async def invite_activate(message: Message, command: CommandObject):
+    """Activate an invitation link via /start inv_XXXX or /start link_XXXX deep link."""
+    args = command.args or ""
+
+    # ── Link Telegram account (link_USERID) ──
+    if args.startswith("link_"):
+        try:
+            vpn_user_id = int(args.replace("link_", ""))
+        except ValueError:
+            await message.answer("❌ Неверная ссылка привязки.")
+            return
+
+        user_mgr = UserManager()
+
+        # Check if this TG already linked
+        existing = await user_mgr.get_user_by_telegram_id(message.from_user.id)
+        if existing:
+            await message.answer(
+                f"✅ Ваш Telegram уже привязан к аккаунту <b>{existing.name}</b>.\n"
+                "Нажмите /start для доступа к меню."
+            )
+            return
+
+        # Get VPN user
+        user = await user_mgr.get_user(vpn_user_id)
+        if not user:
+            await message.answer("❌ Аккаунт не найден. Обратитесь к администратору.")
+            return
+
+        if user.telegram_id:
+            await message.answer("❌ Этот аккаунт уже привязан к другому Telegram.")
+            return
+
+        # Link!
+        await user_mgr.link_telegram(vpn_user_id, message.from_user.id)
+
+        # Generate VLESS link for welcome
+        xray_mgr = XrayConfigManager()
+        vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
+        sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
+
+        await message.answer(
+            f"🔗 <b>Telegram привязан!</b>\n\n"
+            f"Аккаунт: <b>{user.name}</b>\n\n"
+            f"📡 <b>Подписка:</b>\n<code>{sub_url}</code>\n\n"
+            "Теперь вы можете:\n"
+            "• Просматривать трафик\n"
+            "• Создавать тикеты\n"
+            "• Получать уведомления\n\n"
+            "Нажмите /start для доступа к меню."
+        )
+
+        # Notify admin
+        for admin_id in config.ADMIN_IDS:
+            try:
+                await message.bot.send_message(
+                    admin_id,
+                    f"🔗 Telegram привязан!\n"
+                    f"👤 {user.name} → @{message.from_user.username or '—'}",
+                )
+            except Exception:
+                pass
+        return
+
+    code = args.replace("inv_", "")
 
     inv_mgr = InviteManager()
     invite = await inv_mgr.get_invite(code)
@@ -155,6 +262,13 @@ async def invite_activate(message: Message):
     # Mark invite as used
     await inv_mgr.use_invite(code)
 
+    # Audit log
+    await user_mgr.log_action(
+        "user_created_via_invite",
+        target_user_id=user.id,
+        details=f"Name: {user.name}, invite: {code}, tg: @{message.from_user.username or '—'}",
+    )
+
     # Generate VLESS link
     vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
     sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
@@ -177,7 +291,7 @@ async def invite_activate(message: Message):
     qr_file = BufferedInputFile(qr_bytes, filename=f"dem1chvpn_{user.name}.png")
     await message.answer_photo(
         qr_file,
-        caption=f"📱 QR-код для <b>{user.name}</b>\nСканируйте в v2rayNG/Streisand",
+        caption=f"📱 QR-код для <b>{user.name}</b>\nСканируйте в v2rayNG / V2RayTun",
     )
 
     # Notify admin

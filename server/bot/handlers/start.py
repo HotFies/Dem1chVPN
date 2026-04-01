@@ -8,6 +8,7 @@ from aiogram.filters import CommandStart, Command
 
 from ..config import config
 from ..utils.auth import is_admin
+from ..utils.telegram_helpers import safe_edit_text
 from ..keyboards.menus import (
     main_menu, users_menu, routing_menu,
     monitoring_menu, settings_menu, help_menu,
@@ -48,7 +49,7 @@ async def menu_main(callback: CallbackQuery):
     """Return to main menu."""
     admin = is_admin(callback.from_user.id)
     text = "🛡️ <b>Dem1chVPN — Главное меню</b>\n\nВыберите раздел:"
-    await callback.message.edit_text(text, reply_markup=main_menu(is_admin=admin))
+    await safe_edit_text(callback.message, text, reply_markup=main_menu(is_admin=admin))
     await callback.answer()
 
 
@@ -58,7 +59,8 @@ async def menu_users(callback: CallbackQuery):
     if not is_admin(callback.from_user.id):
         await callback.answer("⛔ Нет доступа", show_alert=True)
         return
-    await callback.message.edit_text(
+    await safe_edit_text(
+        callback.message,
         "👥 <b>Управление пользователями</b>\n\nВыберите действие:",
         reply_markup=users_menu(),
     )
@@ -71,7 +73,8 @@ async def menu_routing(callback: CallbackQuery):
     if not is_admin(callback.from_user.id):
         await callback.answer("⛔ Нет доступа", show_alert=True)
         return
-    await callback.message.edit_text(
+    await safe_edit_text(
+        callback.message,
         "🔀 <b>Управление маршрутизацией</b>\n\nВыберите действие:",
         reply_markup=routing_menu(),
     )
@@ -84,7 +87,8 @@ async def menu_monitoring(callback: CallbackQuery):
     if not is_admin(callback.from_user.id):
         await callback.answer("⛔ Нет доступа", show_alert=True)
         return
-    await callback.message.edit_text(
+    await safe_edit_text(
+        callback.message,
         "📊 <b>Мониторинг</b>\n\nВыберите действие:",
         reply_markup=monitoring_menu(),
     )
@@ -97,7 +101,8 @@ async def menu_settings(callback: CallbackQuery):
     if not is_admin(callback.from_user.id):
         await callback.answer("⛔ Нет доступа", show_alert=True)
         return
-    await callback.message.edit_text(
+    await safe_edit_text(
+        callback.message,
         "⚙️ <b>Настройки сервера</b>\n\nВыберите действие:",
         reply_markup=settings_menu(),
     )
@@ -107,7 +112,8 @@ async def menu_settings(callback: CallbackQuery):
 @router.callback_query(F.data == "menu:help")
 async def menu_help(callback: CallbackQuery):
     """Help menu."""
-    await callback.message.edit_text(
+    await safe_edit_text(
+        callback.message,
         "❓ <b>Помощь и инструкции</b>\n\n"
         "Выберите платформу для получения инструкции по подключению:",
         reply_markup=help_menu(),

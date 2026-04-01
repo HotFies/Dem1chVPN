@@ -36,12 +36,12 @@ class AdminCheckMiddleware(BaseMiddleware):
             admin_prefixes = (
                 "users:", "user:", "route:", "mon:", "set:", "confirm:",
                 "menu:users", "menu:routing", "menu:monitoring", "menu:settings",
-                "mode:",
+                "mode:", "ticket:", "tickets:",
             )
             cb_data = event.data or ""
 
             # Self-service and help are available to all
-            if cb_data.startswith(("self:", "help:", "menu:help", "menu:main", "wiz:")):
+            if cb_data.startswith(("self:", "help:", "menu:help", "menu:main", "wiz:", "noop")):
                 return await handler(event, data)
 
             # Admin-only checks
@@ -117,14 +117,23 @@ async def _execute_delete_user(message: Message, user_id: int):
         xray_mgr = XrayConfigManager()
         await xray_mgr.remove_client(user.email)
         await mgr.delete_user(user_id)
+
+        # Audit log
+        await mgr.log_action(
+            "user_deleted",
+            admin_id=message.from_user.id,
+            target_user_id=user_id,
+            details=f"Name: {user.name}",
+        )
+
         await message.answer(
             f"✅ Пользователь <b>{user.name}</b> удалён.",
-            reply_markup=back_button("users:list"),
+            reply_markup=back_button("users:list:0"),
         )
     else:
         await message.answer(
             "❌ Пользователь не найден.",
-            reply_markup=back_button("users:list"),
+            reply_markup=back_button("users:list:0"),
         )
 
 
@@ -132,6 +141,7 @@ async def _execute_regen_keys(message: Message):
     """Regenerate Reality keys after PIN verification."""
     import asyncio
     from ..services.xray_config import XrayConfigManager
+    from ..services.user_manager import UserManager
     from ..keyboards.menus import settings_menu
 
     try:
@@ -156,8 +166,20 @@ async def _execute_regen_keys(message: Message):
             return
 
         xray_mgr = XrayConfigManager()
-        xray_mgr.update_reality_settings(private_key=private_key)
+        await xray_mgr.update_reality_settings(private_key=private_key)
         await xray_mgr.reload_xray()
+
+        # Update runtime config so VLESS URLs use the new keys immediately
+        config.REALITY_PRIVATE_KEY = private_key
+        config.REALITY_PUBLIC_KEY = public_key
+
+        # Audit log
+        mgr = UserManager()
+        await mgr.log_action(
+            "keys_regenerated",
+            admin_id=message.from_user.id,
+            details=f"New public key: {public_key[:16]}...",
+        )
 
         await message.answer(
             f"🔑 <b>Ключи Reality пересозданы!</b>\n\n"

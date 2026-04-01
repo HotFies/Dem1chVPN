@@ -176,16 +176,38 @@ harden_system() {
     # Включение BBR + сетевая оптимизация (единый блок)
     if ! grep -q "Dem1chVPN Performance" /etc/sysctl.conf 2>/dev/null; then
         cat >> /etc/sysctl.conf << 'SYSCTL'
-# Dem1chVPN Performance
+# ═══ Dem1chVPN Performance Tuning ═══
+
+# --- BBR (контроль перегрузки) ---
 net.core.default_qdisc=fq
 net.ipv4.tcp_congestion_control=bbr
-net.core.rmem_max=16777216
-net.core.wmem_max=16777216
-net.ipv4.tcp_rmem=4096 87380 16777216
-net.ipv4.tcp_wmem=4096 65536 16777216
+
+# --- Буферы TCP (64MB для высокоскоростных соединений) ---
+net.core.rmem_max=67108864
+net.core.wmem_max=67108864
+net.core.rmem_default=1048576
+net.core.wmem_default=1048576
+net.ipv4.tcp_rmem=4096 87380 67108864
+net.ipv4.tcp_wmem=4096 65536 67108864
+
+# --- Оптимизация TCP ---
 net.ipv4.tcp_fastopen=3
 net.ipv4.tcp_slow_start_after_idle=0
 net.ipv4.tcp_mtu_probing=1
+net.ipv4.tcp_notsent_lowat=16384
+
+# --- Очереди и соединения ---
+net.core.netdev_max_backlog=16384
+net.core.somaxconn=8192
+net.ipv4.tcp_max_syn_backlog=8192
+net.ipv4.tcp_tw_reuse=1
+net.ipv4.tcp_fin_timeout=15
+net.ipv4.tcp_keepalive_time=300
+net.ipv4.tcp_keepalive_intvl=30
+net.ipv4.tcp_keepalive_probes=5
+
+# --- Системные лимиты ---
+fs.file-max=1048576
 SYSCTL
         log_info "TCP BBR + сетевая оптимизация включены"
     else
@@ -412,6 +434,10 @@ DUCKDNS_TOKEN=${DUCKDNS_TOKEN}
 ADGUARD_ENABLED=false
 WARP_ENABLED=false
 MTPROTO_ENABLED=false
+
+# Автоматика
+TRAFFIC_RESET_DAY=1
+XRAY_AUTO_UPDATE=true
 ENVFILE
 
     chmod 600 "$ENV_FILE"
@@ -580,6 +606,44 @@ setup_warp() {
     fi
 }
 
+# ──── Шаг 6.9: Сборка Mini App (React) ────
+
+build_webapp() {
+    log_step "Шаг 6.9: Сборка Mini App"
+
+    WEBAPP_DIR="${DEM1CHVPN_DIR}/server/webapp"
+
+    if [ ! -f "${WEBAPP_DIR}/package.json" ]; then
+        log_warn "Mini App не найден (${WEBAPP_DIR}/package.json отсутствует)"
+        return 0
+    fi
+
+    # Установка Node.js 20 LTS (если не установлен)
+    if ! command -v node &> /dev/null; then
+        log_info "Установка Node.js 20 LTS..."
+        curl -fsSL https://deb.nodesource.com/setup_20.x | bash -
+        apt-get install -y nodejs
+    fi
+
+    NODE_VER=$(node --version 2>/dev/null || echo "unknown")
+    log_info "Node.js: ${NODE_VER}"
+
+    # Сборка
+    cd "${WEBAPP_DIR}"
+    npm install --production=false 2>&1 | tail -3
+    npm run build 2>&1 | tail -5
+
+    if [ -d "${WEBAPP_DIR}/dist" ]; then
+        log_info "Mini App собран: ${WEBAPP_DIR}/dist"
+        # Права для dem1chvpn
+        chown -R dem1chvpn:dem1chvpn "${WEBAPP_DIR}/dist" 2>/dev/null || true
+    else
+        log_warn "Сборка Mini App не удалась (dist/ не создана)"
+    fi
+
+    cd "${DEM1CHVPN_DIR}"
+}
+
 # ──── Шаг 7: Создание systemd-сервисов ────
 
 create_services() {
@@ -696,7 +760,7 @@ wget -qO "${ANTIFILTER_DIR}/ips.lst" \
 echo "[$(date)] Обновление антифильтра завершено"
 SCRIPT
 
-    # Скрипт проверки блокировки IP
+    # Скрипт проверки доступности IP
     cat > /opt/dem1chvpn/cron/ip_block_check.sh << 'SCRIPT'
 #!/bin/bash
 set -a
@@ -722,7 +786,7 @@ if [[ $FAIL_COUNT -ge 2 ]]; then
     echo "$NEW_FAILS" > "$CHECK_FILE"
 
     if [[ $NEW_FAILS -ge 3 ]]; then
-        echo "[$(date)] ВНИМАНИЕ: IP ${SERVER_IP} возможно заблокирован! (${NEW_FAILS} последовательных сбоев)"
+        echo "[$(date)] ВНИМАНИЕ: IP ${SERVER_IP} возможно недоступен из региона! (${NEW_FAILS} последовательных сбоев)"
     fi
 else
     echo "0" > "$CHECK_FILE"
@@ -774,6 +838,19 @@ ls -t "${BACKUP_DIR}"/dem1chvpn_*.tar.gz | tail -n +8 | xargs rm -f 2>/dev/null
 echo "[$(date)] Бэкап создан: ${BACKUP_FILE}"
 SCRIPT
 
+    # Скрипт проверки обновлений Xray
+    cat > /opt/dem1chvpn/cron/check_xray_update.sh << 'SCRIPT'
+#!/bin/bash
+CURRENT=$(/usr/local/bin/xray version 2>/dev/null | head -1 | awk '{print $2}')
+LATEST=$(curl -s https://api.github.com/repos/XTLS/Xray-core/releases/latest 2>/dev/null | grep '"tag_name"' | sed 's/.*"v\([^"]*\)".*/\1/')
+
+if [ -n "$LATEST" ] && [ "$CURRENT" != "$LATEST" ]; then
+    echo "[$(date)] Доступно обновление Xray: v${CURRENT} -> v${LATEST}"
+else
+    echo "[$(date)] Xray v${CURRENT} — актуальная версия"
+fi
+SCRIPT
+
     chmod +x /opt/dem1chvpn/cron/*.sh
 
     # Установка crontab
@@ -785,12 +862,14 @@ SCRIPT
 30 */6 * * * root /opt/dem1chvpn/cron/update_antifilter.sh >> /var/log/dem1chvpn/cron.log 2>&1
 # Проверка здоровья каждые 5 минут
 */5 * * * * root /opt/dem1chvpn/cron/health_check.sh >> /var/log/dem1chvpn/health.log 2>&1
-# Проверка блокировки IP каждые 5 минут
+# Проверка доступности IP каждые 5 минут
 */5 * * * * root /opt/dem1chvpn/cron/ip_block_check.sh >> /var/log/dem1chvpn/ip_check.log 2>&1
 # Ежедневный бэкап в 3:00
 0 3 * * * root /opt/dem1chvpn/cron/backup.sh >> /var/log/dem1chvpn/backup.log 2>&1
 # Обновление IP на DuckDNS каждые 5 минут
 */5 * * * * root /opt/dem1chvpn/cron/update_duckdns.sh >> /var/log/dem1chvpn/duckdns.log 2>&1
+# Проверка обновлений Xray (ежедневно в 4:00)
+0 4 * * * root /opt/dem1chvpn/cron/check_xray_update.sh >> /var/log/dem1chvpn/cron.log 2>&1
 CRON
 
     log_info "Cron-задачи настроены"
@@ -860,7 +939,7 @@ seed_default_routes() {
 import asyncio, sys
 sys.path.insert(0, '${DEM1CHVPN_DIR}')
 
-# ═══ PROXY — заблокированные сервисы (вкл. мобильные приложения) ═══
+# ═══ PROXY — сервисы для ускорения (вкл. мобильные приложения) ═══
 PROXY_DOMAINS = [
     # --- AI-сервисы ---
     'openai.com', 'chat.openai.com', 'api.openai.com', 'chatgpt.com',
@@ -877,32 +956,28 @@ PROXY_DOMAINS = [
     'youtube-nocookie.com', 'yt3.ggpht.com',
     'music.youtube.com', 'tv.youtube.com',
 
-    # --- TikTok (сайт + мобильное приложение + DM видео) ---
-    'tiktok.com', 'www.tiktok.com', 'm.tiktok.com',
-    'api.tiktokv.com', 'api2.musical.ly', 'api-h2.tiktokv.com',
-    'api16-normal-c-useast1a.tiktokv.com',
-    'api16-normal-c-useast2a.tiktokv.com',
-    'api16-core-c-useast1a.tiktokv.com',
-    'api16-core-va.tiktokv.com',
-    'log.tiktokv.com', 'log2.tiktokv.com',
-    'pull-l3.tiktokcdn.com', 'pull-f5-tt.tiktokcdn.com',
-    'pull-l3-hs.tiktokcdn.com', 'pull-flv-l1-mus.pstatp.com',
-    'sf16-sg.tiktokcdn.com', 'v16-webapp.tiktok.com',
-    'v16m-default.akamaized.net', 'v19.tiktokcdn.com',
-    'v34.tiktokcdn.com', 'v39.tiktokcdn.com',
-    'v77.tiktokcdn.com', 'v58.tiktokcdn.com',
-    'p16-sign-sg.tiktokcdn.com', 'lf16-cdn-tos.tiktokcdn.com',
-    'p16-sign-va.tiktokcdn.com', 'p77-sign-va.tiktokcdn.com',
-    'p19-sign-va.tiktokcdn.com',
-    'mon.musical.ly', 'mon.tiktokv.com',
-    'webcast.tiktok.com', 'webcast-va.tiktokv.com',
-    'mcs-va.tiktokv.com', 'mcs-useast2a.tiktokv.com',
-    'frontier-va.tiktokv.com',
-    'lf16-effectcdn-tos.tiktokcdn.com',
-    'sf16-effectcdn-tos.tiktokcdn.com',
-    'tiktokv.com', 'tiktokcdn.com', 'musical.ly',
-    'isnssdk.com', 'byteoversea.com', 'ibytedtos.com',
-    'byteimg.com', 'muscdn.com', 'bytegecko.com',
+    # --- TikTok (все домены: сайт, приложение, DM видео, CDN) ---
+    # Основные домены TikTok
+    'tiktok.com', 'tiktokv.com', 'tiktokcdn.com', 'musical.ly',
+    # Региональные CDN (видео в DM, стримы)
+    'tiktokcdn-us.com', 'tiktokcdn-eu.com', 'ttcdn-us.com',
+    'tiktokeu-cdn.com', 'tiktokrow-cdn.com',
+    # DM-серверы и API
+    'tiktokd.net', 'tiktokd.org', 'tiktok-row.net',
+    'tik-tokapi.com', 'tiktok-minis.com',
+    # Видео CDN и стримы
+    'ttlivecdn.com', 'ttwstatic.com', 'ttoverseaus.net',
+    'tiktokv.eu', 'tiktokv.us', 'tiktokw.eu', 'tiktokw.us',
+    # ByteDance инфраструктура (CDN, API, SDK)
+    'byteoversea.com', 'byteoversea.net',
+    'ibytedtos.com', 'byteimg.com', 'ibyteimg.com',
+    'bytecdn.com', 'bytegecko.com', 'bytedance.com',
+    'muscdn.com', 'bytedapm.com',
+    # SDK и аналитика
+    'isnssdk.com', 'snssdk.com', 'pstatp.com',
+    # Akamai CDN для TikTok
+    'tiktokcdn.com.akamaized.net',
+    'tiktokcdn-us.com.edgesuite.net',
 
     # --- Instagram / Facebook (мобильные API) ---
     'instagram.com', 'www.instagram.com', 'i.instagram.com',
@@ -945,31 +1020,49 @@ PROXY_DOMAINS = [
 
 # ═══ DIRECT — сервисы РФ (блокируют зарубежные IP) ═══
 DIRECT_DOMAINS = [
-    # --- Банки (сайт + мобильные приложения) ---
-    'sberbank.ru', 'online.sberbank.ru', 'api.sberbank.ru',
-    'mobile.online.sberbank.ru', 'node1.online.sberbank.ru',
-    'acs-3ds.sberbank.ru',
-    'tinkoff.ru', 'api.tinkoff.ru', 'business.tinkoff.ru',
-    'tbank.ru', 'www.tbank.ru', 'api.tbank.ru',
-    'api-mobile.tinkoff.ru', 'id.tinkoff.ru', 'sso.tinkoff.ru',
-    'vtb.ru', 'online.vtb.ru', 'mob.vtb.ru',
-    'alfabank.ru', 'click.alfabank.ru', 'api.alfabank.ru',
-    'sense.alfabank.ru', 'baas.alfabank.ru',
-    'gazprombank.ru', 'online.gazprombank.ru',
+    # --- Банки (сайт + мобильные приложения + API) ---
+    'sberbank.ru', 'sber.ru', 'sberbank.com',
+    'online.sberbank.ru', 'api.sberbank.ru',
+    'tinkoff.ru', 'tbank.ru', 'cdn-tinkoff.ru', 'tbank-online.com',
+    'api.tinkoff.ru', 'id.tinkoff.ru', 'sso.tinkoff.ru',
+    'vtb.ru', 'online.vtb.ru',
+    'alfabank.ru', 'api.alfabank.ru', 'sense.alfabank.ru',
+    'gazprombank.ru', 'gpb.ru', 'online.gazprombank.ru',
     'raiffeisen.ru', 'online.raiffeisen.ru',
-    'open.ru', 'openbank.ru',
     'sovcombank.ru', 'online.sovcombank.ru',
-    'rosbank.ru', 'online.rosbank.ru',
+    'rosbank.ru', 'bankline.ru',
     'psbank.ru', 'online.psbank.ru',
-    'uralsib.ru', 'i.uralsib.ru',
-    'mtsbank.ru', 'online.mtsbank.ru',
-    'mkb.ru', 'online.mkb.ru',
-    'pochtabank.ru',
-    'ozon.bank',
-    'tochka.com',
+    'uralsib.ru', 'mtsbank.ru', 'mkb.ru',
+    'pochtabank.ru', 'open.ru', 'openbank.ru',
+    'tochka.com', 'tochka-tech.com',
+    'ozon.bank', 'rshb.ru', 'abr.ru',
+    'homecredit.ru', 'otpbank.ru',
+    'mtsdengi.ru', 'dbo-dengi.online',
+    'nspk.ru', 'mir.ru',
 
-    # --- Яндекс (все сервисы + мобильные приложения) ---
-    'yandex.ru', 'yandex.com', 'ya.ru',
+    # --- VK Мессенджер + VK экосистема ---
+    'vk.com', 'vk.ru', 'vk.me', 'vk.cc', 'vk.link',
+    'vkmessenger.com', 'vkmessenger.app',
+    'userapi.com', 'vk-cdn.net', 'vk-cdn.me', 'cdn-vk.ru',
+    'vkuservideo.net', 'vkuservideo.com', 'vkuservideo.ru', 'vkvideo.ru',
+    'vkuseraudio.net', 'vkuseraudio.com', 'vkuseraudio.ru',
+    'vkuserphoto.ru', 'vkuser.net', 'vkusercdn.ru',
+    'vkuserlive.net', 'vkcache.com',
+    'vk-apps.com', 'vk-apps.ru', 'vkgo.app', 'vklive.app',
+    'vkontakte.ru', 'vk-portal.net', 'mvk.com',
+
+    # --- MAX + Mail.ru мессенджеры ---
+    'max.ru', 'tamtam.chat', 'icq.com', 'vkteams.com',
+
+    # --- Mail.ru + Одноклассники (приложения + CDN) ---
+    'mail.ru', 'imgsmail.ru', 'mrgcdn.ru',
+    'ok.ru', 'okcdn.ru', 'mycdn.me',
+    'boosty.to', 'dzen.ru',
+
+    # --- Яндекс (все сервисы + мобильные SDK) ---
+    'yandex.ru', 'yandex.com', 'ya.ru', 'yandex.net', 'yastatic.net',
+    'yandexcloud.net', 'yastat.net', 'admetrica.ru',
+    'yandex.cloud', 'yandex-bank.net', 'turbopages.org',
     'passport.yandex.ru', 'mail.yandex.ru',
     'music.yandex.ru', 'market.yandex.ru',
     'disk.yandex.ru', 'cloud.yandex.ru',
@@ -977,31 +1070,56 @@ DIRECT_DOMAINS = [
     'lavka.yandex.ru', 'go.yandex.ru',
     'maps.yandex.ru', 'navigator.yandex.ru',
     'kinopoisk.ru', 'hd.kinopoisk.ru',
-    'plus.yandex.ru', 'station.yandex.ru',
-    'alice.yandex.ru', 'yandex.net',
-    'avatars.mds.yandex.net', 'api.yandex.ru',
-    'yastatic.net', 'mc.yandex.ru',
-    'app.yandex.ru', 'iot.yandex.ru',
-    'push.yandex.ru', 'appmetrica.yandex.ru',
-    'mobile.yandex.net', 'api.browser.yandex.ru',
-    'sso.yandex.ru', 'oauth.yandex.ru',
-    'suggest.yandex.ru', 'yandexmarket.ru',
+    'plus.yandex.ru', 'alice.yandex.ru',
+    'appmetrica.yandex.ru', 'api.yandex.ru',
+    'yandexmarket.ru',
 
-    # --- МТС ---
-    'mts.ru', 'login.mts.ru',
+    # --- Государство + налоги ---
+    'gosuslugi.ru', 'esia.gosuslugi.ru', 'gu-st.ru',
+    'nalog.ru', 'nalog.gov.ru',
+    'government.ru', 'gov.ru',
+    'mos.ru', 'emias.info',
+    'cbr.ru', 'goskey.ru', 'pfr.gov.ru',
 
-    # --- Мегафон ---
+    # --- Операторы связи (сайт + приложения) ---
+    'mts.ru', 'mymts.ru', 'login.mts.ru',
     'megafon.ru', 'lk.megafon.ru',
-
-    # --- Билайн ---
     'beeline.ru', 'my.beeline.ru',
+    'tele2.ru', 't2.ru',
+    'yota.ru', 'rostelecom.ru', 'rt.ru', 'dom.ru',
 
-    # --- Госуслуги ---
-    'gosuslugi.ru', 'esia.gosuslugi.ru',
-
-    # --- Озон / Wildberries ---
+    # --- Маркетплейсы (сайт + CDN + приложения) ---
     'ozon.ru', 'api.ozon.ru',
-    'wildberries.ru', 'www.wildberries.ru',
+    'wildberries.ru', 'wb.ru', 'wbstatic.net', 'wbbasket.ru', 'wbx-geo.ru',
+    'avito.ru',
+    'sbermegamarket.ru', 'kazanexpress.ru',
+    'dns-shop.ru', 'mvideo.ru', 'eldorado.ru',
+    'lamoda.ru', 'detmir.ru', 'leroymerlin.ru',
+    '1c.ru',
+
+    # --- Доставка и такси ---
+    'delivery-club.ru', 'sbermarket.ru', 'samokat.ru',
+    'magnit.ru', 'perekrestok.ru', 'lenta.com',
+    'taxsee.com',
+
+    # --- Развлечения (стриминг приложения) ---
+    'ivi.ru', 'okko.tv', 'more.tv', 'wink.ru',
+    'start.ru', 'premier.one', 'rutube.ru', 'litres.ru',
+
+    # --- Транспорт, карты, доставка ---
+    '2gis.ru', '2gis.com', 'rzd.ru', 'tutu.ru',
+    'aviasales.ru', 'pochta.ru', 'cdek.ru',
+
+    # --- Работа и HR ---
+    'hh.ru', 'superjob.ru',
+
+    # --- Недвижимость и авто ---
+    'cian.ru', 'domclick.ru', 'auto.ru', 'drom.ru',
+
+    # --- Прочие ---
+    'rustore.ru', 'ngenix.net',
+    'banki.ru', 'finuslugi.ru', 'sravni.ru',
+    'moex.com', 'rbc.ru',
 ]
 
 async def main():

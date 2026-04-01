@@ -15,25 +15,42 @@ logger = logging.getLogger("dem1chvpn.xray_config")
 
 
 class XrayConfigManager:
-    """Manages Xray JSON config and generates client URLs."""
+    """Manages Xray JSON config and generates client URLs. Singleton — always same instance."""
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance.config_path = Path(config.XRAY_CONFIG_PATH)
+        return cls._instance
 
     def __init__(self):
-        self.config_path = Path(config.XRAY_CONFIG_PATH)
+        pass  # config_path set in __new__
 
     def _read_config(self) -> dict:
-        """Read Xray config file."""
+        """Read Xray config file (sync, use _aread_config in async context)."""
         with open(self.config_path, "r") as f:
             return json.load(f)
 
     def _write_config(self, cfg: dict):
-        """Write Xray config file and reload Xray."""
+        """Write Xray config file (sync, use _awrite_config in async context)."""
         with open(self.config_path, "w") as f:
             json.dump(cfg, f, indent=2, ensure_ascii=False)
+
+    async def _aread_config(self) -> dict:
+        """Read Xray config without blocking the event loop."""
+        import asyncio
+        return await asyncio.to_thread(self._read_config)
+
+    async def _awrite_config(self, cfg: dict):
+        """Write Xray config without blocking the event loop."""
+        import asyncio
+        await asyncio.to_thread(self._write_config, cfg)
 
     async def add_client(self, uuid: str, email: str) -> bool:
         """Add a client to Xray config."""
         try:
-            cfg = self._read_config()
+            cfg = await self._aread_config()
             for inbound in cfg.get("inbounds", []):
                 if inbound.get("tag") == config.XRAY_INBOUND_TAG:
                     clients = inbound.get("settings", {}).get("clients", [])
@@ -48,7 +65,7 @@ class XrayConfigManager:
                     inbound["settings"]["clients"] = clients
                     break
 
-            self._write_config(cfg)
+            await self._awrite_config(cfg)
             await self.reload_xray()
             return True
         except Exception as e:
@@ -58,7 +75,7 @@ class XrayConfigManager:
     async def remove_client(self, email: str) -> bool:
         """Remove a client from Xray config by email."""
         try:
-            cfg = self._read_config()
+            cfg = await self._aread_config()
             for inbound in cfg.get("inbounds", []):
                 if inbound.get("tag") == config.XRAY_INBOUND_TAG:
                     clients = inbound.get("settings", {}).get("clients", [])
@@ -67,7 +84,7 @@ class XrayConfigManager:
                     ]
                     break
 
-            self._write_config(cfg)
+            await self._awrite_config(cfg)
             await self.reload_xray()
             return True
         except Exception as e:
@@ -77,7 +94,7 @@ class XrayConfigManager:
     async def get_clients(self) -> list[dict]:
         """Get list of all clients from config."""
         try:
-            cfg = self._read_config()
+            cfg = await self._aread_config()
             for inbound in cfg.get("inbounds", []):
                 if inbound.get("tag") == config.XRAY_INBOUND_TAG:
                     return inbound.get("settings", {}).get("clients", [])
@@ -152,7 +169,7 @@ class XrayConfigManager:
         except Exception:
             return False
 
-    def update_reality_settings(
+    async def update_reality_settings(
         self,
         dest: Optional[str] = None,
         sni: Optional[str] = None,
@@ -160,7 +177,7 @@ class XrayConfigManager:
         short_id: Optional[str] = None,
     ):
         """Update Reality settings in config."""
-        cfg = self._read_config()
+        cfg = await self._aread_config()
         for inbound in cfg.get("inbounds", []):
             if inbound.get("tag") == config.XRAY_INBOUND_TAG:
                 reality = inbound.get("streamSettings", {}).get("realitySettings", {})
@@ -173,4 +190,4 @@ class XrayConfigManager:
                 if short_id:
                     reality["shortIds"] = [short_id]
                 break
-        self._write_config(cfg)
+        await self._awrite_config(cfg)
