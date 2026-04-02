@@ -308,8 +308,8 @@ configure_xray() {
     cp "$TEMPLATE" "$XRAY_CONFIG"
 
     # Подстановка значений
-    sed -i "s|REALITY_DEST_PLACEHOLDER|www.microsoft.com:443|g" "$XRAY_CONFIG"
-    sed -i "s|REALITY_SNI_PLACEHOLDER|www.microsoft.com|g" "$XRAY_CONFIG"
+    sed -i "s|REALITY_DEST_PLACEHOLDER|dl.google.com:443|g" "$XRAY_CONFIG"
+    sed -i "s|REALITY_SNI_PLACEHOLDER|dl.google.com|g" "$XRAY_CONFIG"
     sed -i "s|REALITY_PRIVATE_KEY_PLACEHOLDER|${PRIVATE_KEY}|g" "$XRAY_CONFIG"
     sed -i "s|REALITY_SHORT_ID_PLACEHOLDER|${SHORT_ID}|g" "$XRAY_CONFIG"
 
@@ -406,8 +406,8 @@ SERVER_IP=${SERVER_IP}
 SERVER_PORT=443
 
 # Reality
-REALITY_DEST=www.microsoft.com:443
-REALITY_SNI=www.microsoft.com
+REALITY_DEST=dl.google.com:443
+REALITY_SNI=dl.google.com
 REALITY_PRIVATE_KEY=${XRAY_PRIVATE_KEY}
 REALITY_PUBLIC_KEY=${XRAY_PUBLIC_KEY}
 REALITY_SHORT_ID=${XRAY_SHORT_ID}
@@ -537,25 +537,7 @@ CADDYFILE
     fi
 }
 
-# ──── Шаг 6.5: Сборка Mini App ────
-
-build_webapp() {
-    log_step "Шаг 6.5: Сборка Telegram Mini App"
-
-    WEBAPP_DIR="${DEM1CHVPN_DIR}/server/webapp"
-
-    if [ -f "${WEBAPP_DIR}/package.json" ]; then
-        cd "$WEBAPP_DIR"
-        npm install --production=false
-        npm run build 2>/dev/null || {
-            log_warn "Сборка Mini App не удалась (можно собрать позже)"
-            return 0
-        }
-        log_info "Mini App собран → ${WEBAPP_DIR}/dist/"
-    else
-        log_warn "Файл webapp/package.json не найден, пропуск сборки Mini App"
-    fi
-}
+# (build_webapp определена ниже — шаг 6.9)
 
 # ──── Шаг 6.6: Установка MTProto Proxy ────
 
@@ -1234,6 +1216,7 @@ main() {
     install_bot
     install_caddy
     build_webapp || true         # Необязательно — Mini App можно собрать позже
+    setup_warp || log_warn "WARP не установлен (YouTube/Discord/AI могут работать медленнее)"
     create_services
     setup_cron
     create_first_user || true    # Пользователя можно создать через бота
@@ -1249,11 +1232,6 @@ main() {
     read -rp "$(echo -e "${PURPLE}Установить AdGuard Home (блокировка рекламы)? (y/n): ${NC}")" INSTALL_ADGUARD
     if [[ "$INSTALL_ADGUARD" =~ ^[Yy]$ ]]; then
         setup_adguard || log_warn "AdGuard не установлен (можно позже)"
-    fi
-
-    read -rp "$(echo -e "${PURPLE}Установить Cloudflare WARP (двойной туннель)? (y/n): ${NC}")" INSTALL_WARP
-    if [[ "$INSTALL_WARP" =~ ^[Yy]$ ]]; then
-        setup_warp || log_warn "WARP не установлен (можно позже)"
     fi
 
     show_summary

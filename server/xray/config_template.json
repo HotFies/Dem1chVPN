@@ -26,11 +26,11 @@
   "dns": {
     "servers": [
       {
-        "address": "1.1.1.1",
+        "address": "https://1.1.1.1/dns-query",
         "skipFallback": false
       },
       {
-        "address": "8.8.8.8",
+        "address": "https://8.8.8.8/dns-query",
         "skipFallback": true
       },
       {
@@ -41,6 +41,7 @@
     ],
     "queryStrategy": "UseIPv4",
     "disableCache": false,
+    "disableFallbackIfMatch": true,
     "tag": "dns-internal"
   },
   "inbounds": [
@@ -73,7 +74,7 @@
       },
       "sniffing": {
         "enabled": true,
-        "destOverride": ["http", "tls"],
+        "destOverride": ["http", "tls", "quic"],
         "routeOnly": true
       }
     }
@@ -83,26 +84,25 @@
       "tag": "direct",
       "protocol": "freedom",
       "settings": {
-        "domainStrategy": "UseIPv4"
+        "domainStrategy": "AsIs",
+        "fragment": {
+          "packets": "tlshello",
+          "length": "100-200",
+          "interval": "10-20"
+        }
       },
       "streamSettings": {
         "sockopt": {
           "mark": 255,
           "tcpMptcp": true,
-          "tcpNoDelay": true
+          "tcpNoDelay": true,
+          "tcpFastOpen": true
         }
       }
     },
     {
       "tag": "blocked",
       "protocol": "blackhole"
-    },
-    {
-      "tag": "warp",
-      "protocol": "socks",
-      "settings": {
-        "servers": [{"address": "127.0.0.1", "port": 40000}]
-      }
     }
   ],
   "routing": {
@@ -115,65 +115,9 @@
       },
       {
         "type": "field",
-        "outboundTag": "warp",
-        "domain": [
-          "domain:notebooklm.google.com",
-          "domain:notebooklm-pa.googleapis.com",
-          "domain:aistudio.google.com",
-          "domain:generativelanguage.googleapis.com",
-          "domain:alkalimakersuite-pa.googleapis.com",
-          "domain:googlevideo.com",
-          "domain:ytimg.com",
-          "domain:yt3.ggpht.com",
-          "domain:youtube-nocookie.com",
-          "domain:tiktok.com",
-          "domain:tiktokv.com",
-          "domain:tiktokcdn.com",
-          "domain:tiktokcdn-us.com",
-          "domain:tiktokcdn-eu.com",
-          "domain:tiktokd.net",
-          "domain:tiktokd.org",
-          "domain:tiktok-row.net",
-          "domain:tik-tokapi.com",
-          "domain:tiktokrow-cdn.com",
-          "domain:tiktokeu-cdn.com",
-          "domain:ttlivecdn.com",
-          "domain:ttcdn-us.com",
-          "domain:ttwstatic.com",
-          "domain:ttoverseaus.net",
-          "domain:tiktokv.eu",
-          "domain:tiktokv.us",
-          "domain:musical.ly",
-          "domain:muscdn.com",
-          "domain:byteoversea.com",
-          "domain:byteoversea.net",
-          "domain:ibytedtos.com",
-          "domain:byteimg.com",
-          "domain:ibyteimg.com",
-          "domain:bytecdn.com",
-          "domain:bytedance.com",
-          "domain:bytegecko.com",
-          "domain:bytedapm.com",
-          "domain:isnssdk.com",
-          "domain:snssdk.com",
-          "domain:pstatp.com",
-          "domain:cdninstagram.com",
-          "domain:static.cdninstagram.com",
-          "domain:scontent.cdninstagram.com",
-          "domain:fbcdn.net",
-          "domain:scontent.fbcdn.net",
-          "domain:video.fbcdn.net",
-          "domain:z-m-scontent.fbcdn.net",
-          "domain:lookaside.fbsbx.com",
-          "domain:pbs.twimg.com",
-          "domain:video.twimg.com",
-          "domain:abs.twimg.com"
-        ]
-      },
-      {
-        "type": "field",
         "outboundTag": "direct",
         "domain": [
+          "geosite:category-ru",
           "domain:sberbank.ru",
           "domain:sber.ru",
           "domain:sberbank.com",
@@ -302,14 +246,14 @@
       },
       {
         "type": "field",
-        "outboundTag": "blocked",
-        "network": "udp",
-        "port": "443"
+        "outboundTag": "direct",
+        "ip": ["geoip:ru", "geoip:private"]
       },
       {
         "type": "field",
         "outboundTag": "blocked",
-        "ip": ["geoip:private"]
+        "network": "udp",
+        "port": "443"
       }
     ]
   }

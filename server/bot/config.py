@@ -50,8 +50,8 @@ class Config:
     SERVER_PORT: int = int(os.getenv("SERVER_PORT", "443"))
 
     # Reality settings
-    REALITY_DEST: str = os.getenv("REALITY_DEST", "www.microsoft.com:443")
-    REALITY_SNI: str = os.getenv("REALITY_SNI", "www.microsoft.com")
+    REALITY_DEST: str = os.getenv("REALITY_DEST", "dl.google.com:443")
+    REALITY_SNI: str = os.getenv("REALITY_SNI", "dl.google.com")
     REALITY_PRIVATE_KEY: str = os.getenv("REALITY_PRIVATE_KEY", "")
     REALITY_PUBLIC_KEY: str = os.getenv("REALITY_PUBLIC_KEY", "")
     REALITY_SHORT_ID: str = os.getenv("REALITY_SHORT_ID", "")

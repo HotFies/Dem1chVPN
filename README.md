@@ -4,7 +4,7 @@
 
 **Персональный VPN-сервер с управлением через Telegram**
 
-VLESS + Reality + TCP · Ускорение интернета · Автоматическая установка
+VLESS + Reality + XTLS-Vision · Cloudflare WARP · TLS Fragmentation · Split‑Tunneling
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Xray Core](https://img.shields.io/badge/Xray--core-latest-brightgreen)](https://github.com/XTLS/Xray-core)
@@ -16,7 +16,9 @@ VLESS + Reality + TCP · Ускорение интернета · Автомат
 
 ## 🤔 Что это?
 
-Dem1chVPN — это готовое решение для разворачивания **собственного VPN** на VPS-сервере. Весь трафик шифруется протоколом **VLESS + Reality**, что обеспечивает стабильное и быстрое соединение. Управление полностью через **Telegram-бот** — без веб-панелей и сложных конфигов.
+Dem1chVPN — это готовое решение для разворачивания **собственного VPN** на VPS-сервере. Разработан специально для использования в **России**: обходит блокировки, побеждает ТСПУ-замедление YouTube/Discord/Telegram и даёт доступ к санкционным сервисам (ChatGPT, Gemini, NotebookLM).
+
+Весь трафик шифруется протоколом **VLESS + Reality + XTLS-Vision** с **TLS ClientHello Fragmentation** — ваш трафик неотличим от обычного HTTPS. Управление полностью через **Telegram-бот** — без веб-панелей и сложных конфигов.
 
 Один скрипт — и через 5 минут у тебя работающий VPN с подпиской, QR-кодами и ботом для управления.
 
@@ -24,16 +26,57 @@ Dem1chVPN — это готовое решение для разворачива
 
 | | Функция | Описание |
 |---|---------|----------|
-| 🔒 | **VLESS + Reality + TCP** | Быстрый и безопасный протокол |
+| 🔒 | **VLESS + Reality + XTLS-Vision** | Неотличимый от HTTPS, не детектируется ТСПУ |
+| 🧬 | **TLS Fragmentation** | ClientHello разбивается на части — ТСПУ не видит SNI |
+| 🌐 | **DNS-over-HTTPS** | DNS-запросы шифрованы, нет DNS-утечек |
+| ☁️ | **Cloudflare WARP** | Нативный WireGuard — чистый IP для YouTube, AI, стриминга |
+| 🔀 | **Split-Tunneling** | Российские сайты — напрямую, зарубежные — через WARP |
 | 🤖 | **Telegram-бот** | Полное управление через inline-кнопки |
-| 📡 | **Подписки** | Авто-обновление конфигов на клиентах |
-| 🔀 | **Умная маршрутизация** | Российские сайты — напрямую, остальное — через VPN |
-| 🛡️ | **AdGuard Home** | Блокировка рекламы на уровне DNS |
-| 🌐 | **WARP Double-Hop** | Двойная приватность через Cloudflare |
-| 💬 | **MTProto Proxy** | Telegram работает даже при проблемах с VPN |
+| 📡 | **Авто-подписки** | Конфиги обновляются на клиентах автоматически |
+| 📱 | **Mini App** | Веб-панель прямо внутри Telegram |
+| 🛡️ | **AdGuard Home** | Блокировка рекламы на уровне DNS (опционально) |
+| 💬 | **MTProto Proxy** | Telegram работает даже при проблемах с VPN (опционально) |
 | 👥 | **Инвайт-система** | Удобное подключение друзей и семьи |
 | 📊 | **Мониторинг** | Трафик, нагрузка, проверка доступности IP |
-| 📱 | **Mini App** | Веб-панель прямо внутри Telegram |
+| 🎫 | **Тикет-система** | Поддержка пользователей через Mini App |
+
+## 🚀 Как это работает?
+
+```
+Пользователь (Россия)
+    │
+    │ VLESS + Reality + XTLS-Vision (порт 443)
+    │ TLS Fingerprint: Chrome  ← неотличим от обычного браузера
+    │ TLS ClientHello Fragment ← ТСПУ не видит SNI
+    │ DNS-over-HTTPS           ← нет DNS-утечек
+    │
+    ▼
+┌─────────────── VPS (Европа) ───────────────┐
+│                                             │
+│   Xray-core                                 │
+│     ├── Российские сайты → DIRECT           │
+│     │   (geosite:ru + банки + ВК + Яндекс)  │
+│     │                                       │
+│     └── Всё остальное → Cloudflare WARP     │
+│         (YouTube, Discord, AI, стриминг)    │
+│         WireGuard native (без TCP overhead)  │
+│                                             │
+│   ▼ Чистый IP Cloudflare                    │
+│   YouTube ✅ Discord ✅ ChatGPT ✅           │
+│   Gemini ✅ Spotify ✅ WhatsApp ✅           │
+└─────────────────────────────────────────────┘
+```
+
+### Почему это быстрее обычного VPN?
+
+| Проблема обычных VPN | Решение в Dem1chVPN |
+|---|---|
+| Весь трафик идёт через VPN — Сбер тормозит | **Split-Tunneling**: RU-сайты идут напрямую |
+| YouTube замедляется ТСПУ по SNI | **TLS Fragment**: SNI невидим для ТСПУ |
+| DNS-запросы видны провайдеру | **DoH**: DNS зашифрован через HTTPS |
+| WARP через SOCKS5 = TCP-over-TCP | **Native WireGuard**: без overhead |
+| `fp: random` = экзотический fingerprint | **`fp: chrome`**: самый популярный TLS |
+| VPS IP заблокирован YouTube CDN | **WARP**: чистый IP Cloudflare |
 
 ## 📋 Требования
 
@@ -64,32 +107,40 @@ chmod +x install.sh
 ```
 
 Скрипт задаст несколько вопросов (токен, PIN, DuckDNS) и сам всё настроит:
-- Установит Xray-core, Python, Caddy
-- Захарденит сервер (UFW, fail2ban, BBR)
+- Установит Xray-core, Python, Caddy, Node.js
+- Захарденит сервер (UFW, fail2ban, BBR, sysctl)
+- Настроит VLESS + Reality с `dl.google.com` камуфляжем
+- Установит Cloudflare WARP (WireGuard, автоматически)
+- Включит TLS FragmentatIon и DNS-over-HTTPS
 - Создаст systemd-сервисы
 - Настроит HTTPS через DuckDNS
 - Запустит бота и подписочный сервер
 
 ### 3. Готово
 
-Откройте бота в Telegram → `/start` → добавьте пользователей → раздайте ссылки.
+Откройте бота в Telegram → `/start` → добавьте пользователей → раздайте ссылки подписок.
 
 ## 🏗️ Архитектура
 
 ```
-┌─────────────────────────────────────────────┐
-│                   VPS                        │
-│                                              │
-│   :443  → Xray (VLESS + Reality + TCP)       │
-│                                              │
-│   :8443 → Caddy (HTTPS) → FastAPI (:8080)    │
-│            ├── /sub/{token}  — подписки       │
-│            └── /webapp/      — Mini App       │
-│                                              │
-│   Telegram Bot (aiogram 3) ← управление      │
-│   SQLite                   ← данные           │
-│   gRPC :10085              ← Xray Stats API   │
-└─────────────────────────────────────────────┘
+┌───────────────────────────────────────────────────┐
+│                     VPS                            │
+│                                                    │
+│   :443  → Xray (VLESS + Reality + XTLS-Vision)     │
+│            ├── fragment: tlshello (100-200 bytes)   │
+│            ├── DNS: DoH (1.1.1.1 + 8.8.8.8)        │
+│            ├── RU domains → direct                  │
+│            └── Foreign → WARP (WireGuard native)    │
+│                                                    │
+│   :8443 → Caddy (HTTPS) → FastAPI (:8080)           │
+│            ├── /sub/{token}    — подписки            │
+│            ├── /sub/{token}/routing — правила        │
+│            └── /webapp/        — Mini App            │
+│                                                    │
+│   Telegram Bot (aiogram 3) ← управление             │
+│   SQLite                   ← данные                  │
+│   gRPC :10085              ← Xray Stats API          │
+└───────────────────────────────────────────────────┘
 ```
 
 ## 📂 Структура проекта
@@ -102,23 +153,34 @@ dem1chvpn/
 │
 ├── server/
 │   ├── bot/                # Telegram-бот
-│   │   ├── main.py         # Точка входа
-│   │   ├── config.py       # Конфигурация
+│   │   ├── main.py         # Точка входа + background tasks
+│   │   ├── config.py       # Конфигурация (Reality, WARP, DNS)
 │   │   ├── database.py     # SQLAlchemy модели
 │   │   ├── handlers/       # Обработчики команд
 │   │   ├── services/       # Бизнес-логика
+│   │   │   ├── xray_config.py   # Управление Xray конфигом
+│   │   │   ├── user_manager.py  # CRUD пользователей
+│   │   │   ├── route_manager.py # Маршрутизация (split-tunnel)
+│   │   │   └── warp_manager.py  # WARP WireGuard toggle
 │   │   ├── keyboards/      # Inline-клавиатуры
 │   │   └── utils/          # Утилиты
 │   │
 │   ├── subscription/       # FastAPI-сервер подписок
-│   │   ├── app.py          # Эндпоинты подписок
+│   │   ├── app.py          # Подписки + headers (fragment, dns, routing)
 │   │   ├── auth.py         # Валидация initData
 │   │   └── webapp_api.py   # REST API для Mini App
 │   │
-│   ├── webapp/             # React Mini App (Vite + TS)
+│   ├── webapp/             # React Mini App (Vite + TypeScript)
+│   ├── warp/               # Cloudflare WARP (wgcf → WireGuard)
+│   │   └── setup.sh        # Генерация ключей + настройка outbound
 │   └── xray/               # Шаблон конфига Xray
+│       └── config_template.json
 │
 ├── configs/                # Пресеты маршрутизации
+│   ├── v2rayn_routing.json    # Windows (v2rayN)
+│   ├── v2rayng_routing.json   # Android (v2rayNG)
+│   ├── streaming_rules.json   # Стриминг-сервисы
+│   └── gaming_rules.json      # Игровые сервисы
 └── docs/                   # Документация
 ```
 
@@ -136,6 +198,22 @@ dem1chvpn/
 
 > ⚠️ **V2RayTun не рекомендуется** — не поддерживает `xtls-rprx-vision` flow, имеет проблемы с маршрутизацией и стабильностью.
 
+## 🔀 Маршрутизация (Split-Tunneling)
+
+Dem1chVPN использует **инвертированную маршрутизацию**:
+
+| Трафик | Куда идёт | Почему |
+|--------|-----------|--------|
+| Сбер, Тинькофф, Госуслуги | 🟢 **DIRECT** | Банки блокируют VPN-IP |
+| ВК, Яндекс, Mail.ru, Rutube | 🟢 **DIRECT** | Работают и без VPN |
+| `geosite:category-ru` + `geoip:ru` | 🟢 **DIRECT** | Тысячи RU-доменов автоматически |
+| YouTube, Discord, Spotify | 🔵 **WARP** | Замедляются ТСПУ |
+| ChatGPT, Gemini, NotebookLM | 🔵 **WARP** | Санкционные блокировки |
+| Netflix, Twitch, TikTok | 🔵 **WARP** | Нужен чистый IP |
+| Любой новый зарубежный сайт | 🔵 **WARP** | Автоматически, без настройки |
+
+> Не нужно поддерживать списки доменов — **всё зарубежное автоматически идёт через WARP**.
+
 ## 🔧 Команды бота
 
 | Команда | Описание |
@@ -143,17 +221,23 @@ dem1chvpn/
 | `/start` | Главное меню |
 | 👥 Пользователи | Добавить / удалить / заблокировать |
 | 🔀 Маршрутизация | Настройка proxy/direct доменов |
+| ☁️ WARP | Включить/выключить Cloudflare WARP |
 | 📊 Мониторинг | Статистика, трафик, speedtest |
 | ⚙️ Настройки | Обновление, бэкап, Xray |
 | 📖 Инструкции | Гайды для всех платформ |
+| 🎫 Тикеты | Поддержка через Mini App |
 
 ## 🔐 Безопасность
 
+- **Reality + XTLS-Vision** — трафик неотличим от посещения `dl.google.com`
+- **TLS ClientHello Fragment** — SNI невидим для DPI (ТСПУ)
+- **DNS-over-HTTPS** — DNS-запросы зашифрованы
+- **Chrome TLS Fingerprint** — `fp: chrome` вместо рандомного
 - **HMAC-SHA256** валидация для Telegram Mini App
 - **PIN-код** для критических операций (удаление, ключи)
 - **UFW** — только порты 22, 443, 8443
 - **fail2ban** — защита от брутфорса SSH
-- **BBR** — оптимизация TCP
+- **BBR** — оптимизация TCP-стека
 - **Rate limiting** — защита API от перебора
 - Сервисы работают от **отдельного пользователя** (не root)
 

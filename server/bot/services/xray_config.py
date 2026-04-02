@@ -108,7 +108,7 @@ class XrayConfigManager:
             "encryption": "none",
             "security": "reality",
             "sni": config.REALITY_SNI,
-            "fp": "random",
+            "fp": "chrome",
             "pbk": config.REALITY_PUBLIC_KEY,
             "sid": config.REALITY_SHORT_ID,
             "type": "tcp",

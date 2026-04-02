@@ -101,36 +101,51 @@ class RouteManager:
     async def generate_client_routing_config(self) -> dict:
         """Generate routing config for client subscription (split-tunneling).
 
-        Only our curated list of Russian domains goes DIRECT.
-        Everything else goes through proxy (VPN).
+        Russian domains (geosite:category-ru + curated list) go DIRECT.
+        Blocked/throttled services go through PROXY.
+        Everything else — default outbound (proxy in client config).
         """
         proxy_domains = await self.get_proxy_domains()
         direct_domains = await self.get_direct_domains()
 
+        # Fallback to config defaults if DB has no proxy domains yet
+        if not proxy_domains:
+            proxy_domains = config.DEFAULT_PROXY_DOMAINS
+
+        rules = []
+
+        if direct_domains:
+            rules.append({
+                "type": "field",
+                "outboundTag": "direct",
+                "domain": [f"domain:{d}" for d in direct_domains],
+            })
+
+        # Always include geosite:category-ru for comprehensive Russian site bypass
+        rules.append({
+            "type": "field",
+            "outboundTag": "direct",
+            "domain": ["geosite:category-ru"],
+        })
+        rules.append({
+            "type": "field",
+            "outboundTag": "direct",
+            "ip": ["geoip:ru", "geoip:private"],
+        })
+
+        if proxy_domains:
+            rules.append({
+                "type": "field",
+                "outboundTag": "proxy",
+                "domain": [f"domain:{d}" for d in proxy_domains],
+            })
+
+        # Split-tunnel: no catch-all rule.
+        # Client's first outbound (proxy) handles unmatched traffic by default.
+
         return {
             "routing": {
                 "domainStrategy": "IPIfNonMatch",
-                "rules": [
-                    {
-                        "type": "field",
-                        "outboundTag": "direct",
-                        "domain": [f"domain:{d}" for d in direct_domains],
-                    },
-                    {
-                        "type": "field",
-                        "outboundTag": "direct",
-                        "ip": ["geoip:ru", "geoip:private"],
-                    },
-                    {
-                        "type": "field",
-                        "outboundTag": "proxy",
-                        "domain": [f"domain:{d}" for d in proxy_domains],
-                    },
-                    {
-                        "type": "field",
-                        "outboundTag": "proxy",
-                        "port": "0-65535",
-                    },
-                ],
+                "rules": rules,
             }
         }

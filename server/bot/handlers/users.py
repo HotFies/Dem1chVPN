@@ -407,7 +407,8 @@ async def user_subscription(callback: CallbackQuery):
         return
 
     sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
-    routing_url = f"{config.sub_base_url}/sub/{user.subscription_token}/routing"
+    proxy_url = f"{config.sub_base_url}/sub/{user.subscription_token}/proxy"
+    direct_url = f"{config.sub_base_url}/sub/{user.subscription_token}/direct"
 
     # Remove old keyboard
     await remove_keyboard(callback.message)
@@ -418,7 +419,8 @@ async def user_subscription(callback: CallbackQuery):
         f"💡 <b>Как подключить:</b>\n"
         f"• <b>v2rayN</b> (Windows): Subscription → Add → вставьте URL\n"
         f"• <b>v2rayNG</b> (Android): ☰ → Subscription group → + → URL\n"
-        f"• <b>V2RayTun</b> (iOS): + → вставьте URL подписки\n\n"
+        f"• <b>V2RayTun</b> (iOS): + → вставьте URL подписки\n"
+        f"• <b>Streisand</b> (iOS): + → вставьте URL подписки\n\n"
         f"<i>Конфигурация обновляется автоматически.</i>",
         reply_markup=back_button(f"user:info:{user_id}"),
     )
@@ -427,15 +429,17 @@ async def user_subscription(callback: CallbackQuery):
         f"⚡ <b>Настройка маршрутизации</b>\n\n"
         f"Чтобы банки, Госуслуги, VK и другие РФ-сервисы "
         f"работали <b>напрямую</b> (без задержки VPN):\n\n"
-        f"📲 <b>V2RayTun (iOS):</b>\n"
-        f"Маршрутизация применяется <b>автоматически</b> через подписку.\n\n"
+        f"📲 <b>V2RayTun / Streisand (iOS):</b>\n"
+        f"Маршрутизация применяется <b>автоматически</b> через подписку.\n"
+        f"Если не применилась — обновите подписку.\n\n"
         f"📲 <b>v2rayNG (Android):</b>\n"
-        f"☰ → Settings → Routing settings → Custom rules →\n"
-        f"Direct URL → вставьте:\n"
-        f"<code>{routing_url}</code>\n\n"
+        f"☰ → Routing settings → Custom rules:\n"
+        f"• <b>Proxy URL</b>:\n"
+        f"<code>{proxy_url}</code>\n"
+        f"• <b>Direct URL</b>:\n"
+        f"<code>{direct_url}</code>\n\n"
         f"📲 <b>v2rayN (Windows):</b>\n"
-        f"Routing Settings → Import rules from URL →\n"
-        f"вставьте URL выше\n\n"
+        f"Routing Settings → вставьте те же URL\n\n"
         f"<i>Настроить маршрутизацию нужно один раз — "
         f"РФ-приложения будут работать напрямую.</i>",
     )

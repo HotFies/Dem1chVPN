@@ -32,6 +32,14 @@ from server.bot.database import init_db
 async def lifespan(app: FastAPI):
     """Startup/shutdown lifecycle handler."""
     await init_db()
+    # Auto-sync default proxy domains so routing rules exist immediately
+    route_mgr = RouteManager()
+    synced = await route_mgr.sync_default_domains()
+    if synced:
+        import logging
+        logging.getLogger("dem1chvpn.subscription").info(
+            f"Auto-synced {synced} default proxy domains"
+        )
     yield
 
 
@@ -122,6 +130,18 @@ async def get_subscription(request: Request, token: str):
         json.dumps(fragment_config).encode()
     ).decode()
 
+    # DNS header — override client DNS to DoH (bypass TSPU DNS interception)
+    dns_config = {
+        "servers": [
+            {"address": "https://1.1.1.1/dns-query", "domains": []},
+            {"address": "https://8.8.8.8/dns-query", "domains": []},
+        ],
+        "queryStrategy": "UseIPv4",
+    }
+    headers["dns"] = base64.b64encode(
+        json.dumps(dns_config).encode()
+    ).decode()
+
     return Response(
         content=encoded,
         media_type="text/plain",
@@ -130,8 +150,14 @@ async def get_subscription(request: Request, token: str):
 
 
 @app.get("/sub/{token}/routing")
-async def get_routing_config(token: str):
-    """Return client-side routing rules for split tunneling."""
+async def get_routing_config(request: Request, token: str):
+    """Return client-side routing rules for split tunneling.
+
+    Supports two formats:
+    - JSON (default): /sub/{token}/routing
+    - Base64 text: /sub/{token}/routing?format=b64
+      (for iOS clients like V2RayTun/Streisand that import routing by URL)
+    """
     mgr = UserManager()
     user = await mgr.get_user_by_subscription_token(token)
 
@@ -140,7 +166,70 @@ async def get_routing_config(token: str):
 
     route_mgr = RouteManager()
     routing = await route_mgr.generate_client_routing_config()
+
+    # Return base64 for clients that request it (V2RayTun URL import)
+    fmt = request.query_params.get("format", "")
+    accept = request.headers.get("accept", "")
+
+    if fmt == "b64" or "text/plain" in accept:
+        routing_json = json.dumps(routing.get("routing", routing))
+        encoded = base64.b64encode(routing_json.encode()).decode()
+        return Response(
+            content=encoded,
+            media_type="text/plain",
+            headers={"Content-Disposition": 'inline; filename="routing.txt"'},
+        )
+
     return routing
+
+
+@app.get("/sub/{token}/direct")
+async def get_direct_domains(token: str):
+    """Plain-text list of direct domains (one per line).
+
+    For v2rayNG: Settings → Routing → Custom rules → Direct URL.
+    """
+    mgr = UserManager()
+    user = await mgr.get_user_by_subscription_token(token)
+    if not user:
+        raise HTTPException(status_code=404, detail="Invalid subscription")
+
+    route_mgr = RouteManager()
+    direct = await route_mgr.get_direct_domains()
+
+    # Always include Russian geosite for split tunneling
+    lines = ["geosite:category-ru"]
+    lines.extend(f"domain:{d}" for d in direct)
+
+    return Response(
+        content="\n".join(lines),
+        media_type="text/plain",
+    )
+
+
+@app.get("/sub/{token}/proxy")
+async def get_proxy_domains(token: str):
+    """Plain-text list of proxy domains (one per line).
+
+    For v2rayNG: Settings → Routing → Custom rules → Proxy URL.
+    """
+    mgr = UserManager()
+    user = await mgr.get_user_by_subscription_token(token)
+    if not user:
+        raise HTTPException(status_code=404, detail="Invalid subscription")
+
+    route_mgr = RouteManager()
+    proxy = await route_mgr.get_proxy_domains()
+
+    # Fallback to defaults
+    if not proxy:
+        proxy = config.DEFAULT_PROXY_DOMAINS
+
+    lines = [f"domain:{d}" for d in proxy]
+    return Response(
+        content="\n".join(lines),
+        media_type="text/plain",
+    )
 
 
 def _build_userinfo(user) -> str:
@@ -169,6 +258,10 @@ async def _build_routing_header() -> str | None:
         direct_domains = await route_mgr.get_direct_domains()
         proxy_domains = await route_mgr.get_proxy_domains()
 
+        # Fallback to config defaults if DB has no proxy domains yet
+        if not proxy_domains:
+            proxy_domains = config.DEFAULT_PROXY_DOMAINS
+
         if not direct_domains and not proxy_domains:
             return None
 
@@ -184,11 +277,17 @@ async def _build_routing_header() -> str | None:
                 "outboundTag": "direct",
                 "domain": [f"domain:{d}" for d in direct_domains],
             })
-            routing["rules"].append({
-                "type": "field",
-                "outboundTag": "direct",
-                "ip": ["geoip:ru", "geoip:private"],
-            })
+        # Always add geosite:category-ru for split-tunnel (Russian sites direct)
+        routing["rules"].append({
+            "type": "field",
+            "outboundTag": "direct",
+            "domain": ["geosite:category-ru"],
+        })
+        routing["rules"].append({
+            "type": "field",
+            "outboundTag": "direct",
+            "ip": ["geoip:ru", "geoip:private"],
+        })
 
         if proxy_domains:
             routing["rules"].append({
@@ -197,12 +296,9 @@ async def _build_routing_header() -> str | None:
                 "domain": [f"domain:{d}" for d in proxy_domains],
             })
 
-        # Catch-all: everything else goes through proxy
-        routing["rules"].append({
-            "type": "field",
-            "outboundTag": "proxy",
-            "port": "0-65535",
-        })
+        # Split-tunnel: no catch-all. Unknown domains go through proxy by
+        # default outbound (first outbound in client config = proxy).
+        # Russian domains matched by geosite/geoip above go direct.
 
         return base64.b64encode(json.dumps(routing).encode()).decode()
     except Exception:

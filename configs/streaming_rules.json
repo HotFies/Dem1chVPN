@@ -1,36 +1,47 @@
 {
-  "_comment": "Dem1chVPN — Streaming mode. Routes streaming services through WARP for clean IP.",
+  "_comment": "Dem1chVPN — Streaming mode. Routes streaming + throttled services through WARP for clean IP.",
   "mode": "streaming",
   "domains": [
     "youtube.com", "googlevideo.com", "ytimg.com", "youtu.be",
+    "youtube-nocookie.com", "yt3.ggpht.com",
     "netflix.com", "nflxvideo.net", "nflxso.net", "nflxext.com",
     "twitch.tv", "ttvnw.net", "jtvnw.net",
     "disneyplus.com", "disney.com", "bamgrid.com", "dssott.com",
     "hulu.com", "hulustream.com",
     "spotify.com", "spotifycdn.com", "scdn.co",
+    "spclient.wg.spotify.com", "audio-ak-spotify-com.akamaized.net",
     "deezer.com",
     "music.apple.com", "tv.apple.com",
     "primevideo.com", "amazonvideo.com",
     "hbomax.com", "max.com",
     "crunchyroll.com",
-    "vimeo.com"
+    "vimeo.com",
+    "discord.com", "discordapp.com", "discord.media",
+    "cdn.discordapp.com", "media.discordapp.net",
+    "gateway.discord.gg"
   ],
   "routing_rule": {
     "type": "field",
     "outboundTag": "warp",
     "domain": [
       "domain:youtube.com", "domain:googlevideo.com", "domain:ytimg.com",
+      "domain:youtube-nocookie.com", "domain:yt3.ggpht.com",
       "domain:netflix.com", "domain:nflxvideo.net",
       "domain:twitch.tv", "domain:ttvnw.net",
       "domain:disneyplus.com", "domain:disney.com",
       "domain:hulu.com", "domain:spotify.com",
+      "domain:spclient.wg.spotify.com",
       "domain:deezer.com", "domain:primevideo.com",
       "domain:hbomax.com", "domain:max.com",
       "domain:crunchyroll.com", "domain:vimeo.com",
+      "domain:discord.com", "domain:discordapp.com",
+      "domain:cdn.discordapp.com", "domain:media.discordapp.net",
+      "domain:gateway.discord.gg",
       "domain:notebooklm.google.com",
       "domain:notebooklm-pa.googleapis.com",
       "domain:aistudio.google.com",
-      "domain:generativelanguage.googleapis.com"
+      "domain:generativelanguage.googleapis.com",
+      "domain:gemini.google.com"
     ]
   }
 }

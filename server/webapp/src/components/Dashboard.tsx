@@ -1,15 +1,81 @@
 import React, { useState, useEffect } from 'react'
 import { getServerStatus, formatBytes, type ServerStatus } from '../api/client'
 
-function ProgressBar({ value, max, color }: { value: number; max: number; color: string }) {
+/* ── SVG Circular Gauge ── */
+function CircularGauge({ value, max, color, label }: {
+  value: number; max: number; color: string; label: string
+}) {
   const pct = max > 0 ? Math.min((value / max) * 100, 100) : 0
+  const radius = 26
+  const circumference = 2 * Math.PI * radius
+  const offset = circumference - (pct / 100) * circumference
+
   return (
-    <div className="progress-bar">
-      <div className="progress-fill" style={{ width: `${pct}%`, background: color }} />
-      <span className="progress-text">{pct.toFixed(0)}%</span>
+    <div className="gauge-card">
+      <svg className="gauge-svg" viewBox="0 0 64 64">
+        {/* Track */}
+        <circle
+          cx="32" cy="32" r={radius}
+          fill="none"
+          stroke="rgba(255,255,255,0.06)"
+          strokeWidth="5"
+        />
+        {/* Fill */}
+        <circle
+          cx="32" cy="32" r={radius}
+          fill="none"
+          stroke={color}
+          strokeWidth="5"
+          strokeLinecap="round"
+          strokeDasharray={circumference}
+          strokeDashoffset={offset}
+          transform="rotate(-90 32 32)"
+          style={{
+            transition: 'stroke-dashoffset 1s cubic-bezier(0.4, 0, 0.2, 1)',
+            filter: `drop-shadow(0 0 4px ${color}40)`,
+          }}
+        />
+        {/* Percentage text */}
+        <text
+          x="32" y="34"
+          textAnchor="middle"
+          fill="currentColor"
+          fontSize="12"
+          fontFamily="var(--font-mono)"
+          fontWeight="600"
+        >
+          {pct.toFixed(0)}%
+        </text>
+      </svg>
+      <div className="gauge-label">{label}</div>
     </div>
   )
 }
+
+/* ── Icons ── */
+const globeIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" />
+    <line x1="2" y1="12" x2="22" y2="12" />
+    <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+  </svg>
+)
+
+const serverIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="2" width="20" height="8" rx="2" />
+    <rect x="2" y="14" width="20" height="8" rx="2" />
+    <line x1="6" y1="6" x2="6.01" y2="6" />
+    <line x1="6" y1="18" x2="6.01" y2="18" />
+  </svg>
+)
+
+const trendingUpIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
+    <polyline points="17 6 23 6 23 12" />
+  </svg>
+)
 
 export default function Dashboard() {
   const [status, setStatus] = useState<ServerStatus | null>(null)
@@ -21,60 +87,89 @@ export default function Dashboard() {
       .catch(() => setLoading(false))
   }, [])
 
-  if (loading) return <div className="loading">⏳ Загрузка...</div>
-  if (!status) return <div className="error">❌ Не удалось загрузить данные</div>
+  if (loading) return (
+    <div className="loading-page">
+      <div className="spinner" />
+      <span>Загрузка панели...</span>
+    </div>
+  )
+
+  if (!status) return (
+    <div className="error">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="32" height="32" style={{ margin: '0 auto 8px', display: 'block', opacity: 0.5 }}>
+        <circle cx="12" cy="12" r="10" />
+        <line x1="15" y1="9" x2="9" y2="15" />
+        <line x1="9" y1="9" x2="15" y2="15" />
+      </svg>
+      Не удалось загрузить данные
+    </div>
+  )
 
   return (
     <div className="dashboard">
-      <div className="card xray-status">
-        <div className="card-header">
-          <span>🌐 Xray</span>
+      {/* Hero Status Card */}
+      <div className={`hero-status ${status.xray_running ? 'active-glow' : ''}`}>
+        <div className="hero-top">
+          <div className="hero-title">
+            {globeIcon}
+            <span>Xray Core</span>
+          </div>
           <span className={`status-badge ${status.xray_running ? 'active' : 'inactive'}`}>
-            {status.xray_running ? '🟢 Работает' : '🔴 Остановлен'}
+            <span className="status-dot" />
+            {status.xray_running ? 'Работает' : 'Остановлен'}
           </span>
         </div>
+        <div className="hero-info-chips">
+          <span className="info-chip">v{status.xray_version}</span>
+          <span className="info-chip">{status.users_count} пользоват.</span>
+          <span className="info-chip">{status.uptime}</span>
+        </div>
+      </div>
+
+      {/* Server Stats — Circular Gauges */}
+      <div className="stats-row">
+        <CircularGauge value={status.cpu} max={100} color="#00d4ff" label="CPU" />
+        <CircularGauge
+          value={status.ram_used} max={status.ram_total}
+          color="#7c3aed" label="RAM"
+        />
+        <CircularGauge
+          value={status.disk_used} max={status.disk_total}
+          color="#10b981" label="Диск"
+        />
+      </div>
+
+      {/* Resource details */}
+      <div className="card">
+        <div className="card-header">
+          {serverIcon}
+          <span style={{ marginLeft: 8, flex: 1 }}>Ресурсы сервера</span>
+        </div>
         <div className="card-body">
           <div className="stat-row">
-            <span>Версия</span><span>v{status.xray_version}</span>
+            <span>Оперативная память</span>
+            <span>{formatBytes(status.ram_used)} / {formatBytes(status.ram_total)}</span>
           </div>
           <div className="stat-row">
-            <span>Пользователей</span><span>{status.users_count}</span>
-          </div>
-          <div className="stat-row">
-            <span>Uptime</span><span>{status.uptime}</span>
+            <span>Хранилище</span>
+            <span>{formatBytes(status.disk_used)} / {formatBytes(status.disk_total)}</span>
           </div>
         </div>
       </div>
 
-      <div className="card server-stats">
-        <div className="card-header">🖥️ Сервер</div>
-        <div className="card-body">
-          <div className="stat-item">
-            <span>CPU</span>
-            <ProgressBar value={status.cpu} max={100} color="#6c63ff" />
-          </div>
-          <div className="stat-item">
-            <span>RAM</span>
-            <ProgressBar value={status.ram_used} max={status.ram_total} color="#48c9b0" />
-            <small>{formatBytes(status.ram_used)} / {formatBytes(status.ram_total)}</small>
-          </div>
-          <div className="stat-item">
-            <span>Disk</span>
-            <ProgressBar value={status.disk_used} max={status.disk_total} color="#e94560" />
-            <small>{formatBytes(status.disk_used)} / {formatBytes(status.disk_total)}</small>
-          </div>
+      {/* Traffic Today */}
+      <div className="card">
+        <div className="card-header">
+          {trendingUpIcon}
+          <span style={{ marginLeft: 8, flex: 1 }}>Трафик сегодня</span>
         </div>
-      </div>
-
-      <div className="card traffic-today">
-        <div className="card-header">📈 Трафик сегодня</div>
         <div className="card-body traffic-grid">
           <div className="traffic-item upload">
-            <span className="traffic-label">↑ Upload</span>
+            <span className="traffic-label">↑ Исходящий</span>
             <span className="traffic-value">{formatBytes(status.traffic_today_up)}</span>
           </div>
           <div className="traffic-item download">
-            <span className="traffic-label">↓ Download</span>
+            <span className="traffic-label">↓ Входящий</span>
             <span className="traffic-value">{formatBytes(status.traffic_today_down)}</span>
           </div>
         </div>
