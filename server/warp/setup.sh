@@ -64,68 +64,128 @@ else
     log_info "cloudflare-warp уже установлен: $(warp-cli --version 2>/dev/null || echo 'OK')"
 fi
 
-# ──── Шаг 3: Регистрация и настройка ────
+# ──── Шаг 3: Ожидание запуска warp-svc ────
 
-# Ждём запуска warp-svc
-sleep 2
+log_info "Ожидаю запуск warp-svc..."
+for i in $(seq 1 15); do
+    if warp-cli status &>/dev/null; then
+        log_info "warp-svc демон запущен"
+        break
+    fi
+    if [ "$i" -eq 15 ]; then
+        log_warn "warp-svc долго запускается, пробую перезапуск..."
+        systemctl restart warp-svc 2>/dev/null || true
+        sleep 5
+    fi
+    sleep 1
+done
 
-# Проверяем статус регистрации
-WARP_STATUS=$(warp-cli status 2>/dev/null || echo "")
+# ──── Шаг 4: Отключение (если уже был подключён) ────
 
-if echo "$WARP_STATUS" | grep -qi "registration missing"; then
-    log_info "Регистрирую WARP аккаунт..."
-    yes | warp-cli registration new 2>/dev/null || {
-        log_error "Не удалось зарегистрироваться в WARP"
-        exit 1
-    }
-    log_info "WARP аккаунт зарегистрирован"
-elif echo "$WARP_STATUS" | grep -qi "unable to connect"; then
-    log_info "Регистрирую WARP аккаунт..."
-    yes | warp-cli registration new 2>/dev/null || {
-        log_error "Не удалось зарегистрироваться в WARP"
-        exit 1
-    }
-    log_info "WARP аккаунт зарегистрирован"
-else
-    log_info "WARP аккаунт уже зарегистрирован"
-fi
+warp-cli disconnect 2>/dev/null || true
+sleep 1
 
-# Настраиваем режим SOCKS5 proxy
+# ──── Шаг 5: Настройка режима SOCKS5 ────
+# ВАЖНО: mode proxy ПЕРЕЗАПУСКАЕТ демон и СБРАСЫВАЕТ регистрацию!
+# Поэтому сначала ставим режим, потом регистрируемся.
+
 log_info "Настраиваю SOCKS5 proxy режим (порт ${WARP_SOCKS_PORT})..."
-warp-cli mode proxy 2>/dev/null || true
-warp-cli proxy port ${WARP_SOCKS_PORT} 2>/dev/null || true
+warp-cli mode proxy 2>/dev/null || {
+    log_warn "Не удалось установить mode proxy, повтор..."
+    sleep 2
+    warp-cli mode proxy
+}
+warp-cli proxy port ${WARP_SOCKS_PORT} 2>/dev/null || {
+    log_warn "Не удалось установить порт, повтор..."
+    sleep 2
+    warp-cli proxy port ${WARP_SOCKS_PORT}
+}
 
-# Подключаемся
-warp-cli connect 2>/dev/null || true
+# Ждём перезапуск демона после смены режима
+log_info "Ожидаю перезапуск warp-svc после смены режима..."
+sleep 5
+for i in $(seq 1 10); do
+    if warp-cli status &>/dev/null; then
+        break
+    fi
+    sleep 1
+done
+
+# ──── Шаг 6: Регистрация (ПОСЛЕ смены режима) ────
+
+log_info "Регистрирую WARP аккаунт..."
+yes | warp-cli registration new 2>/dev/null || {
+    log_warn "Первая попытка регистрации не удалась, повтор..."
+    sleep 3
+    yes | warp-cli registration new 2>/dev/null || {
+        log_error "Не удалось зарегистрироваться в WARP"
+        exit 1
+    }
+}
+log_info "WARP аккаунт зарегистрирован"
 sleep 3
 
-# Проверяем подключение
-WARP_STATUS=$(warp-cli status 2>/dev/null || echo "")
-if echo "$WARP_STATUS" | grep -qi "connected"; then
-    log_info "WARP подключён (SOCKS5 на 127.0.0.1:${WARP_SOCKS_PORT})"
-else
-    log_warn "WARP подключается... статус: $(echo "$WARP_STATUS" | head -1)"
-    sleep 5
+# ──── Шаг 7: Подключение ────
+
+warp-cli connect 2>/dev/null || true
+
+# Проверяем подключение с ретраями (до 30 секунд)
+CONNECTED=false
+for i in $(seq 1 10); do
+    sleep 3
     WARP_STATUS=$(warp-cli status 2>/dev/null || echo "")
     if echo "$WARP_STATUS" | grep -qi "connected"; then
-        log_info "WARP подключён"
+        # Убедимся что это не "Disconnected" а именно "Connected"
+        if ! echo "$WARP_STATUS" | grep -qi "disconnected"; then
+            log_info "WARP подключён (SOCKS5 на 127.0.0.1:${WARP_SOCKS_PORT})"
+            CONNECTED=true
+            break
+        fi
+    fi
+    log_warn "Ожидание WARP... попытка $i/10 (статус: $(echo "$WARP_STATUS" | grep -i 'status' | head -1 || echo 'unknown'))"
+done
+
+if [ "$CONNECTED" = false ]; then
+    # Полный сброс: отключить → удалить регистрацию → заново
+    log_warn "WARP не подключился, полный сброс..."
+    warp-cli disconnect 2>/dev/null || true
+    sleep 2
+    warp-cli registration delete 2>/dev/null || true
+    sleep 2
+    yes | warp-cli registration new 2>/dev/null || true
+    sleep 2
+    warp-cli mode proxy 2>/dev/null || true
+    warp-cli proxy port ${WARP_SOCKS_PORT} 2>/dev/null || true
+    sleep 2
+    warp-cli connect 2>/dev/null || true
+    sleep 5
+    WARP_STATUS=$(warp-cli status 2>/dev/null || echo "")
+    if echo "$WARP_STATUS" | grep -qi "connected" && ! echo "$WARP_STATUS" | grep -qi "disconnected"; then
+        log_info "WARP подключён после полного сброса"
+        CONNECTED=true
     else
-        log_warn "WARP может быть нестабилен. Проверьте: warp-cli status"
+        log_warn "WARP не подключился. Статус: $WARP_STATUS"
+        log_warn "Попробуйте вручную: warp-cli disconnect && warp-cli connect && warp-cli status"
     fi
 fi
 
-# ──── Шаг 4: Тест SOCKS5 proxy ────
+# ──── Шаг 8: Тест SOCKS5 proxy ────
 
-log_info "Тестирую SOCKS5 proxy..."
-SOCKS_TEST=$(curl -x socks5h://127.0.0.1:${WARP_SOCKS_PORT} -sI --max-time 10 https://cloudflare.com 2>/dev/null | head -1 || echo "FAIL")
+if [ "$CONNECTED" = true ]; then
+    log_info "Тестирую SOCKS5 proxy..."
+    SOCKS_TEST=$(curl -x socks5h://127.0.0.1:${WARP_SOCKS_PORT} -sI --max-time 10 https://cloudflare.com 2>/dev/null | head -1 || echo "FAIL")
 
-if echo "$SOCKS_TEST" | grep -qi "HTTP"; then
-    log_info "SOCKS5 proxy работает: $SOCKS_TEST"
+    if echo "$SOCKS_TEST" | grep -qi "HTTP"; then
+        log_info "SOCKS5 proxy работает: $SOCKS_TEST"
+    else
+        log_warn "SOCKS5 тест не прошёл, WARP может ещё инициализироваться"
+        log_warn "Проверьте через минуту: curl -x socks5h://127.0.0.1:${WARP_SOCKS_PORT} https://ifconfig.me"
+    fi
 else
-    log_warn "SOCKS5 тест не прошёл (WARP может ещё подключаться)"
+    log_warn "Пропускаю тест SOCKS5 — WARP не подключён"
 fi
 
-# ──── Шаг 5: Обновление Xray конфига ────
+# ──── Шаг 9: Обновление Xray конфига ────
 
 if [ -f "$XRAY_CONFIG" ]; then
     python3 << PYTHON
@@ -215,7 +275,7 @@ PYTHON
     fi
 fi
 
-# ──── Шаг 6: Обновление .env ────
+# ──── Шаг 10: Обновление .env ────
 
 ENV_FILE="/opt/dem1chvpn/.env"
 if [ -f "$ENV_FILE" ]; then

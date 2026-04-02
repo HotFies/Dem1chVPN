@@ -101,7 +101,7 @@ class RouteManager:
     async def generate_client_routing_config(self) -> dict:
         """Generate routing config for client subscription (split-tunneling).
 
-        Russian domains (geosite:category-ru + curated list) go DIRECT.
+        Russian domains (all TLDs + geosite + CDNs) go DIRECT.
         Blocked/throttled services go through PROXY.
         Everything else — default outbound (proxy in client config).
         """
@@ -114,25 +114,53 @@ class RouteManager:
 
         rules = []
 
+        # ── Rule 1: All Russian domains → DIRECT ──
+        direct_domain_list = [
+            "geosite:category-ru",
+            "regexp:.*\\.ru$",
+            "regexp:.*\\.su$",
+            "regexp:.*\\.xn--p1ai$",      # .рф
+            "regexp:.*\\.xn--p1acf$",     # .рус
+            "regexp:.*\\.xn--80adxhks$",  # .москва
+            "regexp:.*\\.xn--80asehdb$",  # .онлайн
+            "regexp:.*\\.xn--80aswg$",    # .сайт
+            "regexp:.*\\.xn--c1avg$",     # .орг
+            "regexp:.*\\.xn--d1acj3b$",   # .дети
+            "regexp:.*\\.moscow$",
+            "regexp:.*\\.tatar$",
+            # Russian CDNs & services with non-.ru domains
+            "domain:userapi.com", "domain:vk.com", "domain:vk.me",
+            "domain:vkuseraudio.net", "domain:vkuservideo.net",
+            "domain:vk-cdn.net", "domain:vkontakte.com",
+            "domain:yastatic.net", "domain:yastat.net",
+            "domain:yandex.net", "domain:yandex.com",
+            "domain:yandexcloud.net", "domain:ya.ru",
+            "domain:avito.st", "domain:sberbank.com",
+            "domain:tbank-online.com", "domain:tochka.com",
+            "domain:tochka-tech.com", "domain:boosty.to",
+            "domain:donationalerts.com", "domain:ngenix.net",
+            "domain:yclients.com", "domain:taxsee.com",
+            "domain:t1.cloud", "domain:dbo-dengi.online",
+            "domain:moex.com", "domain:turbopages.org",
+            "domain:webvisor.com", "domain:naydex.net",
+        ]
         if direct_domains:
-            rules.append({
-                "type": "field",
-                "outboundTag": "direct",
-                "domain": [f"domain:{d}" for d in direct_domains],
-            })
+            direct_domain_list.extend(f"domain:{d}" for d in direct_domains)
 
-        # Always include geosite:category-ru for comprehensive Russian site bypass
         rules.append({
             "type": "field",
             "outboundTag": "direct",
-            "domain": ["geosite:category-ru"],
+            "domain": direct_domain_list,
         })
+
+        # ── Rule 2: Russian IPs → DIRECT ──
         rules.append({
             "type": "field",
             "outboundTag": "direct",
             "ip": ["geoip:ru", "geoip:private"],
         })
 
+        # ── Rule 3: Blocked/throttled services → PROXY ──
         if proxy_domains:
             rules.append({
                 "type": "field",
@@ -149,3 +177,4 @@ class RouteManager:
                 "rules": rules,
             }
         }
+

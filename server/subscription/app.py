@@ -225,6 +225,34 @@ async def get_proxy_domains(token: str):
     )
 
 
+@app.get("/sub/{token}/v2raytun")
+async def get_v2raytun_deeplinks(request: Request, token: str):
+    """Return v2RayTun deeplinks for one-tap subscription + routing import.
+
+    URL Schemes:
+    - v2raytun://import/{subscription_url} — add subscription
+    - v2raytun://import_route/{base64} — import routing preset
+    """
+    mgr = UserManager()
+    user = await mgr.get_user_by_subscription_token(token)
+
+    if not user:
+        raise HTTPException(status_code=404, detail="Invalid subscription")
+
+    sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
+    sub_deeplink = f"v2raytun://import/{sub_url}"
+
+    # Build routing deeplink
+    routing_header = await _build_routing_header()
+    route_deeplink = f"v2raytun://import_route/{routing_header}" if routing_header else None
+
+    return {
+        "subscription": sub_deeplink,
+        "routing": route_deeplink,
+        "instructions": "Откройте ссылки в Safari на iPhone для автоимпорта в v2RayTun",
+    }
+
+
 def _build_userinfo(user) -> str:
     """Build Subscription-Userinfo header value."""
     parts = [
@@ -244,9 +272,14 @@ async def _build_routing_header() -> str | None:
 
     V2RayTun reads the 'routing' HTTP header from the subscription response
     and auto-applies the routing rules on the client.
+    Format must match v2RayTun's internal preset structure exactly:
+    - Root: id, name, balancers, domainStrategy, domainMatcher, rules
+    - Each rule: id, __name__, type, outboundTag, domain/ip
     Docs: https://v2raytun.gitbook.io/overview/supported-headers#routing
     """
     try:
+        import uuid
+
         route_mgr = RouteManager()
         direct_domains = await route_mgr.get_direct_domains()
         proxy_domains = await route_mgr.get_proxy_domains()
@@ -258,40 +291,98 @@ async def _build_routing_header() -> str | None:
         if not direct_domains and not proxy_domains:
             return None
 
+        # v2RayTun preset format — must include id, name, balancers
         routing = {
             "domainStrategy": "IPIfNonMatch",
+            "id": str(uuid.uuid5(uuid.NAMESPACE_DNS, "dem1chvpn.routing")).upper(),
+            "balancers": [],
             "domainMatcher": "hybrid",
+            "name": "Dem1chVPN",
             "rules": [],
         }
 
+        # ── Rule 1: All Russian domains → DIRECT ──
+        # Comprehensive coverage of Russian TLDs, geosite, CDNs, and services
+        direct_domain_list = [
+            # Geosite database (includes Yandex, Mail.ru, VK, banks, telecom, etc.)
+            "geosite:category-ru",
+            # All Russian TLD zones via regexp
+            "regexp:.*\\.ru$",          # .ru
+            "regexp:.*\\.su$",          # .su (Soviet legacy, still active)
+            "regexp:.*\\.xn--p1ai$",    # .рф (Cyrillic)
+            "regexp:.*\\.xn--p1acf$",   # .рус
+            "regexp:.*\\.xn--80adxhks$",  # .москва
+            "regexp:.*\\.xn--80asehdb$",  # .онлайн
+            "regexp:.*\\.xn--80aswg$",    # .сайт
+            "regexp:.*\\.xn--c1avg$",     # .орг
+            "regexp:.*\\.xn--d1acj3b$",   # .дети
+            "regexp:.*\\.moscow$",        # .moscow
+            "regexp:.*\\.tatar$",         # .tatar
+            # Russian CDNs & infrastructure (non-.ru domains)
+            "domain:userapi.com",       # VK CDN
+            "domain:vk.com",            # VK main
+            "domain:vk.me",             # VK messenger
+            "domain:vkuseraudio.net",   # VK audio CDN
+            "domain:vkuservideo.net",   # VK video CDN
+            "domain:vk-cdn.net",        # VK CDN
+            "domain:vkontakte.com",     # VK alt
+            "domain:yastatic.net",      # Yandex static CDN
+            "domain:yastat.net",        # Yandex stats
+            "domain:yandex.net",        # Yandex infra
+            "domain:yandex.com",        # Yandex global
+            "domain:yandexcloud.net",   # Yandex Cloud
+            "domain:ya.ru",             # Yandex short
+            "domain:avito.st",          # Avito CDN
+            "domain:sberbank.com",      # Sber global
+            "domain:tbank-online.com",  # T-Bank
+            "domain:tochka.com",        # Tochka Bank
+            "domain:tochka-tech.com",   # Tochka tech
+            "domain:boosty.to",         # VK Boosty
+            "domain:donationalerts.com",  # Donation Alerts
+            "domain:ngenix.net",        # NGENIX CDN (Russian CDN provider)
+            "domain:yclients.com",      # yCients SaaS
+            "domain:taxsee.com",        # Taxsee
+            "domain:t1.cloud",          # T1 Cloud
+            "domain:dbo-dengi.online",  # MTS Dengi
+            "domain:moex.com",          # Moscow Exchange
+            "domain:turbopages.org",    # Yandex Turbo
+            "domain:webvisor.com",      # Yandex Webvisor
+            "domain:naydex.net",        # Yandex Ads
+        ]
+        # Add admin-configured direct domains from DB
         if direct_domains:
-            routing["rules"].append({
-                "type": "field",
-                "outboundTag": "direct",
-                "domain": [f"domain:{d}" for d in direct_domains],
-            })
-        # Always add geosite:category-ru for split-tunnel (Russian sites direct)
+            direct_domain_list.extend(f"domain:{d}" for d in direct_domains)
+
         routing["rules"].append({
             "type": "field",
+            "id": str(uuid.uuid5(uuid.NAMESPACE_DNS, "dem1chvpn.direct.ru")).upper(),
+            "__name__": "🇷🇺 Россия — напрямую",
             "outboundTag": "direct",
-            "domain": ["geosite:category-ru"],
+            "domain": direct_domain_list,
         })
+
+        # ── Rule 2: Russian IPs → DIRECT ──
         routing["rules"].append({
             "type": "field",
+            "id": str(uuid.uuid5(uuid.NAMESPACE_DNS, "dem1chvpn.direct.ip")).upper(),
+            "__name__": "🇷🇺 RU IP — напрямую",
             "outboundTag": "direct",
             "ip": ["geoip:ru", "geoip:private"],
         })
 
+        # ── Rule 3: Blocked/throttled services → PROXY ──
         if proxy_domains:
             routing["rules"].append({
                 "type": "field",
+                "id": str(uuid.uuid5(uuid.NAMESPACE_DNS, "dem1chvpn.proxy")).upper(),
+                "__name__": "🌍 Заблокированные — через VPN",
                 "outboundTag": "proxy",
                 "domain": [f"domain:{d}" for d in proxy_domains],
             })
 
         # Split-tunnel: no catch-all. Unknown domains go through proxy by
         # default outbound (first outbound in client config = proxy).
-        # Russian domains matched by geosite/geoip above go direct.
+        # Russian domains matched by rules above go direct.
 
         return base64.b64encode(json.dumps(routing).encode()).decode()
     except Exception:

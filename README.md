@@ -91,7 +91,6 @@ Dem1chVPN — это готовое решение для разворачива
 Перед установкой нужно:
 - Зарегистрировать бота через [@BotFather](https://t.me/BotFather) и получить **токен**
 - Узнать свой **Telegram ID** через [@userinfobot](https://t.me/userinfobot)
-- Создать субдомен на [DuckDNS](https://www.duckdns.org) (бесплатный HTTPS)
 
 ### 2. Запуск на сервере
 
@@ -105,14 +104,15 @@ chmod +x install.sh
 ./install.sh
 ```
 
-Скрипт задаст несколько вопросов (токен, PIN, DuckDNS) и сам всё настроит:
+Скрипт задаст несколько вопросов (токен, PIN) и сам всё настроит:
 - Установит Xray-core, Python, Caddy, Node.js
 - Захарденит сервер (UFW, fail2ban, BBR, sysctl)
 - Настроит VLESS + Reality с `dl.google.com` камуфляжем
 - Установит Cloudflare WARP (SOCKS5 proxy, автоматически)
 - Настроит DNS-over-HTTPS
 - Создаст systemd-сервисы
-- Настроит HTTPS через DuckDNS
+- Автоматически определит hostname VPS для HTTPS-подписки
+- Настроит Caddy с автоматическим SSL-сертификатом (HTTP-01)
 - Запустит бота и подписочный сервер
 
 ### 3. Готово
@@ -131,10 +131,11 @@ chmod +x install.sh
 │            ├── RU domains → direct                  │
 │            └── Foreign → WARP (SOCKS5 → warp-svc)    │
 │                                                    │
-│   :8443 → Caddy (HTTPS) → FastAPI (:8080)           │
-│            ├── /sub/{token}    — подписки            │
-│            ├── /sub/{token}/routing — правила        │
-│            └── /webapp/        — Mini App            │
+│   :8443 → Caddy (HTTPS, auto-cert) → FastAPI (:8080)  │
+│            ├── /sub/{token}           — подписки        │
+│            ├── /sub/{token}/v2raytun  — deeplinks iOS    │
+│            ├── /sub/{token}/routing   — правила         │
+│            └── /webapp/              — Mini App          │
 │                                                    │
 │   Telegram Bot (aiogram 3) ← управление             │
 │   SQLite                   ← данные                  │

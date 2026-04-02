@@ -378,21 +378,14 @@ install_bot() {
     done
     PIN_CODE=${PIN_CODE:-0000}
 
-    while true; do
-        read -rp "$(echo -e "${PURPLE}Введите DuckDNS субдомен: ${NC}")" DUCKDNS_SUB
-        if [[ -n "$DUCKDNS_SUB" ]]; then
-            break
-        fi
-        log_warn "Субдомен обязателен для HTTPS"
-    done
-
-    while true; do
-        read -rp "$(echo -e "${PURPLE}Введите DuckDNS токен: ${NC}")" DUCKDNS_TOKEN
-        if [[ -n "$DUCKDNS_TOKEN" ]]; then
-            break
-        fi
-        log_warn "Токен обязателен для DuckDNS"
-    done
+    # Автодетект хостнейма VPS для подписки
+    VPS_HOSTNAME=$(hostname -f 2>/dev/null || hostname 2>/dev/null || echo "")
+    if [ -z "$VPS_HOSTNAME" ] || [ "$VPS_HOSTNAME" = "localhost" ]; then
+        VPS_HOSTNAME="$SERVER_IP"
+    fi
+    log_info "Хостнейм VPS: ${VPS_HOSTNAME}"
+    read -rp "$(echo -e "${PURPLE}Домен для подписки [${VPS_HOSTNAME}]: ${NC}")" CUSTOM_DOMAIN
+    SUB_DOMAIN=${CUSTOM_DOMAIN:-$VPS_HOSTNAME}
 
     # Создание файла .env
     cat > "$ENV_FILE" << ENVFILE
@@ -423,12 +416,8 @@ XRAY_INBOUND_TAG=vless-reality
 # Сервер подписок
 SUB_HOST=127.0.0.1
 SUB_PORT=8080
-SUB_DOMAIN=${DUCKDNS_SUB}.duckdns.org
+SUB_DOMAIN=${SUB_DOMAIN}
 SUB_EXTERNAL_PORT=8443
-
-# DuckDNS
-DUCKDNS_SUBDOMAIN=${DUCKDNS_SUB}
-DUCKDNS_TOKEN=${DUCKDNS_TOKEN}
 
 # Дополнительные модули (включить позже)
 ADGUARD_ENABLED=false
@@ -450,7 +439,7 @@ ENVFILE
 # ──── Шаг 6: Установка Caddy (HTTPS обратный прокси) ────
 
 install_caddy() {
-    log_step "Шаг 6: Установка Caddy (HTTPS для Mini App и подписок)"
+    log_step "Шаг 6: Установка Caddy (HTTPS для подписок)"
 
     apt install -y debian-keyring debian-archive-keyring apt-transport-https
     curl -1sLf 'https://dl.cloudsmith.io/public/caddy/stable/gpg.key' | \
@@ -465,24 +454,20 @@ install_caddy() {
     source "$ENV_FILE"
     set +a
 
-    # Обновление IP на DuckDNS
-    curl -s "https://www.duckdns.org/update?domains=${DUCKDNS_SUBDOMAIN}&token=${DUCKDNS_TOKEN}&ip=" > /dev/null
-
-    # Настройка Caddy
+    # Настройка Caddy — HTTP-01 challenge (автоматически, без DuckDNS)
     cat > /etc/caddy/Caddyfile << CADDYFILE
-${DUCKDNS_SUBDOMAIN}.duckdns.org:8443 {
-    reverse_proxy 127.0.0.1:8080
+{
+    http_port 80
+}
 
-    tls {
-        dns duckdns ${DUCKDNS_TOKEN}
-    }
+${SUB_DOMAIN}:8443 {
+    reverse_proxy 127.0.0.1:8080
 
     header {
         -Server
         X-Content-Type-Options nosniff
         X-Frame-Options SAMEORIGIN
         Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
-        Content-Security-Policy "default-src 'self'; script-src 'self' https://telegram.org; style-src 'self' 'unsafe-inline'; connect-src 'self' https://telegram.org; frame-ancestors 'self' https://web.telegram.org"
         Referrer-Policy strict-origin-when-cross-origin
     }
 
@@ -494,34 +479,13 @@ CADDYFILE
 
     mkdir -p /var/log/caddy
 
-    # Сборка Caddy с DuckDNS DNS-плагином (требует xcaddy)
-    if ! caddy list-modules 2>/dev/null | grep -q duckdns; then
-        log_info "Собираю Caddy с плагином DuckDNS..."
-        apt install -y golang-go 2>/dev/null || true
-        go install github.com/caddyserver/xcaddy/cmd/xcaddy@latest 2>/dev/null || true
-        XCADDY=$(which xcaddy 2>/dev/null || echo "$HOME/go/bin/xcaddy")
-        if [ -x "$XCADDY" ]; then
-            $XCADDY build --with github.com/caddy-dns/duckdns --output /tmp/caddy_custom 2>/dev/null
-            if [ -f /tmp/caddy_custom ]; then
-                systemctl stop caddy 2>/dev/null || true
-                mv /tmp/caddy_custom /usr/bin/caddy
-                chmod +x /usr/bin/caddy
-                log_info "Caddy пересобран с плагином DuckDNS"
-            else
-                log_warn "Сборка xcaddy не удалась — Caddy будет работать без DuckDNS TLS"
-            fi
-        else
-            log_warn "xcaddy не найден — используем Caddy без DuckDNS TLS"
-        fi
-    else
-        log_info "Плагин DuckDNS уже установлен в Caddy"
-    fi
+    # Стандартный Caddy — никаких плагинов не нужно
+    # HTTP-01 challenge работает автоматически через порт 80
 
     systemctl enable caddy
     systemctl restart caddy || {
         log_warn "Caddy не смог стартовать. Возможно порт 80 занят."
         log_warn "Попытка освободить порт 80..."
-        # Попробуем остановить что занимает порт 80
         for svc in nginx apache2 httpd; do
             systemctl stop "$svc" 2>/dev/null || true
             systemctl disable "$svc" 2>/dev/null || true
@@ -702,10 +666,14 @@ setup_cron() {
     # Скрипт обновления DuckDNS
     cat > /opt/dem1chvpn/cron/update_duckdns.sh << 'SCRIPT'
 #!/bin/bash
+# DuckDNS update script — disabled (using VPS hostname now)
+# Kept as placeholder for users who manually set up DuckDNS
 set -a
 source /opt/dem1chvpn/.env
 set +a
-curl -s "https://www.duckdns.org/update?domains=${DUCKDNS_SUBDOMAIN}&token=${DUCKDNS_TOKEN}&ip=" > /dev/null
+if [ -n "${DUCKDNS_SUBDOMAIN:-}" ] && [ -n "${DUCKDNS_TOKEN:-}" ]; then
+    curl -s "https://www.duckdns.org/update?domains=${DUCKDNS_SUBDOMAIN}&token=${DUCKDNS_TOKEN}&ip=" > /dev/null
+fi
 SCRIPT
 
     # Скрипт обновления гео-баз
@@ -877,7 +845,7 @@ SCRIPT
 */5 * * * * root /opt/dem1chvpn/cron/ip_block_check.sh >> /var/log/dem1chvpn/ip_check.log 2>&1
 # Ежедневный бэкап в 3:00
 0 3 * * * root /opt/dem1chvpn/cron/backup.sh >> /var/log/dem1chvpn/backup.log 2>&1
-# Обновление IP на DuckDNS каждые 5 минут
+# Обновление DuckDNS (если настроен)
 */5 * * * * root /opt/dem1chvpn/cron/update_duckdns.sh >> /var/log/dem1chvpn/duckdns.log 2>&1
 # Проверка обновлений Xray (ежедневно в 4:00)
 0 4 * * * root /opt/dem1chvpn/cron/check_xray_update.sh >> /var/log/dem1chvpn/cron.log 2>&1

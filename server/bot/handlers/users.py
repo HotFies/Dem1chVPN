@@ -7,6 +7,9 @@ from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message, BufferedInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+import base64
+import json
+import uuid
 
 from ..config import config
 from ..keyboards.menus import (
@@ -20,6 +23,71 @@ from ..utils.formatters import format_traffic, format_user_info
 from ..utils.telegram_helpers import safe_edit_text, action_reply, remove_keyboard
 
 router = Router()
+
+
+def _build_routing_deeplink() -> str | None:
+    """Build a v2raytun://import_route/{base64} deeplink.
+
+    Generates the routing rules directly (synchronous, no DB needed)
+    with core Russian domains + geosite for direct, proxy for blocked.
+    """
+    try:
+        routing = {
+            "domainStrategy": "IPIfNonMatch",
+            "id": str(uuid.uuid5(uuid.NAMESPACE_DNS, "dem1chvpn.routing")).upper(),
+            "balancers": [],
+            "domainMatcher": "hybrid",
+            "name": "Dem1chVPN",
+            "rules": [
+                {
+                    "type": "field",
+                    "id": str(uuid.uuid5(uuid.NAMESPACE_DNS, "dem1chvpn.direct.ru")).upper(),
+                    "__name__": "Direct Russia",
+                    "outboundTag": "direct",
+                    "domain": [
+                        "geosite:category-ru",
+                        "regexp:.*\\.ru$",
+                        "regexp:.*\\.su$",
+                        "regexp:.*\\.xn--p1ai$",
+                        "regexp:.*\\.xn--p1acf$",
+                        "regexp:.*\\.moscow$",
+                        "regexp:.*\\.tatar$",
+                        "domain:userapi.com", "domain:vk.com", "domain:vk.me",
+                        "domain:vkuseraudio.net", "domain:vkuservideo.net",
+                        "domain:vk-cdn.net", "domain:vkontakte.com",
+                        "domain:yastatic.net", "domain:yastat.net",
+                        "domain:yandex.net", "domain:yandex.com",
+                        "domain:yandexcloud.net", "domain:ya.ru",
+                        "domain:avito.st", "domain:sberbank.com",
+                        "domain:tbank-online.com", "domain:tochka.com",
+                        "domain:boosty.to", "domain:ngenix.net",
+                        "domain:moex.com", "domain:turbopages.org",
+                    ],
+                },
+                {
+                    "type": "field",
+                    "id": str(uuid.uuid5(uuid.NAMESPACE_DNS, "dem1chvpn.direct.ip")).upper(),
+                    "__name__": "RU IP Direct",
+                    "outboundTag": "direct",
+                    "ip": ["geoip:ru", "geoip:private"],
+                },
+            ],
+        }
+
+        # Add proxy rule from config defaults
+        if config.DEFAULT_PROXY_DOMAINS:
+            routing["rules"].append({
+                "type": "field",
+                "id": str(uuid.uuid5(uuid.NAMESPACE_DNS, "dem1chvpn.proxy")).upper(),
+                "__name__": "Proxy Blocked",
+                "outboundTag": "proxy",
+                "domain": [f"domain:{d}" for d in config.DEFAULT_PROXY_DOMAINS],
+            })
+
+        b64 = base64.b64encode(json.dumps(routing).encode()).decode()
+        return f"v2raytun://import_route/{b64}"
+    except Exception:
+        return None
 
 
 class AddUserStates(StatesGroup):
@@ -167,20 +235,34 @@ async def users_add_expiry(message: Message, state: FSMContext):
     vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
     sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
 
+    # v2RayTun deeplinks
+    sub_deeplink = f"v2raytun://import/{sub_url}"
+    route_deeplink = _build_routing_deeplink()
+
     # Generate QR
-    qr_bytes = generate_qr_code(vless_url)
+    qr_bytes = generate_qr_code(sub_deeplink)
 
     # Send info
     info_text = (
         f"✅ <b>Пользователь создан!</b>\n\n"
         f"{format_user_info(user)}\n\n"
         f"━━━━━━━━━━━━━━━━━━━━━\n\n"
-        f"📡 <b>Подписка</b> (рекомендуется):\n"
+        f"📱 <b>Быстрая настройка v2RayTun (iOS):</b>\n\n"
+        f"1️⃣ Подписка — нажмите:\n"
+        f"{sub_deeplink}\n\n"
+    )
+    if route_deeplink:
+        info_text += (
+            f"2️⃣ Маршрутизация — нажмите:\n"
+            f"{route_deeplink}\n\n"
+        )
+    info_text += (
+        f"━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"📡 <b>Подписка</b> (для других клиентов):\n"
         f"<code>{sub_url}</code>\n"
-        f"<i>↳ Вставьте в клиент как «Подписка». Конфиг обновляется автоматически.</i>\n\n"
-        f"🔗 <b>Прямая ссылка</b> (для роутеров/старых клиентов):\n"
-        f"<code>{vless_url}</code>\n"
-        f"<i>↳ Используйте если клиент не поддерживает подписки.</i>"
+        f"<i>↳ v2rayN / v2rayNG / Streisand</i>\n\n"
+        f"🔗 <b>Прямая ссылка</b> (для роутеров):\n"
+        f"<code>{vless_url}</code>"
     )
 
     await message.answer(info_text, reply_markup=user_actions(user.id, has_telegram=bool(user.telegram_id)))
@@ -191,7 +273,7 @@ async def users_add_expiry(message: Message, state: FSMContext):
         qr_file,
         caption=(
             f"📱 QR-код для <b>{user.name}</b>\n\n"
-            f"Сканируйте в v2rayNG / V2RayTun"
+            f"Сканируйте в v2RayTun для импорта подписки"
         ),
     )
 
@@ -408,20 +490,37 @@ async def user_subscription(callback: CallbackQuery):
 
     sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
 
+    # v2RayTun deeplinks
+    sub_deeplink = f"v2raytun://import/{sub_url}"
+    route_deeplink = _build_routing_deeplink()
+
     # Remove old keyboard
     await remove_keyboard(callback.message)
 
-    await callback.message.answer(
+    text = (
         f"📡 <b>Подписка для {user.name}:</b>\n\n"
+        f"📱 <b>v2RayTun (iOS) — автоимпорт:</b>\n\n"
+        f"1️⃣ Подписка:\n"
+        f"{sub_deeplink}\n\n"
+    )
+    if route_deeplink:
+        text += (
+            f"2️⃣ Маршрутизация:\n"
+            f"{route_deeplink}\n\n"
+        )
+    text += (
+        f"━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"📋 <b>Для других клиентов</b> (скопируйте URL):\n"
         f"<code>{sub_url}</code>\n\n"
-        f"💡 <b>Как подключить:</b>\n"
-        f"• <b>v2rayN</b> (Windows): Subscription → Add → вставьте URL\n"
-        f"• <b>v2rayNG</b> (Android): ☰ → Subscription group → + → URL\n"
-        f"• <b>V2RayTun</b> (iOS): + → вставьте URL подписки\n"
-        f"• <b>Streisand</b> (iOS): + → вставьте URL подписки\n\n"
-        f"<i>Конфигурация обновляется автоматически.\n"
-        f"Маршрутизация настроена на сервере — "
-        f"российские сайты работают напрямую.</i>",
+        f"💡 <b>Инструкция:</b>\n"
+        f"• <b>v2rayN</b> (Windows): Subscription → Add → URL\n"
+        f"• <b>v2rayNG</b> (Android): ☰ → Subscription → + → URL\n"
+        f"• <b>Streisand</b> (iOS): + → вставьте URL\n\n"
+        f"<i>Конфигурация обновляется автоматически.</i>"
+    )
+
+    await callback.message.answer(
+        text,
         reply_markup=back_button(f"user:info:{user_id}"),
     )
     await callback.answer()
