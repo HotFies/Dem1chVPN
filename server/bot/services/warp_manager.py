@@ -1,7 +1,7 @@
 """
 Dem1chVPN — WARP Manager Service
 Toggle Cloudflare WARP on/off.
-Supports native WireGuard outbound (no SOCKS5 overhead).
+Uses warp-svc in SOCKS5 proxy mode (127.0.0.1:40000).
 Routing strategy: RU sites → direct, ALL foreign traffic → WARP.
 """
 import json
@@ -10,12 +10,15 @@ from pathlib import Path
 from ..config import config
 
 
+# Default SOCKS5 port for warp-svc proxy mode
+WARP_SOCKS_PORT = 40000
+
+
 class WarpManager:
-    """Manages Cloudflare WARP outbound in Xray (native WireGuard)."""
+    """Manages Cloudflare WARP outbound in Xray (SOCKS5 proxy)."""
 
     def __init__(self):
         self.xray_config_path = Path(config.XRAY_CONFIG_PATH)
-        self.warp_keys_path = Path("/opt/dem1chvpn/data/warp_wireguard.json")
 
     def is_enabled(self) -> bool:
         """Check if WARP outbound exists in Xray config."""
@@ -26,47 +29,32 @@ class WarpManager:
             return False
 
     def is_installed(self) -> bool:
-        """Check if WARP WireGuard keys exist."""
-        return self.warp_keys_path.exists()
+        """Check if warp-cli is installed."""
+        import shutil
+        return shutil.which("warp-cli") is not None
 
     async def enable(self) -> bool:
-        """Add WARP WireGuard outbound to Xray config and ensure routing rules exist."""
+        """Add WARP SOCKS5 outbound to Xray config and set catch-all routing."""
         if not self.is_installed():
             return False
 
         try:
             cfg = self._read_config()
 
-            # Load WireGuard keys
-            with open(self.warp_keys_path) as f:
-                warp_keys = json.load(f)
-
             # Remove existing WARP outbound
             cfg["outbounds"] = [o for o in cfg["outbounds"] if o.get("tag") != "warp"]
 
-            # Add WireGuard outbound
+            # Add SOCKS5 outbound (connects to local warp-svc)
             warp_outbound = {
                 "tag": "warp",
-                "protocol": "wireguard",
+                "protocol": "socks",
                 "settings": {
-                    "secretKey": warp_keys["private_key"],
-                    "address": [
-                        warp_keys.get("address_v4", "172.16.0.2/32"),
-                        warp_keys.get("address_v6", "fd01:db8:1111::2/128"),
-                    ],
-                    "peers": [
+                    "servers": [
                         {
-                            "publicKey": warp_keys.get(
-                                "peer_public_key",
-                                "bmXOC+F1FxEMF9dyiK2H5/1SUtzH0JuVo7+J23rXt0Q=",
-                            ),
-                            "endpoint": warp_keys.get(
-                                "endpoint", "engage.cloudflareclient.com:2408"
-                            ),
+                            "address": "127.0.0.1",
+                            "port": WARP_SOCKS_PORT,
                         }
-                    ],
-                    "mtu": 1280,
-                    "reserved": warp_keys.get("reserved", [0, 0, 0]),
+                    ]
                 },
             }
             cfg["outbounds"].append(warp_outbound)
@@ -74,18 +62,34 @@ class WarpManager:
             # Ensure WARP catch-all routing rule exists at the end
             # Strategy: RU sites → direct (already in config), everything else → WARP
             rules = cfg.get("routing", {}).get("rules", [])
-            has_warp_rule = any(r.get("outboundTag") == "warp" for r in rules)
-            if not has_warp_rule:
-                warp_catchall = {
+            # Remove old WARP rules
+            rules = [r for r in rules if r.get("outboundTag") != "warp"]
+
+            # DNS must go direct (SOCKS5 can't proxy UDP)
+            has_dns_direct = any(
+                r.get("port") == "53" and r.get("outboundTag") == "direct"
+                for r in rules
+            )
+            if not has_dns_direct:
+                rules.append({
                     "type": "field",
-                    "outboundTag": "warp",
-                    "network": "tcp,udp",
-                }
-                # Append at the end — after all direct/blocked rules
-                rules.append(warp_catchall)
-                cfg["routing"]["rules"] = rules
+                    "outboundTag": "direct",
+                    "port": "53",
+                })
+
+            # Add catch-all TCP at the end (UDP handled by DNS-direct + QUIC-block)
+            rules.append({
+                "type": "field",
+                "outboundTag": "warp",
+                "network": "tcp",
+            })
+            cfg["routing"]["rules"] = rules
 
             self._write_config(cfg)
+
+            # Ensure warp-svc is connected
+            await self._ensure_warp_connected()
+
             await self._restart_xray()
             return True
         except Exception:
@@ -120,14 +124,8 @@ class WarpManager:
             return True
 
     async def get_warp_ip(self) -> str:
-        """Get current WARP exit IP by testing through Xray's WARP outbound.
-
-        Since WARP uses native WireGuard in Xray (not a system wg0 interface),
-        we test via a temporary SOCKS proxy or by checking Xray logs.
-        Fallback: read from stored WARP config.
-        """
+        """Get current WARP exit IP."""
         try:
-            # Try via warp-cli if still installed
             proc = await asyncio.create_subprocess_exec(
                 "warp-cli", "status",
                 stdout=asyncio.subprocess.PIPE,
@@ -135,19 +133,27 @@ class WarpManager:
             )
             stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
             output = stdout.decode().strip()
-            # Try to extract IP from status
-            for line in output.split("\n"):
-                if "endpoint" in line.lower() or "ip" in line.lower():
-                    return line.split(":")[-1].strip() or "warp-active"
             if "connected" in output.lower():
-                return "warp-active"
+                return "warp-connected"
+            return output.split("\n")[0] if output else "unknown"
         except Exception:
             pass
 
-        # Fallback: check if WireGuard outbound exists
         if self.is_enabled():
-            return "warp-wireguard"
+            return "warp-socks5"
         return "unknown"
+
+    async def _ensure_warp_connected(self):
+        """Make sure warp-svc is running and connected."""
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "warp-cli", "connect",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            await asyncio.wait_for(proc.communicate(), timeout=10)
+        except Exception:
+            pass
 
     def _read_config(self) -> dict:
         with open(self.xray_config_path) as f:

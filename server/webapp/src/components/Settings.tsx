@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
-import { getSettings, toggleFeature, restartXray, updateGeo, createBackup } from '../api/client'
+import { getSettings, toggleFeature, restartXray, updateGeo, createBackup, type Settings as SettingsType } from '../api/client'
 
-/* Icons */
+/* ── Icons ── */
 const settingsIcon = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="3" />
@@ -50,6 +50,13 @@ const saveIcon = (
   </svg>
 )
 
+const copyIcon = (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="14" height="14">
+    <rect x="9" y="9" width="13" height="13" rx="2" />
+    <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+  </svg>
+)
+
 const featureIcons: Record<string, React.ReactNode> = {
   warp: cloudIcon,
   adguard: shieldIcon,
@@ -69,26 +76,32 @@ const featureDimColors: Record<string, string> = {
 }
 
 export default function Settings() {
-  const [warpEnabled, setWarpEnabled] = useState(false)
-  const [adguardEnabled, setAdguardEnabled] = useState(false)
-  const [mtprotoEnabled, setMtprotoEnabled] = useState(false)
+  const [settings, setSettings] = useState<SettingsType | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [toggling, setToggling] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [copied, setCopied] = useState<string | null>(null)
 
   useEffect(() => {
     getSettings()
-      .then(data => {
-        setWarpEnabled(data.warp_enabled || false)
-        setAdguardEnabled(data.adguard_enabled || false)
-        setMtprotoEnabled(data.mtproto_enabled || false)
-      })
-      .catch(() => {})
+      .then(data => { setSettings(data); setLoading(false) })
+      .catch(() => setLoading(false))
   }, [])
 
-  const toggle = async (feature: 'warp' | 'adguard' | 'mtproto', current: boolean, setter: (v: boolean) => void) => {
+  const handleToggle = async (feature: 'warp' | 'adguard' | 'mtproto') => {
+    if (toggling) return
+    setToggling(feature)
     try {
-      await toggleFeature(feature)
-      setter(!current)
-    } catch {}
+      const result = await toggleFeature(feature)
+      // Use actual server response instead of optimistic toggle
+      setSettings(prev =>
+        prev ? { ...prev, [`${feature}_enabled`]: result.enabled } : null
+      )
+    } catch (err) {
+      console.error(`Toggle ${feature} failed:`, err)
+    } finally {
+      setToggling(null)
+    }
   }
 
   const handleAction = async (action: () => Promise<any>, name: string) => {
@@ -100,27 +113,41 @@ export default function Settings() {
     }
   }
 
+  const handleCopy = async (text: string, key: string) => {
+    try {
+      await navigator.clipboard.writeText(text)
+      setCopied(key)
+      setTimeout(() => setCopied(null), 1500)
+    } catch {}
+  }
+
+  if (loading) return (
+    <div className="loading-page">
+      <div className="spinner" />
+      <span>Загрузка настроек...</span>
+    </div>
+  )
+
+  if (!settings) return <div className="error">Ошибка загрузки настроек</div>
+
   const features = [
     {
       key: 'warp' as const,
       title: 'Cloudflare WARP',
       desc: 'Double-hop приватность',
-      enabled: warpEnabled,
-      setter: setWarpEnabled,
+      enabled: settings.warp_enabled,
     },
     {
       key: 'adguard' as const,
       title: 'AdGuard Home',
       desc: 'Блокировка рекламы и трекеров',
-      enabled: adguardEnabled,
-      setter: setAdguardEnabled,
+      enabled: settings.adguard_enabled,
     },
     {
       key: 'mtproto' as const,
       title: 'MTProto Прокси',
       desc: 'Прокси для Telegram',
-      enabled: mtprotoEnabled,
-      setter: setMtprotoEnabled,
+      enabled: settings.mtproto_enabled,
     },
   ]
 
@@ -131,11 +158,13 @@ export default function Settings() {
         <h2>Настройки</h2>
       </div>
 
+      {/* Feature toggles */}
       <div className="settings-list">
         {features.map(f => (
           <div
             key={f.key}
             className={`setting-card ${f.enabled ? 'enabled' : ''}`}
+            style={f.enabled ? { borderColor: `${featureColors[f.key]}22` } : undefined}
           >
             <div className="setting-info">
               <span
@@ -156,14 +185,52 @@ export default function Settings() {
               <input
                 type="checkbox"
                 checked={f.enabled}
-                onChange={() => toggle(f.key, f.enabled, f.setter)}
+                disabled={toggling === f.key}
+                onChange={() => handleToggle(f.key)}
               />
-              <span className="toggle-slider" />
+              <span className={`toggle-slider ${toggling === f.key ? 'toggling' : ''}`} />
             </label>
           </div>
         ))}
       </div>
 
+      {/* Server info */}
+      <div className="server-info">
+        <div className="info-row">
+          <span className="info-label">IP сервера</span>
+          <button
+            className="info-value"
+            onClick={() => handleCopy(settings.server_ip, 'ip')}
+            style={{ cursor: 'pointer', border: 'none', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font-mono)' }}
+            title="Скопировать"
+          >
+            {settings.server_ip}
+            {copied === 'ip' ? (
+              <svg viewBox="0 0 24 24" fill="none" stroke="var(--emerald)" strokeWidth="2" width="12" height="12">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            ) : copyIcon}
+          </button>
+        </div>
+        <div className="info-row">
+          <span className="info-label">SNI</span>
+          <button
+            className="info-value"
+            onClick={() => handleCopy(settings.reality_sni, 'sni')}
+            style={{ cursor: 'pointer', border: 'none', display: 'flex', alignItems: 'center', gap: 4, fontFamily: 'var(--font-mono)' }}
+            title="Скопировать"
+          >
+            {settings.reality_sni}
+            {copied === 'sni' ? (
+              <svg viewBox="0 0 24 24" fill="none" stroke="var(--emerald)" strokeWidth="2" width="12" height="12">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            ) : copyIcon}
+          </button>
+        </div>
+      </div>
+
+      {/* Action buttons */}
       <div className="settings-actions">
         <button
           className="btn-action"

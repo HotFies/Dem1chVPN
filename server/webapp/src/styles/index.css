@@ -267,7 +267,33 @@ body::before {
   color: var(--text-secondary);
 }
 
+.card-header-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin-right: 8px;
+  color: var(--cyan);
+}
+
+.card-header-icon svg {
+  width: 18px;
+  height: 18px;
+}
+
+.card-header svg {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+}
+
 .card-body { position: relative; }
+
+.resource-item {
+  margin-bottom: 4px;
+}
 
 /* ── Status Badge ── */
 .status-badge {
@@ -587,6 +613,53 @@ body::before {
 .btn-sm svg {
   width: 14px;
   height: 14px;
+}
+
+/* User action button variants */
+.btn-link-action {
+  background: var(--cyan-dim);
+  color: var(--cyan);
+  border: 1px solid rgba(0, 212, 255, 0.1) !important;
+}
+
+.btn-link-action:hover {
+  background: rgba(0, 212, 255, 0.2);
+  box-shadow: 0 0 12px rgba(0, 212, 255, 0.1);
+}
+
+.btn-qr-action {
+  background: var(--violet-dim);
+  color: var(--violet);
+  border: 1px solid rgba(124, 58, 237, 0.1) !important;
+}
+
+.btn-qr-action:hover {
+  background: rgba(124, 58, 237, 0.2);
+  box-shadow: 0 0 12px rgba(124, 58, 237, 0.1);
+}
+
+.btn-pause-action {
+  background: var(--amber-dim);
+  color: var(--amber);
+  border: 1px solid rgba(245, 158, 11, 0.1) !important;
+  flex: 0 0 auto !important;
+  width: 40px;
+}
+
+.btn-pause-action:hover {
+  background: rgba(245, 158, 11, 0.2);
+}
+
+.btn-play-action {
+  background: var(--emerald-dim);
+  color: var(--emerald);
+  border: 1px solid rgba(16, 185, 129, 0.1) !important;
+  flex: 0 0 auto !important;
+  width: 40px;
+}
+
+.btn-play-action:hover {
+  background: rgba(16, 185, 129, 0.2);
 }
 
 /* Primary gradient button */
@@ -1610,6 +1683,144 @@ body::before {
   background: var(--cyan-dim);
   padding: 3px 8px;
   border-radius: var(--radius-sm);
+}
+
+/* ── Overlay / Modal ── */
+.overlay-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 10, 24, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  z-index: 200;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: fadeIn 0.2s ease-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.overlay-content {
+  width: 100%;
+  max-width: 480px;
+  max-height: 85vh;
+  overflow-y: auto;
+  background: var(--bg-elevated);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  padding: 20px;
+  animation: slideUp 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.overlay-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.overlay-header h3 {
+  font-family: var(--font-heading);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.overlay-close {
+  background: rgba(255, 255, 255, 0.04);
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 6px;
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.overlay-close svg {
+  width: 18px;
+  height: 18px;
+}
+
+.overlay-close:hover {
+  background: var(--coral-dim);
+  color: var(--coral);
+}
+
+.overlay-qr {
+  text-align: center;
+}
+
+.link-section {
+  margin-bottom: 16px;
+}
+
+.link-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.link-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.link-value {
+  flex: 1;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-primary);
+  word-break: break-all;
+  line-height: 1.4;
+}
+
+.btn-copy {
+  flex-shrink: 0;
+  width: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--cyan-dim);
+  border: 1px solid rgba(0, 212, 255, 0.1);
+  border-radius: var(--radius-sm);
+  color: var(--cyan);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.btn-copy:hover {
+  background: rgba(0, 212, 255, 0.2);
+}
+
+.btn-copy:active {
+  transform: scale(0.92);
+}
+
+/* Toggle states */
+.toggle-slider.toggling {
+  opacity: 0.5;
 }
 
 /* ── Loading Spinner ── */

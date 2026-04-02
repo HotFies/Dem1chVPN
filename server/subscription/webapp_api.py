@@ -184,10 +184,34 @@ async def delete_route(domain: str):
 
 @api.get("/settings", dependencies=[Depends(require_admin)])
 async def get_settings():
+    # Check real service status instead of static config values
+    warp_enabled = False
+    adguard_enabled = False
+    mtproto_enabled = False
+
+    try:
+        from server.bot.services.warp_manager import WarpManager
+        warp_enabled = WarpManager().is_enabled()
+    except Exception:
+        pass
+
+    try:
+        from server.bot.services.adguard_api import AdGuardAPI
+        status = await AdGuardAPI().get_status()
+        adguard_enabled = status.get("protection_enabled", False)
+    except Exception:
+        pass
+
+    try:
+        from server.bot.services.mtproto_manager import MTProtoManager
+        mtproto_enabled = await MTProtoManager().is_running()
+    except Exception:
+        pass
+
     return {
-        "warp_enabled": config.WARP_ENABLED,
-        "adguard_enabled": config.ADGUARD_ENABLED,
-        "mtproto_enabled": config.MTPROTO_ENABLED,
+        "warp_enabled": warp_enabled,
+        "adguard_enabled": adguard_enabled,
+        "mtproto_enabled": mtproto_enabled,
         "server_ip": config.SERVER_IP,
         "reality_sni": config.REALITY_SNI,
     }

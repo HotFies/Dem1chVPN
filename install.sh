@@ -712,15 +712,44 @@ SCRIPT
     cat > /opt/dem1chvpn/cron/update_geodata.sh << 'SCRIPT'
 #!/bin/bash
 echo "[$(date)] Обновление гео-баз..."
+
+# Бэкап текущих файлов
+cp /usr/local/share/xray/geoip.dat /usr/local/share/xray/geoip.dat.bak 2>/dev/null
+cp /usr/local/share/xray/geosite.dat /usr/local/share/xray/geosite.dat.bak 2>/dev/null
+
+# geoip.dat — Loyalsoldier (primary), v2fly (fallback)
 wget -qO /usr/local/share/xray/geoip.dat \
-    "https://github.com/runetfreedom/russia-blocked-geoip/releases/latest/download/geoip.dat" && \
-    echo "geoip.dat обновлён" || echo "Ошибка обновления geoip.dat"
+    "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat" && \
+    echo "geoip.dat обновлён (Loyalsoldier)" || \
+    wget -qO /usr/local/share/xray/geoip.dat \
+        "https://github.com/v2fly/geoip/releases/latest/download/geoip.dat" && \
+        echo "geoip.dat обновлён (v2fly)" || {
+            echo "Ошибка обновления geoip.dat — восстанавливаю бэкап"
+            cp /usr/local/share/xray/geoip.dat.bak /usr/local/share/xray/geoip.dat 2>/dev/null
+        }
 
+# geosite.dat — Loyalsoldier (primary, содержит category-ru), v2fly (fallback)
 wget -qO /usr/local/share/xray/geosite.dat \
-    "https://github.com/runetfreedom/russia-blocked-geoip/releases/latest/download/geosite.dat" && \
-    echo "geosite.dat обновлён" || echo "Ошибка обновления geosite.dat"
+    "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat" && \
+    echo "geosite.dat обновлён (Loyalsoldier)" || \
+    wget -qO /usr/local/share/xray/geosite.dat \
+        "https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat" && \
+        echo "geosite.dat обновлён (v2fly)" || {
+            echo "Ошибка обновления geosite.dat — восстанавливаю бэкап"
+            cp /usr/local/share/xray/geosite.dat.bak /usr/local/share/xray/geosite.dat 2>/dev/null
+        }
 
-systemctl restart xray
+# Проверить конфиг перед рестартом (чтобы не уронить Xray)
+if /usr/local/bin/xray run -test -config /usr/local/etc/xray/config.json >/dev/null 2>&1; then
+    systemctl restart xray
+    echo "[$(date)] Xray перезапущен с новыми гео-базами"
+else
+    echo "[$(date)] ОШИБКА: конфиг невалиден после обновления гео-баз! Восстанавливаю бэкап..."
+    cp /usr/local/share/xray/geoip.dat.bak /usr/local/share/xray/geoip.dat 2>/dev/null
+    cp /usr/local/share/xray/geosite.dat.bak /usr/local/share/xray/geosite.dat 2>/dev/null
+    systemctl restart xray
+fi
+
 echo "[$(date)] Обновление гео-баз завершено"
 SCRIPT
 

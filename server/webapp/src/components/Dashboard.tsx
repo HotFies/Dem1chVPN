@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react'
-import { getServerStatus, formatBytes, type ServerStatus } from '../api/client'
+import { getServerStatus, formatBytes, formatPercent, type ServerStatus } from '../api/client'
 
 /* ── SVG Circular Gauge ── */
 function CircularGauge({ value, max, color, label }: {
@@ -52,9 +52,9 @@ function CircularGauge({ value, max, color, label }: {
   )
 }
 
-/* ── Icons ── */
+/* ── Icons (with explicit sizing) ── */
 const globeIcon = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
     <circle cx="12" cy="12" r="10" />
     <line x1="2" y1="12" x2="22" y2="12" />
     <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
@@ -62,7 +62,7 @@ const globeIcon = (
 )
 
 const serverIcon = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
     <rect x="2" y="2" width="20" height="8" rx="2" />
     <rect x="2" y="14" width="20" height="8" rx="2" />
     <line x1="6" y1="6" x2="6.01" y2="6" />
@@ -71,7 +71,7 @@ const serverIcon = (
 )
 
 const trendingUpIcon = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="18" height="18">
     <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
     <polyline points="17 6 23 6 23 12" />
   </svg>
@@ -104,6 +104,9 @@ export default function Dashboard() {
       Не удалось загрузить данные
     </div>
   )
+
+  const ramPercent = formatPercent(status.ram_used, status.ram_total)
+  const diskPercent = formatPercent(status.disk_used, status.disk_total)
 
   return (
     <div className="dashboard">
@@ -139,20 +142,46 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Resource details */}
+      {/* Resource details with progress bars */}
       <div className="card">
         <div className="card-header">
-          {serverIcon}
-          <span style={{ marginLeft: 8, flex: 1 }}>Ресурсы сервера</span>
+          <span className="card-header-icon">{serverIcon}</span>
+          <span style={{ flex: 1 }}>Ресурсы сервера</span>
         </div>
         <div className="card-body">
-          <div className="stat-row">
-            <span>Оперативная память</span>
-            <span>{formatBytes(status.ram_used)} / {formatBytes(status.ram_total)}</span>
+          <div className="resource-item">
+            <div className="stat-row">
+              <span>Оперативная память</span>
+              <span>{formatBytes(status.ram_used)} / {formatBytes(status.ram_total)}</span>
+            </div>
+            <div className="progress-bar">
+              <div
+                className="progress-fill"
+                style={{
+                  width: `${ramPercent}%`,
+                  background: ramPercent > 80
+                    ? 'linear-gradient(90deg, #ff4757, #ff6b81)'
+                    : 'linear-gradient(90deg, #7c3aed, #a78bfa)',
+                }}
+              />
+            </div>
           </div>
-          <div className="stat-row">
-            <span>Хранилище</span>
-            <span>{formatBytes(status.disk_used)} / {formatBytes(status.disk_total)}</span>
+          <div className="resource-item" style={{ marginTop: 12 }}>
+            <div className="stat-row">
+              <span>Хранилище</span>
+              <span>{formatBytes(status.disk_used)} / {formatBytes(status.disk_total)}</span>
+            </div>
+            <div className="progress-bar">
+              <div
+                className="progress-fill"
+                style={{
+                  width: `${diskPercent}%`,
+                  background: diskPercent > 80
+                    ? 'linear-gradient(90deg, #ff4757, #ff6b81)'
+                    : 'linear-gradient(90deg, #10b981, #34d399)',
+                }}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -160,16 +189,16 @@ export default function Dashboard() {
       {/* Traffic Today */}
       <div className="card">
         <div className="card-header">
-          {trendingUpIcon}
-          <span style={{ marginLeft: 8, flex: 1 }}>Трафик сегодня</span>
+          <span className="card-header-icon">{trendingUpIcon}</span>
+          <span style={{ flex: 1 }}>Трафик сегодня</span>
         </div>
         <div className="card-body traffic-grid">
           <div className="traffic-item upload">
-            <span className="traffic-label">↑ Исходящий</span>
+            <span className="traffic-label">↑ исходящий</span>
             <span className="traffic-value">{formatBytes(status.traffic_today_up)}</span>
           </div>
           <div className="traffic-item download">
-            <span className="traffic-label">↓ Входящий</span>
+            <span className="traffic-label">↓ входящий</span>
             <span className="traffic-value">{formatBytes(status.traffic_today_down)}</span>
           </div>
         </div>

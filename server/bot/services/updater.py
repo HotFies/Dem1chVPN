@@ -16,11 +16,11 @@ class XrayUpdater:
 
     GEO_URLS = {
         "geoip": [
-            "https://github.com/runetfreedom/russia-blocked-geoip/releases/latest/download/geoip.dat",
+            "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geoip.dat",
             "https://github.com/v2fly/geoip/releases/latest/download/geoip.dat",
         ],
         "geosite": [
-            "https://github.com/runetfreedom/russia-blocked-geoip/releases/latest/download/geosite.dat",
+            "https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/geosite.dat",
             "https://github.com/v2fly/domain-list-community/releases/latest/download/dlc.dat",
         ],
     }

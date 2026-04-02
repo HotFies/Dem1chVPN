@@ -118,17 +118,10 @@ async def get_subscription(request: Request, token: str):
     if routing_header:
         headers["routing"] = routing_header
 
-    # Fragment header — tells V2RayN/V2RayNG to fragment TLS ClientHello
-    # This helps bypass DPI throttling by Russian ISPs (Rostelecom, MTS, etc.)
-    # Clients that don't support this header will simply ignore it
-    fragment_config = {
-        "packets": "tlshello",
-        "length": "100-200",
-        "interval": "10-20",
-    }
-    headers["fragment"] = base64.b64encode(
-        json.dumps(fragment_config).encode()
-    ).decode()
+
+    # Fragment header removed — it was breaking connections to Russian sites
+    # that go through the `direct` outbound on the server.
+    # DPI bypass is handled by Reality protocol itself.
 
     # DNS header — override client DNS to DoH (bypass TSPU DNS interception)
     dns_config = {
