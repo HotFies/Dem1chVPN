@@ -116,17 +116,33 @@ done
 log_info "Регистрирую WARP аккаунт..."
 REGISTERED=false
 for attempt in 1 2 3; do
-    if yes | warp-cli registration new 2>/dev/null; then
+    # НЕ используем `yes | ...` — с pipefail yes получает SIGPIPE
+    # и весь pipeline считается неуспешным, хотя warp-cli отработал.
+    REG_OUTPUT=$(echo y | warp-cli registration new 2>&1 || true)
+    if echo "$REG_OUTPUT" | grep -qi "success"; then
         REGISTERED=true
         break
     fi
-    log_warn "Попытка ${attempt}/3 не удалась, жду 5 сек..."
+    # Проверяем может регистрация уже существует
+    if warp-cli registration show 2>/dev/null | grep -qi "account"; then
+        log_info "WARP аккаунт уже зарегистрирован"
+        REGISTERED=true
+        break
+    fi
+    log_warn "Попытка ${attempt}/3 не удалась (вывод: ${REG_OUTPUT}), жду 5 сек..."
     sleep 5
 done
 
 if [ "$REGISTERED" = false ]; then
-    log_error "Не удалось зарегистрироваться в WARP после 3 попыток"
-    exit 1
+    # Последняя проверка — может регистрация прошла, но exit code был неверным
+    if warp-cli registration show 2>/dev/null | grep -qi "account\|registration"; then
+        log_info "WARP аккаунт зарегистрирован (подтверждено через registration show)"
+        REGISTERED=true
+    else
+        log_error "Не удалось зарегистрироваться в WARP после 3 попыток"
+        log_error "Попробуйте вручную: warp-cli registration new"
+        exit 1
+    fi
 fi
 log_info "WARP аккаунт зарегистрирован"
 sleep 3
@@ -158,7 +174,7 @@ if [ "$CONNECTED" = false ]; then
     sleep 2
     warp-cli registration delete 2>/dev/null || true
     sleep 2
-    yes | warp-cli registration new 2>/dev/null || true
+    echo y | warp-cli registration new 2>/dev/null || true
     sleep 2
     warp-cli mode proxy 2>/dev/null || true
     warp-cli proxy port ${WARP_SOCKS_PORT} 2>/dev/null || true

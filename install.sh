@@ -422,9 +422,11 @@ SUB_PORT=8080
 SUB_DOMAIN=${SUB_DOMAIN}
 SUB_EXTERNAL_PORT=8443
 
+# WARP (обязательный — маршрутизация зарубежного трафика)
+WARP_ENABLED=true
+
 # Дополнительные модули (включить позже)
 ADGUARD_ENABLED=false
-WARP_ENABLED=false
 MTPROTO_ENABLED=false
 
 # Автоматика
@@ -548,10 +550,11 @@ setup_warp() {
 
     if [ -f "${WARP_DIR}/setup.sh" ]; then
         chmod +x "${WARP_DIR}/setup.sh"
-        bash "${WARP_DIR}/setup.sh" || {
-            log_warn "Установка WARP не удалась (необязательный компонент)"
-            return 0
-        }
+        bash "${WARP_DIR}/setup.sh"
+        # Возвращаем exit code как есть — WARP обязателен
+    else
+        log_error "WARP setup.sh не найден: ${WARP_DIR}/setup.sh"
+        return 1
     fi
 }
 
@@ -1219,7 +1222,14 @@ main() {
     setup_warp || {
         log_warn "WARP не установился с первой попытки, повтор через 10 сек..."
         sleep 10
-        setup_warp || log_error "WARP НЕ УСТАНОВЛЕН! YouTube/Discord/AI работать не будут. Выполните вручную: bash /opt/dem1chvpn/server/warp/setup.sh"
+        setup_warp || {
+            log_error "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            log_error "WARP НЕ УСТАНОВЛЕН! Это обязательный компонент."
+            log_error "Без WARP YouTube, Discord, AI-сервисы работать не будут!"
+            log_error "Установите вручную: bash /opt/dem1chvpn/server/warp/setup.sh"
+            log_error "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+            # Не прерываем установку, но ясно сообщаем что это критично
+        }
     }
     create_services
     setup_cron
