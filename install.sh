@@ -391,7 +391,7 @@ install_bot() {
     log_info "Домен подписки: ${SUB_DOMAIN}"
 
     # Создание файла .env
-    cat > "$ENV_FILE" << ENVFILE
+    cat > "$ENV_FILE" << ENVFILE 
 # Конфигурация Dem1chVPN
 BOT_TOKEN=${BOT_TOKEN}
 ADMIN_IDS=${ADMIN_ID}
@@ -1061,7 +1061,9 @@ DIRECT_DOMAINS = [
 
     # --- Государство + налоги ---
     'gosuslugi.ru', 'esia.gosuslugi.ru', 'gu-st.ru',
-    'nalog.ru', 'nalog.gov.ru',
+    'nalog.ru', 'lknpd.nalog.ru', 'api.nalog.ru',
+    'service.nalog.ru', 'auth.nalog.ru',
+    'nalog.gov.ru',
     'government.ru', 'gov.ru',
     'mos.ru', 'emias.info',
     'cbr.ru', 'goskey.ru', 'pfr.gov.ru',

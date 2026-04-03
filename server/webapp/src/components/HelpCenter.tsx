@@ -48,18 +48,23 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-/** Open a deeplink via Telegram WebApp or system browser */
+/** Open a deeplink — custom URL schemes (v2raytun://) need special handling */
 function openDeeplink(url: string) {
-  const tg = (window as any).Telegram?.WebApp;
-  if (tg?.openLink) {
-    // openLink opens in system browser which handles custom URL schemes
-    tg.openLink(url);
+  const isCustomScheme = !/^https?:\/\//i.test(url);
+  if (isCustomScheme) {
+    // Custom URL schemes (v2raytun://) — navigate directly so iOS opens the app
+    window.location.href = url;
   } else {
-    window.open(url, '_blank');
+    const tg = (window as any).Telegram?.WebApp;
+    if (tg?.openLink) {
+      tg.openLink(url);
+    } else {
+      window.open(url, '_blank');
+    }
   }
 }
 
-export default function HelpCenter() {
+export default function HelpCenter({ onOpenGuide }: { onOpenGuide?: () => void }) {
   const [links, setLinks] = useState<MyLinks | null>(null);
   const [loading, setLoading] = useState(true);
   const [platform, setPlatform] = useState<Platform>(null);
@@ -200,6 +205,18 @@ export default function HelpCenter() {
             <span>🍎 Инструкция для iOS</span>
           </div>
           <div className="card-body">
+            {/* Region change banner */}
+            <div className="guide-banner" onClick={onOpenGuide}>
+              <div className="guide-banner-icon">🇺🇸</div>
+              <div className="guide-banner-text">
+                <strong>Приложение удалено из App Store РФ?</strong>
+                <span>Нажмите, чтобы открыть инструкцию по смене региона</span>
+              </div>
+              <svg className="guide-banner-arrow" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            </div>
+
             <div className="help-app-header">
               <span className="help-app-name">V2RayTun</span>
               <a href="https://apps.apple.com/app/v2raytun/id6476628951" target="_blank" rel="noopener" className="help-download-btn">

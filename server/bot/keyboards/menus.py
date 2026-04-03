@@ -45,9 +45,18 @@ def main_menu(is_admin: bool = False) -> InlineKeyboardMarkup:
                 ),
             ])
 
-    buttons.append([
-        InlineKeyboardButton(text="📖 Помощь", callback_data="menu:help"),
-    ])
+    # Help button → direct Mini App (no intermediate step) or fallback
+    if config.SUB_DOMAIN:
+        buttons.append([
+            InlineKeyboardButton(
+                text="📖 Помощь",
+                web_app=WebAppInfo(url=f"{config.sub_base_url}/webapp/#help"),
+            ),
+        ])
+    else:
+        buttons.append([
+            InlineKeyboardButton(text="📖 Помощь", callback_data="menu:help"),
+        ])
 
     # Mini App button (if domain configured)
     if config.SUB_DOMAIN and is_admin:
@@ -59,6 +68,7 @@ def main_menu(is_admin: bool = False) -> InlineKeyboardMarkup:
         ])
 
     return InlineKeyboardMarkup(inline_keyboard=buttons)
+
 
 
 def users_menu() -> InlineKeyboardMarkup:

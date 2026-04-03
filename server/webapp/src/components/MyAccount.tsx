@@ -50,13 +50,19 @@ function CopyBtn({ text, label }: { text: string; label?: string }) {
   );
 }
 
-/** Open a deeplink via Telegram WebApp or system browser */
+/** Open a deeplink — custom URL schemes (v2raytun://) need special handling */
 function openDeeplink(url: string) {
-  const tg = (window as any).Telegram?.WebApp;
-  if (tg?.openLink) {
-    tg.openLink(url);
+  const isCustomScheme = !/^https?:\/\//i.test(url);
+  if (isCustomScheme) {
+    // Custom URL schemes (v2raytun://) — navigate directly so iOS opens the app
+    window.location.href = url;
   } else {
-    window.open(url, '_blank');
+    const tg = (window as any).Telegram?.WebApp;
+    if (tg?.openLink) {
+      tg.openLink(url);
+    } else {
+      window.open(url, '_blank');
+    }
   }
 }
 

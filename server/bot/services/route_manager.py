@@ -143,6 +143,22 @@ class RouteManager:
             "domain:t1.cloud", "domain:dbo-dengi.online",
             "domain:moex.com", "domain:turbopages.org",
             "domain:webvisor.com", "domain:naydex.net",
+            # Государство + налоги (критичные API-домены)
+            "domain:nalog.ru",
+            "domain:nalog.gov.ru",
+            "domain:gosuslugi.ru",
+            "domain:esia.gosuslugi.ru",
+            "domain:gu-st.ru",
+            "domain:gov.ru",
+            "domain:government.ru",
+            "domain:mos.ru",
+            "domain:emias.info",
+            "domain:cbr.ru",
+            "domain:goskey.ru",
+            "domain:pfr.gov.ru",
+            # Платёжные системы
+            "domain:nspk.ru",
+            "domain:mir.ru",
         ]
         if direct_domains:
             direct_domain_list.extend(f"domain:{d}" for d in direct_domains)

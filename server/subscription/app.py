@@ -348,6 +348,22 @@ async def _build_routing_header() -> str | None:
             "domain:turbopages.org",    # Yandex Turbo
             "domain:webvisor.com",      # Yandex Webvisor
             "domain:naydex.net",        # Yandex Ads
+            # Государство + налоги (критичные API-домены)
+            "domain:nalog.ru",
+            "domain:nalog.gov.ru",
+            "domain:gosuslugi.ru",
+            "domain:esia.gosuslugi.ru",
+            "domain:gu-st.ru",
+            "domain:gov.ru",
+            "domain:government.ru",
+            "domain:mos.ru",
+            "domain:emias.info",
+            "domain:cbr.ru",
+            "domain:goskey.ru",
+            "domain:pfr.gov.ru",
+            # Платёжные системы
+            "domain:nspk.ru",
+            "domain:mir.ru",
         ]
         # Add admin-configured direct domains from DB
         if direct_domains:

@@ -6,6 +6,7 @@ import Settings from './components/Settings'
 import Tickets from './components/Tickets'
 import HelpCenter from './components/HelpCenter'
 import MyAccount from './components/MyAccount'
+import AppStoreGuide from './components/AppStoreGuide'
 
 type Page = 'dashboard' | 'users' | 'routes' | 'settings' | 'tickets' | 'help' | 'account'
 
@@ -75,12 +76,13 @@ const shieldIcon = (
 
 function App() {
   const hash = window.location.hash.replace('#', '');
-  const validHashes = ['tickets', 'help', 'account'];
+  const validHashes = ['dashboard', 'users', 'routes', 'tickets', 'settings', 'help', 'account'];
   const initialPage = (validHashes.includes(hash) ? hash : 'dashboard') as Page;
   const [page, setPage] = useState<Page>(initialPage)
   const [isAdmin, setIsAdmin] = useState(false)
   const [authLoaded, setAuthLoaded] = useState(false)
   const [userId, setUserId] = useState<number | null>(null)
+  const [showGuide, setShowGuide] = useState(hash === 'appstore-guide')
 
   useEffect(() => {
     if (tg?.initDataUnsafe?.user) {
@@ -137,9 +139,13 @@ function App() {
         {page === 'routes' && isAdmin && <RouteManager />}
         {page === 'settings' && isAdmin && <Settings />}
         {page === 'tickets' && <Tickets isAdmin={isAdmin} />}
-        {page === 'help' && <HelpCenter />}
+        {page === 'help' && <HelpCenter onOpenGuide={() => setShowGuide(true)} />}
         {page === 'account' && <MyAccount />}
       </main>
+
+      {showGuide && (
+        <AppStoreGuide onBack={() => { setShowGuide(false); window.location.hash = ''; }} />
+      )}
 
       <nav className="app-nav">
         {pages.map(p => (
