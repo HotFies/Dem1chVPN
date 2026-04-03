@@ -5,6 +5,7 @@ Main menu and navigation.
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import CommandStart, Command
+from aiogram.fsm.context import FSMContext
 
 from ..config import config
 from ..utils.auth import is_admin
@@ -22,31 +23,44 @@ router = Router()
 async def cmd_start(message: Message):
     """Handle /start command."""
     user_id = message.from_user.id
-    admin = is_admin(user_id)
 
-    if admin:
+    if is_admin(user_id):
         text = (
             "🛡️ <b>Dem1chVPN — Панель управления</b>\n\n"
             f"👤 Привет, <b>{message.from_user.first_name}</b>!\n"
             f"🔑 Статус: <b>Администратор</b>\n\n"
             "Выберите раздел:"
         )
-    else:
-        # Check if user exists in DB (will be implemented with user_manager)
+        await message.answer(text, reply_markup=main_menu(is_admin=True))
+        return
+
+    # Check if user is a linked VPN user
+    from ..services.user_manager import UserManager
+    mgr = UserManager()
+    vpn_user = await mgr.get_user_by_telegram_id(user_id)
+
+    if vpn_user:
         text = (
             "🛡️ <b>Dem1chVPN</b>\n\n"
             f"👤 Привет, <b>{message.from_user.first_name}</b>!\n\n"
             "Выберите действие:"
         )
-
-    await message.answer(text, reply_markup=main_menu(is_admin=admin))
+        await message.answer(text, reply_markup=main_menu(is_admin=False))
+    else:
+        # Not a VPN user → reject
+        await message.answer(
+            "🛡️ <b>Dem1chVPN</b>\n\n"
+            "⛔ Вы не являетесь пользователем VPN.\n\n"
+            "Для получения доступа обратитесь к администратору."
+        )
 
 
 # ── Navigation callbacks ──
 
 @router.callback_query(F.data == "menu:main")
-async def menu_main(callback: CallbackQuery):
-    """Return to main menu."""
+async def menu_main(callback: CallbackQuery, state: FSMContext):
+    """Return to main menu. Clears any stale FSM state."""
+    await state.clear()
     admin = is_admin(callback.from_user.id)
     text = "🛡️ <b>Dem1chVPN — Главное меню</b>\n\nВыберите раздел:"
     await safe_edit_text(callback.message, text, reply_markup=main_menu(is_admin=admin))
@@ -115,7 +129,7 @@ async def menu_help(callback: CallbackQuery):
     await safe_edit_text(
         callback.message,
         "❓ <b>Помощь и инструкции</b>\n\n"
-        "Выберите платформу для получения инструкции по подключению:",
+        "Нажмите кнопку ниже для открытия инструкций:",
         reply_markup=help_menu(),
     )
     await callback.answer()

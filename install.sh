@@ -384,8 +384,11 @@ install_bot() {
         VPS_HOSTNAME="$SERVER_IP"
     fi
     log_info "Хостнейм VPS: ${VPS_HOSTNAME}"
+    echo -e "${CYAN}  Нажмите Enter чтобы использовать хостнейм VPS.${NC}"
+    echo -e "${CYAN}  Или введите свой домен (например: vpn.example.com)${NC}"
     read -rp "$(echo -e "${PURPLE}Домен для подписки [${VPS_HOSTNAME}]: ${NC}")" CUSTOM_DOMAIN
     SUB_DOMAIN=${CUSTOM_DOMAIN:-$VPS_HOSTNAME}
+    log_info "Домен подписки: ${SUB_DOMAIN}"
 
     # Создание файла .env
     cat > "$ENV_FILE" << ENVFILE
@@ -1213,22 +1216,63 @@ main() {
     install_bot
     install_caddy
     build_webapp || true         # Необязательно — Mini App можно собрать позже
-    setup_warp || log_warn "WARP не установлен (YouTube/Discord/AI могут работать медленнее)"
+    setup_warp || {
+        log_warn "WARP не установился с первой попытки, повтор через 10 сек..."
+        sleep 10
+        setup_warp || log_error "WARP НЕ УСТАНОВЛЕН! YouTube/Discord/AI работать не будут. Выполните вручную: bash /opt/dem1chvpn/server/warp/setup.sh"
+    }
     create_services
     setup_cron
     create_first_user || true    # Пользователя можно создать через бота
     seed_default_routes || true  # Правила маршрутизации
 
+    # Sudoers для dem1chvpn — позволяет боту перезапускать сервисы и обновлять Xray
+    log_info "Настраиваю sudoers для dem1chvpn..."
+    cat > /etc/sudoers.d/dem1chvpn << 'SUDOERS'
+# Dem1chVPN — allow bot user to manage services
+dem1chvpn ALL=(root) NOPASSWD: /bin/bash /tmp/xray_install.sh
+dem1chvpn ALL=(root) NOPASSWD: /usr/bin/bash /tmp/xray_install.sh
+dem1chvpn ALL=(root) NOPASSWD: /bin/bash /opt/dem1chvpn/cron/*
+dem1chvpn ALL=(root) NOPASSWD: /usr/bin/bash /opt/dem1chvpn/cron/*
+dem1chvpn ALL=(root) NOPASSWD: /usr/bin/systemctl restart xray
+dem1chvpn ALL=(root) NOPASSWD: /usr/bin/systemctl restart caddy
+dem1chvpn ALL=(root) NOPASSWD: /usr/bin/systemctl restart dem1chvpn-bot
+dem1chvpn ALL=(root) NOPASSWD: /usr/bin/systemctl restart dem1chvpn-sub
+dem1chvpn ALL=(root) NOPASSWD: /usr/bin/systemctl is-active *
+dem1chvpn ALL=(root) NOPASSWD: /usr/bin/docker *
+dem1chvpn ALL=(root) NOPASSWD: /usr/bin/docker-compose *
+dem1chvpn ALL=(root) NOPASSWD: /usr/local/bin/docker-compose *
+SUDOERS
+    chmod 440 /etc/sudoers.d/dem1chvpn
+    visudo -c -f /etc/sudoers.d/dem1chvpn && log_info "sudoers OK" || {
+        log_warn "sudoers невалиден, удаляю"
+        rm -f /etc/sudoers.d/dem1chvpn
+    }
+
     # Опциональные компоненты (запрос у пользователя)
     echo ""
     read -rp "$(echo -e "${PURPLE}Установить MTProto Proxy? (y/n): ${NC}")" INSTALL_MTPROTO
     if [[ "$INSTALL_MTPROTO" =~ ^[Yy]$ ]]; then
-        setup_mtproto || log_warn "MTProto не установлен (можно позже)"
+        if setup_mtproto; then
+            # Включить MTProto в конфигурации
+            sed -i 's/^MTPROTO_ENABLED=false/MTPROTO_ENABLED=true/' "$ENV_FILE" 2>/dev/null || true
+            grep -q '^MTPROTO_ENABLED=' "$ENV_FILE" || echo 'MTPROTO_ENABLED=true' >> "$ENV_FILE"
+            log_info "MTProto включён в конфигурации"
+        else
+            log_warn "MTProto не установлен (можно позже)"
+        fi
     fi
 
     read -rp "$(echo -e "${PURPLE}Установить AdGuard Home (блокировка рекламы)? (y/n): ${NC}")" INSTALL_ADGUARD
     if [[ "$INSTALL_ADGUARD" =~ ^[Yy]$ ]]; then
-        setup_adguard || log_warn "AdGuard не установлен (можно позже)"
+        if setup_adguard; then
+            # Включить AdGuard в конфигурации
+            sed -i 's/^ADGUARD_ENABLED=false/ADGUARD_ENABLED=true/' "$ENV_FILE" 2>/dev/null || true
+            grep -q '^ADGUARD_ENABLED=' "$ENV_FILE" || echo 'ADGUARD_ENABLED=true' >> "$ENV_FILE"
+            log_info "AdGuard Home включён в конфигурации"
+        else
+            log_warn "AdGuard не установлен (можно позже)"
+        fi
     fi
 
     show_summary

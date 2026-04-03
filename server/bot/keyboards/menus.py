@@ -22,13 +22,20 @@ def main_menu(is_admin: bool = False) -> InlineKeyboardMarkup:
         ])
     else:
         # User self-service menu
-        buttons.append([
-            InlineKeyboardButton(text="🔗 Моя ссылка", callback_data="self:link"),
-            InlineKeyboardButton(text="📱 QR-код", callback_data="self:qr"),
-        ])
-        buttons.append([
-            InlineKeyboardButton(text="📊 Мой трафик", callback_data="self:traffic"),
-        ])
+        if config.SUB_DOMAIN:
+            # Primary: Mini App personal cabinet
+            buttons.append([
+                InlineKeyboardButton(
+                    text="📱 Личный кабинет",
+                    web_app=WebAppInfo(url=f"{config.sub_base_url}/webapp/#account"),
+                ),
+            ])
+        else:
+            # Fallback: inline buttons when domain not configured
+            buttons.append([
+                InlineKeyboardButton(text="🔗 Моя ссылка", callback_data="self:link"),
+                InlineKeyboardButton(text="📊 Мой трафик", callback_data="self:traffic"),
+            ])
         # Ticket button → Mini App
         if config.SUB_DOMAIN:
             buttons.append([
@@ -109,11 +116,11 @@ def user_actions(user_id: int, has_telegram: bool = False) -> InlineKeyboardMark
     buttons = [
         [
             InlineKeyboardButton(text="🔗 Ссылка", callback_data=f"user:link:{user_id}"),
-            InlineKeyboardButton(text="📱 QR", callback_data=f"user:qr:{user_id}"),
+            InlineKeyboardButton(text="📡 Подписка", callback_data=f"user:sub:{user_id}"),
         ],
         [
             InlineKeyboardButton(text="📊 Трафик", callback_data=f"user:traffic:{user_id}"),
-            InlineKeyboardButton(text="📡 Подписка", callback_data=f"user:sub:{user_id}"),
+            InlineKeyboardButton(text="📈 График", callback_data=f"user:chart:{user_id}"),
         ],
         [
             InlineKeyboardButton(text="📆 Продлить", callback_data=f"user:extend:{user_id}"),
@@ -121,7 +128,6 @@ def user_actions(user_id: int, has_telegram: bool = False) -> InlineKeyboardMark
         ],
         [
             InlineKeyboardButton(text="📊 Лимит", callback_data=f"user:set_limit:{user_id}"),
-            InlineKeyboardButton(text="📈 График", callback_data=f"user:chart:{user_id}"),
         ],
     ]
     # Link Telegram button (only if not linked)
@@ -148,9 +154,6 @@ def routing_menu() -> InlineKeyboardMarkup:
         [InlineKeyboardButton(text="🗑️ Удалить правило", callback_data="route:delete")],
         [InlineKeyboardButton(text="🔄 Обновить списки", callback_data="route:update")],
         [InlineKeyboardButton(text="🧪 Проверить сайт", callback_data="route:check")],
-        [
-            InlineKeyboardButton(text="🎬 Режимы", callback_data="route:modes"),
-        ],
         [InlineKeyboardButton(text="◀️ Назад", callback_data="menu:main")],
     ])
 
@@ -160,15 +163,11 @@ def monitoring_menu() -> InlineKeyboardMarkup:
     buttons = [
         [
             InlineKeyboardButton(text="📈 Статус", callback_data="mon:status"),
-            InlineKeyboardButton(text="🌐 Xray", callback_data="mon:xray"),
-        ],
-        [
             InlineKeyboardButton(text="👁 Онлайн", callback_data="mon:online"),
-            InlineKeyboardButton(text="📉 Трафик", callback_data="mon:traffic_day"),
         ],
         [
+            InlineKeyboardButton(text="📉 Трафик", callback_data="mon:traffic_day"),
             InlineKeyboardButton(text="⚡ Speedtest", callback_data="mon:speedtest"),
-            InlineKeyboardButton(text="🚨 Проверка IP", callback_data="mon:ip_check"),
         ],
     ]
     # Tickets → Mini App (if domain configured)
@@ -180,7 +179,6 @@ def monitoring_menu() -> InlineKeyboardMarkup:
         ))
     else:
         ticket_row.append(InlineKeyboardButton(text="🎫 Тикеты", callback_data="tickets:list"))
-    ticket_row.append(InlineKeyboardButton(text="🔔 Уведомления", callback_data="mon:alerts"))
     buttons.append(ticket_row)
     buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="menu:main")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -190,7 +188,7 @@ def settings_menu() -> InlineKeyboardMarkup:
     """Settings menu."""
     return InlineKeyboardMarkup(inline_keyboard=[
         [
-            InlineKeyboardButton(text="🔄 Xray-core", callback_data="set:update_xray"),
+            InlineKeyboardButton(text="🔄 Обновить Xray", callback_data="set:update_xray"),
             InlineKeyboardButton(text="🔄 Гео-базы", callback_data="set:update_geo"),
         ],
         [
@@ -211,17 +209,18 @@ def settings_menu() -> InlineKeyboardMarkup:
 
 
 def help_menu() -> InlineKeyboardMarkup:
-    """Help menu."""
-    return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📖 Общая инструкция", callback_data="help:general")],
-        [InlineKeyboardButton(text="🖥️ Windows", callback_data="help:windows")],
-        [InlineKeyboardButton(text="📱 Android", callback_data="help:android")],
-        [InlineKeyboardButton(text="🍎 iOS", callback_data="help:ios")],
-        [InlineKeyboardButton(text="🍎 macOS", callback_data="help:macos")],
-        [InlineKeyboardButton(text="🐧 Linux", callback_data="help:linux")],
-        [InlineKeyboardButton(text="📡 Роутер", callback_data="help:router")],
-        [InlineKeyboardButton(text="◀️ Назад", callback_data="menu:main")],
-    ])
+    """Help menu — opens Mini App."""
+    buttons = []
+    if config.SUB_DOMAIN:
+        buttons.append([InlineKeyboardButton(
+            text="📖 Открыть инструкции",
+            web_app=WebAppInfo(url=f"{config.sub_base_url}/webapp/#help"),
+        )])
+    else:
+        # Fallback: simple text help
+        buttons.append([InlineKeyboardButton(text="📖 Общая инструкция", callback_data="help:general")])
+    buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="menu:main")])
+    return InlineKeyboardMarkup(inline_keyboard=buttons)
 
 
 def confirm_action(action: str, target_id: int = 0) -> InlineKeyboardMarkup:
@@ -280,11 +279,7 @@ def wizard_platform() -> InlineKeyboardMarkup:
 def wizard_connect_method() -> InlineKeyboardMarkup:
     """Connection wizard — connection method."""
     return InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📱 QR-код", callback_data="wiz:method_qr")],
         [InlineKeyboardButton(text="🔗 Ссылка", callback_data="wiz:method_link")],
         [InlineKeyboardButton(text="📡 Подписка (рекомендуется)", callback_data="wiz:method_sub")],
         [InlineKeyboardButton(text="◀️ Назад", callback_data="menu:help")],
     ])
-
-
-

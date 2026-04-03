@@ -81,12 +81,18 @@ export default function Settings() {
   const [toggling, setToggling] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
+  const [toast, setToast] = useState<string | null>(null)
 
   useEffect(() => {
     getSettings()
       .then(data => { setSettings(data); setLoading(false) })
       .catch(() => setLoading(false))
   }, [])
+
+  const showToast = (msg: string) => {
+    setToast(msg)
+    setTimeout(() => setToast(null), 3000)
+  }
 
   const handleToggle = async (feature: 'warp' | 'adguard' | 'mtproto') => {
     if (toggling) return
@@ -97,8 +103,10 @@ export default function Settings() {
       setSettings(prev =>
         prev ? { ...prev, [`${feature}_enabled`]: result.enabled } : null
       )
-    } catch (err) {
+    } catch (err: any) {
+      const msg = err?.message || `Ошибка переключения ${feature}`
       console.error(`Toggle ${feature} failed:`, err)
+      showToast(`❌ ${msg}`)
     } finally {
       setToggling(null)
     }
@@ -257,6 +265,11 @@ export default function Settings() {
           Создать бэкап
         </button>
       </div>
+
+      {/* Error toast */}
+      {toast && (
+        <div className="toast-error">{toast}</div>
+      )}
     </div>
   )
 }

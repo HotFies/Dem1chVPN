@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import { getUsers, getUserLink, toggleUser, formatBytes, type User } from '../api/client'
 
 /* ── Icons ── */
@@ -9,15 +9,7 @@ const linkIcon = (
   </svg>
 )
 
-const qrIcon = (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-    <rect x="3" y="3" width="7" height="7" rx="1" />
-    <rect x="14" y="3" width="7" height="7" rx="1" />
-    <rect x="3" y="14" width="7" height="7" rx="1" />
-    <rect x="14" y="14" width="3" height="3" />
-    <rect x="18" y="18" width="3" height="3" />
-  </svg>
-)
+
 
 const usersIcon = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -48,108 +40,6 @@ const closeIcon = (
   </svg>
 )
 
-/* ── Minimal QR Code Generator ── */
-function generateQRMatrix(text: string): boolean[][] {
-  // Simple QR-like matrix (actual QR encoding is complex, this creates a visual pattern)
-  // For production, use a library - but for a VPN link display this works visually
-  const size = 33
-  const matrix: boolean[][] = Array.from({ length: size }, () => Array(size).fill(false))
-
-  // Finder patterns (3 corners)
-  const drawFinder = (ox: number, oy: number) => {
-    for (let y = 0; y < 7; y++)
-      for (let x = 0; x < 7; x++) {
-        const outer = x === 0 || x === 6 || y === 0 || y === 6
-        const inner = x >= 2 && x <= 4 && y >= 2 && y <= 4
-        matrix[oy + y][ox + x] = outer || inner
-      }
-  }
-  drawFinder(0, 0)
-  drawFinder(size - 7, 0)
-  drawFinder(0, size - 7)
-
-  // Timing patterns
-  for (let i = 8; i < size - 8; i++) {
-    matrix[6][i] = i % 2 === 0
-    matrix[i][6] = i % 2 === 0
-  }
-
-  // Data area - hash the text to create a deterministic pattern
-  let hash = 0
-  for (let i = 0; i < text.length; i++) {
-    hash = ((hash << 5) - hash + text.charCodeAt(i)) | 0
-  }
-  const rng = (seed: number) => {
-    seed = (seed * 1103515245 + 12345) & 0x7fffffff
-    return seed
-  }
-  let seed = Math.abs(hash)
-  for (let y = 0; y < size; y++)
-    for (let x = 0; x < size; x++) {
-      if (matrix[y][x]) continue
-      // Skip finder pattern areas + margins
-      const inFinder = (x < 8 && y < 8) || (x >= size - 8 && y < 8) || (x < 8 && y >= size - 8)
-      if (inFinder) continue
-      if (y === 6 || x === 6) continue
-      seed = rng(seed)
-      matrix[y][x] = (seed % 3) < 1  // ~33% density
-    }
-
-  return matrix
-}
-
-function QRCanvas({ text, size = 200 }: { text: string; size?: number }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null)
-
-  useEffect(() => {
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext('2d')
-    if (!ctx) return
-
-    const dpr = window.devicePixelRatio || 1
-    canvas.width = size * dpr
-    canvas.height = size * dpr
-    ctx.scale(dpr, dpr)
-
-    const matrix = generateQRMatrix(text)
-    const cellSize = size / matrix.length
-    const margin = 2
-
-    // Background
-    ctx.fillStyle = '#ffffff'
-    ctx.beginPath()
-    const r = 12
-    ctx.moveTo(r, 0)
-    ctx.lineTo(size - r, 0)
-    ctx.arcTo(size, 0, size, r, r)
-    ctx.lineTo(size, size - r)
-    ctx.arcTo(size, size, size - r, size, r)
-    ctx.lineTo(r, size)
-    ctx.arcTo(0, size, 0, size - r, r)
-    ctx.lineTo(0, r)
-    ctx.arcTo(0, 0, r, 0, r)
-    ctx.closePath()
-    ctx.fill()
-
-    // Draw modules
-    ctx.fillStyle = '#0c1428'
-    for (let y = 0; y < matrix.length; y++) {
-      for (let x = 0; x < matrix[y].length; x++) {
-        if (matrix[y][x]) {
-          ctx.fillRect(
-            x * cellSize + margin * 0.5,
-            y * cellSize + margin * 0.5,
-            cellSize - 0.5,
-            cellSize - 0.5,
-          )
-        }
-      }
-    }
-  }, [text, size])
-
-  return <canvas ref={canvasRef} style={{ width: size, height: size, borderRadius: 12 }} />
-}
 
 /* ── Modal Overlay ── */
 function LinkModal({
@@ -205,39 +95,12 @@ function LinkModal({
   )
 }
 
-function QRModal({
-  user,
-  vlessUrl,
-  onClose,
-}: {
-  user: User
-  vlessUrl: string
-  onClose: () => void
-}) {
-  return (
-    <div className="overlay-backdrop" onClick={onClose}>
-      <div className="overlay-content overlay-qr" onClick={e => e.stopPropagation()}>
-        <div className="overlay-header">
-          <h3>📱 QR: {user.name}</h3>
-          <button className="overlay-close" onClick={onClose}>{closeIcon}</button>
-        </div>
-        <div style={{ textAlign: 'center', padding: '8px 0 16px' }}>
-          <QRCanvas text={vlessUrl} size={220} />
-          <p style={{ color: 'var(--text-tertiary)', fontSize: 12, marginTop: 12 }}>
-            Сканируйте в v2rayNG / V2RayTun
-          </p>
-        </div>
-      </div>
-    </div>
-  )
-}
-
 /* ── Main Component ── */
 export default function UserList() {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [modal, setModal] = useState<{
-    type: 'link' | 'qr'
+    type: 'link'
     user: User
     vlessUrl: string
     subUrl: string
@@ -259,14 +122,7 @@ export default function UserList() {
     }
   }, [])
 
-  const handleQR = useCallback(async (user: User) => {
-    try {
-      const data = await getUserLink(user.id)
-      setModal({ type: 'qr', user, vlessUrl: data.vless_url, subUrl: data.sub_url })
-    } catch (err) {
-      console.error('Failed to get QR:', err)
-    }
-  }, [])
+
 
   const handleToggle = useCallback(async (user: User) => {
     if (toggling !== null) return
@@ -352,9 +208,7 @@ export default function UserList() {
                 <button className="btn-sm btn-link-action" onClick={() => handleLink(u)}>
                   {linkIcon} <span>Ссылка</span>
                 </button>
-                <button className="btn-sm btn-qr-action" onClick={() => handleQR(u)}>
-                  {qrIcon} <span>QR</span>
-                </button>
+
                 <button
                   className={`btn-sm ${u.active ? 'btn-pause-action' : 'btn-play-action'}`}
                   onClick={() => handleToggle(u)}
@@ -388,13 +242,7 @@ export default function UserList() {
           onClose={() => setModal(null)}
         />
       )}
-      {modal?.type === 'qr' && (
-        <QRModal
-          user={modal.user}
-          vlessUrl={modal.vlessUrl}
-          onClose={() => setModal(null)}
-        />
-      )}
+
     </div>
   )
 }

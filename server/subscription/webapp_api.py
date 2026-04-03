@@ -222,24 +222,44 @@ async def toggle_feature(feature: str):
     if feature == "warp":
         from server.bot.services.warp_manager import WarpManager
         mgr = WarpManager()
-        new_state = await mgr.toggle()
-        return {"enabled": new_state}
+        try:
+            new_state = await mgr.toggle()
+            # Verify actual state
+            actual = mgr.is_enabled()
+            return {"enabled": actual}
+        except Exception as e:
+            raise HTTPException(500, f"WARP toggle failed: {e}")
     elif feature == "adguard":
         from server.bot.services.adguard_api import AdGuardAPI
         api_client = AdGuardAPI()
-        status = await api_client.get_status()
-        new_state = not status.get("protection_enabled", False)
-        await api_client.toggle_protection(new_state)
-        return {"enabled": new_state}
+        try:
+            status = await api_client.get_status()
+            new_state = not status.get("protection_enabled", False)
+            success = await api_client.toggle_protection(new_state)
+            if not success:
+                raise HTTPException(500, "AdGuard toggle failed — check Docker permissions")
+            # Verify actual state
+            verify = await api_client.get_status()
+            return {"enabled": verify.get("protection_enabled", new_state)}
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(500, f"AdGuard toggle failed: {e}")
     elif feature == "mtproto":
         from server.bot.services.mtproto_manager import MTProtoManager
         mgr = MTProtoManager()
-        if await mgr.is_running():
-            await mgr.stop()
-            return {"enabled": False}
-        else:
-            await mgr.start()
-            return {"enabled": True}
+        try:
+            if await mgr.is_running():
+                await mgr.stop()
+            else:
+                await mgr.start()
+            # Verify actual state
+            import asyncio
+            await asyncio.sleep(2)
+            actual = await mgr.is_running()
+            return {"enabled": actual}
+        except Exception as e:
+            raise HTTPException(500, f"MTProto toggle failed: {e}")
 
     raise HTTPException(400, "Unknown feature")
 
@@ -258,7 +278,7 @@ async def restart_xray():
 async def update_geo():
     import asyncio
     proc = await asyncio.create_subprocess_exec(
-        "bash", "/opt/dem1chvpn/cron/update_geodata.sh",
+        "sudo", "bash", "/opt/dem1chvpn/cron/update_geodata.sh",
         stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
     )
     await asyncio.wait_for(proc.communicate(), timeout=120)
@@ -439,3 +459,117 @@ async def close_ticket(ticket_id: int):
 
     return {"success": True, "id": ticket_id}
 
+
+# ── User Links (for Help Center) ──
+
+@api.get("/my/links", dependencies=[Depends(require_auth)])
+async def my_links(request: Request):
+    """Return current user's personal VPN links.
+
+    Used by HelpCenter to show personalized setup instructions.
+    """
+    # Get telegram_id from auth header
+    init_data = request.headers.get("X-Telegram-Init-Data", "")
+    result = validate_init_data(init_data)
+    if not result:
+        raise HTTPException(401, "Invalid auth")
+
+    tg_id = result.get("user_id")
+    if not tg_id:
+        raise HTTPException(401, "No user ID")
+
+    mgr = UserManager()
+    user = await mgr.get_user_by_telegram_id(tg_id)
+    if not user:
+        return {
+            "has_account": False,
+            "sub_url": None,
+            "vless_url": None,
+            "sub_deeplink": None,
+            "route_deeplink": None,
+        }
+
+    xray_mgr = XrayConfigManager()
+    vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
+    sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
+    sub_deeplink = f"v2raytun://import/{sub_url}"
+
+    # Build routing deeplink
+    from server.subscription.app import _build_routing_header
+    routing_b64 = await _build_routing_header()
+    route_deeplink = f"v2raytun://import_route/{routing_b64}" if routing_b64 else None
+
+    return {
+        "has_account": True,
+        "name": user.name,
+        "sub_url": sub_url,
+        "vless_url": vless_url,
+        "sub_deeplink": sub_deeplink,
+        "route_deeplink": route_deeplink,
+    }
+
+
+# ── User Account (for MyAccount component) ──
+
+@api.get("/my/account")
+async def my_account(request: Request):
+    """Return full account data for the personal cabinet Mini App.
+
+    Combines account status, traffic, links, and deeplinks.
+    """
+    init_data = request.headers.get("X-Telegram-Init-Data", "")
+    result = validate_init_data(init_data)
+    if not result:
+        raise HTTPException(401, "Invalid auth")
+
+    tg_id = result.get("user_id")
+    if not tg_id:
+        raise HTTPException(401, "No user ID")
+
+    is_admin = result.get("is_admin", False)
+
+    mgr = UserManager()
+    user = await mgr.get_user_by_telegram_id(tg_id)
+    if not user:
+        return {
+            "has_account": False,
+            "is_admin": is_admin,
+        }
+
+    xray_mgr = XrayConfigManager()
+    vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
+    sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
+    sub_deeplink = f"v2raytun://import/{sub_url}"
+
+    # Build routing deeplink
+    route_deeplink = None
+    try:
+        from server.subscription.app import _build_routing_header
+        routing_b64 = await _build_routing_header()
+        route_deeplink = f"v2raytun://import_route/{routing_b64}" if routing_b64 else None
+    except Exception:
+        pass
+
+    # Traffic usage percentage
+    traffic_percent = 0
+    if user.traffic_limit and user.traffic_limit > 0:
+        traffic_percent = min(round(user.traffic_total / user.traffic_limit * 100, 1), 100)
+
+    return {
+        "has_account": True,
+        "is_admin": is_admin,
+        "name": user.name,
+        "active": user.is_active,
+        "expired": user.is_expired,
+        "traffic_up": user.traffic_used_up,
+        "traffic_down": user.traffic_used_down,
+        "traffic_total": user.traffic_total,
+        "traffic_limit": user.traffic_limit,
+        "traffic_percent": traffic_percent,
+        "expiry": user.expiry_date.isoformat() if user.expiry_date else None,
+        "created": user.created_at.isoformat() if user.created_at else None,
+        "sub_url": sub_url,
+        "vless_url": vless_url,
+        "sub_deeplink": sub_deeplink,
+        "route_deeplink": route_deeplink,
+    }

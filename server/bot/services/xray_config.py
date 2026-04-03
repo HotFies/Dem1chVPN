@@ -128,7 +128,7 @@ class XrayConfigManager:
         import asyncio
         try:
             proc = await asyncio.create_subprocess_exec(
-                "systemctl", "restart", "xray",
+                "sudo", "systemctl", "restart", "xray",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )

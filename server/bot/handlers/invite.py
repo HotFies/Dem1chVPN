@@ -17,7 +17,7 @@ from ..keyboards.menus import back_button, cancel_button, main_menu
 from ..services.user_manager import UserManager
 from ..services.xray_config import XrayConfigManager
 from ..services.invite_manager import InviteManager
-from ..utils.qr_generator import generate_qr_code
+
 from ..utils.formatters import format_user_info
 
 router = Router()
@@ -150,7 +150,7 @@ async def invite_days(message: Message, state: FSMContext):
         "Отправьте эту ссылку получателю.\n"
         "При переходе бот автоматически:\n"
         "• Создаст аккаунт\n"
-        "• Выдаст VLESS ссылку и QR-код\n"
+        "• Выдаст VLESS ссылку и подписку\n"
         "• Отправит инструкцию по подключению",
         reply_markup=back_button("menu:users"),
     )
@@ -272,26 +272,21 @@ async def invite_activate(message: Message, command: CommandObject):
     # Generate VLESS link
     vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
     sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
+    sub_deeplink = f"v2raytun://import/{sub_url}"
 
     # Send welcome
     await message.answer(
         f"🎉 <b>Добро пожаловать в Dem1chVPN!</b>\n\n"
         f"Аккаунт <b>{user.name}</b> создан.\n\n"
         f"{format_user_info(user)}\n\n"
-        f"🔗 <b>Ссылка подключения:</b>\n"
-        f"<code>{vless_url}</code>\n\n"
-        f"📡 <b>Подписка (автообновление):</b>\n"
+        f"━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"📱 <b>v2RayTun (iOS) — автоимпорт:</b>\n"
+        f"<code>{sub_deeplink}</code>\n\n"
+        f"📡 <b>Подписка</b> (для других клиентов):\n"
         f"<code>{sub_url}</code>\n\n"
+        f"🔗 <b>Прямая ссылка</b> (для роутеров):\n"
+        f"<code>{vless_url}</code>\n\n"
         "Нажмите /start для доступа к меню."
-    )
-
-    # Send QR
-    from aiogram.types import BufferedInputFile
-    qr_bytes = generate_qr_code(vless_url)
-    qr_file = BufferedInputFile(qr_bytes, filename=f"dem1chvpn_{user.name}.png")
-    await message.answer_photo(
-        qr_file,
-        caption=f"📱 QR-код для <b>{user.name}</b>\nСканируйте в v2rayNG / V2RayTun",
     )
 
     # Notify admin

@@ -20,7 +20,7 @@ router = Router()
 
 @router.callback_query(F.data == "mon:status")
 async def mon_status(callback: CallbackQuery):
-    """Show server status."""
+    """Show full server status with all services."""
     cpu = psutil.cpu_percent(interval=1)
     mem = psutil.virtual_memory()
     try:
@@ -34,6 +34,7 @@ async def mon_status(callback: CallbackQuery):
     xray_mgr = XrayConfigManager()
     xray_running = await xray_mgr.is_xray_running()
     xray_version = await xray_mgr.get_xray_version()
+    clients = await xray_mgr.get_clients()
 
     # User count + online
     user_mgr = UserManager()
@@ -50,18 +51,71 @@ async def mon_status(callback: CallbackQuery):
         f"  Disk: {progress_bar(disk.used, disk.total)} "
         f"{disk.used // (1024**3)}GB/{disk.total // (1024**3)}GB ({disk.percent}%)\n"
         f"  Uptime: {format_uptime(uptime_secs)}\n\n"
-        f"🌐 <b>Xray:</b> {'🟢 Работает' if xray_running else '🔴 Остановлен'}"
-        f" (v{xray_version})\n"
-        f"👥 <b>Пользователей:</b> {user_count}  "
-        f"(🟢 онлайн: {online_count})\n"
     )
 
     # Network stats
     net = psutil.net_io_counters()
     text += (
-        f"\n📈 <b>Сеть (с момента загрузки):</b>\n"
-        f"  ↑ Отправлено: {format_traffic(net.bytes_sent)}\n"
-        f"  ↓ Получено: {format_traffic(net.bytes_recv)}\n"
+        f"📈 <b>Сеть (с загрузки):</b>\n"
+        f"  ↑ {format_traffic(net.bytes_sent)}  ↓ {format_traffic(net.bytes_recv)}\n\n"
+    )
+
+    # Services status
+    text += "🔌 <b>Сервисы:</b>\n"
+    text += (
+        f"  {'🟢' if xray_running else '🔴'} Xray v{xray_version}"
+        f" ({len(clients)} клиентов)\n"
+    )
+
+    # WARP
+    try:
+        from ..services.warp_manager import WarpManager
+        warp = WarpManager()
+        warp_on = warp.is_enabled()
+        text += f"  {'🟢' if warp_on else '🔴'} Cloudflare WARP\n"
+    except Exception:
+        text += "  ⚪ WARP (не установлен)\n"
+
+    # AdGuard
+    try:
+        from ..services.adguard_api import AdGuardAPI
+        ag = AdGuardAPI()
+        ag_status = await ag.get_status()
+        ag_on = ag_status.get("protection_enabled", False)
+        ag_stats = await ag.get_stats()
+        blocked = ag_stats.get("num_blocked_filtering", 0)
+        text += f"  {'🟢' if ag_on else '🔴'} AdGuard Home"
+        if blocked:
+            text += f" ({blocked:,} заблокировано)"
+        text += "\n"
+    except Exception:
+        text += "  ⚪ AdGuard (не установлен)\n"
+
+    # MTProto
+    try:
+        from ..services.mtproto_manager import MTProtoManager
+        mt = MTProtoManager()
+        mt_on = await mt.is_running()
+        text += f"  {'🟢' if mt_on else '🔴'} MTProto Proxy\n"
+    except Exception:
+        text += "  ⚪ MTProto (не установлен)\n"
+
+    # Caddy
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            "systemctl", "is-active", "caddy",
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=3)
+        caddy_on = stdout.decode().strip() == "active"
+        text += f"  {'🟢' if caddy_on else '🔴'} Caddy (HTTPS)\n"
+    except Exception:
+        pass
+
+    text += (
+        f"\n👥 <b>Пользователей:</b> {user_count}  "
+        f"(🟢 онлайн: {online_count})"
     )
 
     await safe_edit_text(callback.message, text, reply_markup=monitoring_menu())
@@ -88,29 +142,6 @@ async def mon_online(callback: CallbackQuery):
         "\n".join(lines),
         reply_markup=monitoring_menu(),
     )
-    await callback.answer()
-
-
-@router.callback_query(F.data == "mon:xray")
-async def mon_xray(callback: CallbackQuery):
-    """Show detailed Xray status."""
-    xray_mgr = XrayConfigManager()
-    running = await xray_mgr.is_xray_running()
-    version = await xray_mgr.get_xray_version()
-    clients = await xray_mgr.get_clients()
-
-    from ..config import config
-    text = (
-        "🌐 <b>Статус Xray-core</b>\n\n"
-        f"  Статус: {'🟢 Работает' if running else '🔴 Остановлен'}\n"
-        f"  Версия: v{version}\n"
-        f"  Протокол: VLESS + TCP + Reality\n"
-        f"  Порт: {config.SERVER_PORT}\n"
-        f"  SNI: {config.REALITY_SNI}\n"
-        f"  Клиентов в конфиге: {len(clients)}\n"
-    )
-
-    await safe_edit_text(callback.message, text, reply_markup=monitoring_menu())
     await callback.answer()
 
 
@@ -194,11 +225,14 @@ async def mon_speedtest(callback: CallbackQuery):
         country = data.get("server", {}).get("country", "")
 
         text = (
-            "⚡ <b>Speedtest результаты</b>\n\n"
+            "⚡ <b>Скорость канала VPS</b>\n\n"
             f"  ↓ Download: <b>{download:.1f} Мбит/с</b>\n"
             f"  ↑ Upload: <b>{upload:.1f} Мбит/с</b>\n"
-            f"  🏓 Ping: <b>{ping:.0f} мс</b>\n"
-            f"  🌍 Сервер: {server} ({country})"
+            f"  🏓 Задержка VPS ↔ тест-сервер: <b>{ping:.0f} мс</b>\n"
+            f"  🌍 Тест-сервер: {server} ({country})\n\n"
+            f"<i>Тест запускается на VPS, не на вашем устройстве.\n"
+            f"Показывает пропускную способность и задержку\n"
+            f"от VPS до ближайшего тест-сервера.</i>"
         )
     except asyncio.TimeoutError:
         text = "❌ Speedtest: таймаут (>90 сек)"
@@ -206,48 +240,5 @@ async def mon_speedtest(callback: CallbackQuery):
         text = f"❌ Ошибка speedtest: {e}"
     finally:
         release_op_lock("speedtest")
-
-    await safe_edit_text(callback.message, text, reply_markup=monitoring_menu())
-
-
-@router.callback_query(F.data == "mon:alerts")
-async def mon_alerts(callback: CallbackQuery):
-    """Alert settings."""
-    await safe_edit_text(
-        callback.message,
-        "🔔 <b>Настройки уведомлений</b>\n\n"
-        "Автоматические уведомления:\n"
-        "  ✅ Xray упал → автоперезапуск\n"
-        "  ✅ Трафик 80% лимита → предупреждение\n"
-        "  ✅ Лимит трафика → автоблокировка\n"
-        "  ✅ Срок аккаунта истёк → автоблокировка\n"
-        "  ✅ Гео-базы обновлены\n"
-        "  ✅ IP недоступен из региона\n\n"
-        "Уведомления пользователям:\n"
-        "  ✅ Блокировка / разблокировка\n"
-        "  ✅ Истечение срока / лимита\n\n"
-        "<i>Уведомления всегда отправляются администраторам.\n"
-        "Пользователям — если привязан Telegram-аккаунт.</i>",
-        reply_markup=monitoring_menu(),
-    )
-    await callback.answer()
-
-
-@router.callback_query(F.data == "mon:ip_check")
-async def mon_ip_check(callback: CallbackQuery):
-    """Check if VPS IP is blocked by TSPU."""
-    from ..config import config
-    from ..services.ip_checker import IPBlockChecker
-
-    if not await try_lock_operation(callback, "ip_check", "⏳ Проверка IP уже выполняется..."):
-        return
-
-    await callback.answer("🔍 Проверяю IP... (10-15 сек)", show_alert=True)
-
-    try:
-        checker = IPBlockChecker(config.SERVER_IP)
-        text = await checker.get_formatted_status()
-    finally:
-        release_op_lock("ip_check")
 
     await safe_edit_text(callback.message, text, reply_markup=monitoring_menu())

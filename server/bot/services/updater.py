@@ -43,9 +43,9 @@ class XrayUpdater:
             if dl_proc.returncode != 0:
                 return {"success": False, "version": "unknown", "output": "Failed to download installer"}
 
-            # Step 2: Execute saved script
+            # Step 2: Execute saved script (needs root — sudoers configured during install)
             proc = await asyncio.create_subprocess_exec(
-                "bash", script_path,
+                "sudo", "bash", script_path,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -132,7 +132,7 @@ class XrayUpdater:
         """Restart the Xray service."""
         try:
             proc = await asyncio.create_subprocess_exec(
-                "systemctl", "restart", "xray",
+                "sudo", "systemctl", "restart", "xray",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )

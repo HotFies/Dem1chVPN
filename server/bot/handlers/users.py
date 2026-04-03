@@ -18,7 +18,7 @@ from ..keyboards.menus import (
 )
 from ..services.user_manager import UserManager
 from ..services.xray_config import XrayConfigManager
-from ..utils.qr_generator import generate_qr_code
+
 from ..utils.formatters import format_traffic, format_user_info
 from ..utils.telegram_helpers import safe_edit_text, action_reply, remove_keyboard
 
@@ -239,22 +239,19 @@ async def users_add_expiry(message: Message, state: FSMContext):
     sub_deeplink = f"v2raytun://import/{sub_url}"
     route_deeplink = _build_routing_deeplink()
 
-    # Generate QR
-    qr_bytes = generate_qr_code(sub_deeplink)
-
     # Send info
     info_text = (
         f"✅ <b>Пользователь создан!</b>\n\n"
         f"{format_user_info(user)}\n\n"
         f"━━━━━━━━━━━━━━━━━━━━━\n\n"
         f"📱 <b>Быстрая настройка v2RayTun (iOS):</b>\n\n"
-        f"1️⃣ Подписка — нажмите:\n"
-        f"{sub_deeplink}\n\n"
+        f"1️⃣ Подписка — скопируйте и откройте в Safari:\n"
+        f"<code>{sub_deeplink}</code>\n\n"
     )
     if route_deeplink:
         info_text += (
-            f"2️⃣ Маршрутизация — нажмите:\n"
-            f"{route_deeplink}\n\n"
+            f"2️⃣ Маршрутизация — скопируйте и откройте в Safari:\n"
+            f"<code>{route_deeplink}</code>\n\n"
         )
     info_text += (
         f"━━━━━━━━━━━━━━━━━━━━━\n\n"
@@ -267,71 +264,78 @@ async def users_add_expiry(message: Message, state: FSMContext):
 
     await message.answer(info_text, reply_markup=user_actions(user.id, has_telegram=bool(user.telegram_id)))
 
-    # Send QR code
-    qr_file = BufferedInputFile(qr_bytes, filename=f"dem1chvpn_{user.name}.png")
-    await message.answer_photo(
-        qr_file,
-        caption=(
-            f"📱 QR-код для <b>{user.name}</b>\n\n"
-            f"Сканируйте в v2RayTun для импорта подписки"
-        ),
-    )
-
 
 # ── List Users (Paginated) ──
 
 @router.callback_query(F.data.startswith("users:list"))
-async def users_list(callback: CallbackQuery):
-    """List all users with pagination."""
-    # Parse page number from callback_data: "users:list:0", "users:list:1", etc.
-    parts = callback.data.split(":")
-    page = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0
+async def users_list(callback: CallbackQuery, state: FSMContext):
+    """List all users with pagination. Clears stale FSM state."""
+    await state.clear()
 
-    mgr = UserManager()
-    per_page = 8
-    users_on_page, total = await mgr.get_users_page(page=page, per_page=per_page)
+    try:
+        # Parse page number from callback_data: "users:list:0", "users:list:1", etc.
+        parts = callback.data.split(":")
+        page = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0
 
-    if total == 0:
+        mgr = UserManager()
+        per_page = 8
+        users_on_page, total = await mgr.get_users_page(page=page, per_page=per_page)
+
+        if total == 0:
+            await safe_edit_text(
+                callback.message,
+                "👥 <b>Пользователи</b>\n\n"
+                "Список пуст. Добавьте первого пользователя!",
+                reply_markup=users_menu(),
+            )
+            return
+
+        lines = [f"👥 <b>Список пользователей</b> ({total}):\n"]
+        for u in users_on_page:
+            status = "🟢" if u.is_active and not u.is_expired else "🔴"
+            traffic = format_traffic(u.traffic_total)
+            limit = format_traffic(u.traffic_limit) if u.traffic_limit else "♾️"
+            lines.append(f"{status} <b>{u.name}</b> — {traffic}/{limit}")
+
         await safe_edit_text(
             callback.message,
-            "👥 <b>Пользователи</b>\n\n"
-            "Список пуст. Добавьте первого пользователя!",
-            reply_markup=users_menu(),
+            "\n".join(lines),
+            reply_markup=user_list_keyboard(users_on_page, page, total, per_page),
         )
+    except Exception as e:
+        import logging
+        logging.getLogger("dem1chvpn").error(f"users_list error: {e}")
+    finally:
         await callback.answer()
-        return
-
-    lines = [f"👥 <b>Список пользователей</b> ({total}):\n"]
-    for u in users_on_page:
-        status = "🟢" if u.is_active and not u.is_expired else "🔴"
-        traffic = format_traffic(u.traffic_total)
-        limit = format_traffic(u.traffic_limit) if u.traffic_limit else "♾️"
-        lines.append(f"{status} <b>{u.name}</b> — {traffic}/{limit}")
-
-    await safe_edit_text(
-        callback.message,
-        "\n".join(lines),
-        reply_markup=user_list_keyboard(users_on_page, page, total, per_page),
-    )
-    await callback.answer()
 
 
 # ── User Info ──
 
 @router.callback_query(F.data.startswith("user:info:"))
-async def user_info(callback: CallbackQuery):
-    """Show user details."""
-    user_id = int(callback.data.split(":")[2])
-    mgr = UserManager()
-    user = await mgr.get_user(user_id)
+async def user_info(callback: CallbackQuery, state: FSMContext):
+    """Show user details. Clears any stale FSM state first."""
+    # Clear any stale FSM state (e.g. leftover extend/limit dialogs)
+    await state.clear()
+    answered = False
 
-    if not user:
-        await callback.answer("❌ Пользователь не найден", show_alert=True)
-        return
+    try:
+        user_id = int(callback.data.split(":")[2])
+        mgr = UserManager()
+        user = await mgr.get_user(user_id)
 
-    text = f"👤 <b>Пользователь: {user.name}</b>\n\n{format_user_info(user)}"
-    await safe_edit_text(callback.message, text, reply_markup=user_actions(user_id, has_telegram=bool(user.telegram_id)))
-    await callback.answer()
+        if not user:
+            await callback.answer("❌ Пользователь не найден", show_alert=True)
+            answered = True
+            return
+
+        text = f"👤 <b>Пользователь: {user.name}</b>\n\n{format_user_info(user)}"
+        await safe_edit_text(callback.message, text, reply_markup=user_actions(user_id, has_telegram=bool(user.telegram_id)))
+    except Exception as e:
+        import logging
+        logging.getLogger("dem1chvpn").error(f"user_info error: {e}")
+    finally:
+        if not answered:
+            await callback.answer()
 
 
 # ── Get Link (action → new message) ──
@@ -361,35 +365,7 @@ async def user_link(callback: CallbackQuery):
     await callback.answer()
 
 
-# ── Get QR (action → new message) ──
 
-@router.callback_query(F.data.startswith("user:qr:"))
-async def user_qr(callback: CallbackQuery):
-    """Get QR code for user."""
-    user_id = int(callback.data.split(":")[2])
-    mgr = UserManager()
-    user = await mgr.get_user(user_id)
-
-    if not user:
-        await callback.answer("❌ Пользователь не найден", show_alert=True)
-        return
-
-    xray_mgr = XrayConfigManager()
-    vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
-    qr_bytes = generate_qr_code(vless_url)
-
-    # Remove old keyboard first
-    await remove_keyboard(callback.message)
-
-    qr_file = BufferedInputFile(qr_bytes, filename=f"dem1chvpn_{user.name}.png")
-    await callback.message.answer_photo(
-        qr_file,
-        caption=(
-            f"📱 QR-код для <b>{user.name}</b>\n\n"
-            f"Сканируйте в v2rayNG / V2RayTun"
-        ),
-    )
-    await callback.answer()
 
 
 # ── Toggle Active (action → new message + notification) ──
@@ -501,12 +477,12 @@ async def user_subscription(callback: CallbackQuery):
         f"📡 <b>Подписка для {user.name}:</b>\n\n"
         f"📱 <b>v2RayTun (iOS) — автоимпорт:</b>\n\n"
         f"1️⃣ Подписка:\n"
-        f"{sub_deeplink}\n\n"
+        f"<code>{sub_deeplink}</code>\n\n"
     )
     if route_deeplink:
         text += (
             f"2️⃣ Маршрутизация:\n"
-            f"{route_deeplink}\n\n"
+            f"<code>{route_deeplink}</code>\n\n"
         )
     text += (
         f"━━━━━━━━━━━━━━━━━━━━━\n\n"

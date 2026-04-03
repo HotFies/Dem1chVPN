@@ -3,13 +3,12 @@ Dem1chVPN Bot — Connection Wizard Handler
 Step-by-step setup guide for new users.
 """
 from aiogram import Router, F
-from aiogram.types import CallbackQuery, BufferedInputFile
+from aiogram.types import CallbackQuery
 
 from ..config import config
 from ..keyboards.menus import wizard_platform, wizard_connect_method, back_button
 from ..services.user_manager import UserManager
 from ..services.xray_config import XrayConfigManager
-from ..utils.qr_generator import generate_qr_code
 from ..utils.telegram_helpers import safe_edit_text, remove_keyboard
 
 router = Router()
@@ -17,7 +16,7 @@ router = Router()
 
 @router.callback_query(F.data == "self:link")
 async def self_link(callback: CallbackQuery):
-    """User gets their own VLESS link."""
+    """User gets their own VLESS link and subscription."""
     mgr = UserManager()
     user = await mgr.get_user_by_telegram_id(callback.from_user.id)
     if not user:
@@ -26,32 +25,21 @@ async def self_link(callback: CallbackQuery):
 
     xray_mgr = XrayConfigManager()
     vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
+    sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
+    sub_deeplink = f"v2raytun://import/{sub_url}"
 
     # Remove old keyboard, send new message
     await remove_keyboard(callback.message)
     await callback.message.answer(
-        f"🔗 <b>Ваша ссылка подключения:</b>\n\n<code>{vless_url}</code>",
+        f"🔗 <b>Ваши ссылки подключения:</b>\n\n"
+        f"📱 <b>v2RayTun (iOS) — автоимпорт:</b>\n"
+        f"<code>{sub_deeplink}</code>\n\n"
+        f"📡 <b>Подписка</b> (v2rayN / v2rayNG / Streisand):\n"
+        f"<code>{sub_url}</code>\n\n"
+        f"🔗 <b>Прямая ссылка</b> (роутеры):\n"
+        f"<code>{vless_url}</code>",
         reply_markup=back_button("menu:main"),
     )
-    await callback.answer()
-
-
-@router.callback_query(F.data == "self:qr")
-async def self_qr(callback: CallbackQuery):
-    """User gets their own QR code."""
-    mgr = UserManager()
-    user = await mgr.get_user_by_telegram_id(callback.from_user.id)
-    if not user:
-        await callback.answer("❌ Аккаунт не найден.", show_alert=True)
-        return
-
-    xray_mgr = XrayConfigManager()
-    vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
-    qr_bytes = generate_qr_code(vless_url)
-
-    await remove_keyboard(callback.message)
-    qr_file = BufferedInputFile(qr_bytes, filename=f"dem1chvpn_{user.name}.png")
-    await callback.message.answer_photo(qr_file, caption="📱 Ваш QR-код")
     await callback.answer()
 
 
@@ -115,21 +103,7 @@ async def wizard_step(callback: CallbackQuery):
         # Remove old keyboard for all methods (send new message)
         await remove_keyboard(callback.message)
 
-        if method == "qr":
-            qr_bytes = generate_qr_code(vless_url)
-            qr_file = BufferedInputFile(qr_bytes, filename="dem1chvpn.png")
-            await callback.message.answer_photo(
-                qr_file,
-                caption=(
-                    "📱 <b>Шаг 3: Сканирование QR-кода</b>\n\n"
-                    "1. Откройте приложение\n"
-                    '2. Нажмите "+" → "Сканировать QR"\n'
-                    "3. Наведите камеру на код выше\n"
-                    "4. Включите VPN ▶️\n\n"
-                    "Готово? Проверьте: откройте youtube.com 🎉"
-                ),
-            )
-        elif method == "link":
+        if method == "link":
             await callback.message.answer(
                 f"🔗 <b>Шаг 3: Импорт ссылки</b>\n\n"
                 f"1. Скопируйте ссылку:\n"
@@ -140,8 +114,13 @@ async def wizard_step(callback: CallbackQuery):
             )
         elif method == "sub":
             sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
+            sub_deeplink = f"v2raytun://import/{sub_url}"
             await callback.message.answer(
                 f"📡 <b>Шаг 3: Подписка (рекомендуется)</b>\n\n"
+                f"📱 <b>iOS (v2RayTun):</b>\n"
+                f"Скопируйте и откройте в Safari:\n"
+                f"<code>{sub_deeplink}</code>\n\n"
+                f"📋 <b>Другие клиенты:</b>\n"
                 f"1. Скопируйте URL подписки:\n"
                 f"<code>{sub_url}</code>\n\n"
                 f'2. В приложении: "Подписка" → "Добавить"\n'

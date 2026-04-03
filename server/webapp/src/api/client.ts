@@ -245,3 +245,42 @@ export async function closeTicket(ticketId: number) {
   });
 }
 
+// ── User Links ──
+
+export interface MyLinks {
+  has_account: boolean;
+  name?: string;
+  sub_url: string | null;
+  vless_url: string | null;
+  sub_deeplink: string | null;
+  route_deeplink: string | null;
+}
+
+export async function getMyLinks(): Promise<MyLinks> {
+  return apiRequest<MyLinks>('/my/links');
+}
+
+// ── My Account (Personal Cabinet) ──
+
+export interface MyAccount {
+  has_account: boolean;
+  is_admin?: boolean;
+  name?: string;
+  active?: boolean;
+  expired?: boolean;
+  traffic_up?: number;
+  traffic_down?: number;
+  traffic_total?: number;
+  traffic_limit?: number | null;
+  traffic_percent?: number;
+  expiry?: string | null;
+  created?: string | null;
+  sub_url?: string | null;
+  vless_url?: string | null;
+  sub_deeplink?: string | null;
+  route_deeplink?: string | null;
+}
+
+export async function getMyAccount(): Promise<MyAccount> {
+  return apiRequest<MyAccount>('/my/account');
+}

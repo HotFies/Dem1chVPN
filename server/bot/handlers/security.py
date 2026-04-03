@@ -36,7 +36,7 @@ class AdminCheckMiddleware(BaseMiddleware):
             admin_prefixes = (
                 "users:", "user:", "route:", "mon:", "set:", "confirm:",
                 "menu:users", "menu:routing", "menu:monitoring", "menu:settings",
-                "mode:", "ticket:", "tickets:",
+                "ticket:", "tickets:",
             )
             cb_data = event.data or ""
 

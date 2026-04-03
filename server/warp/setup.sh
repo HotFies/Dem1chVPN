@@ -103,8 +103,8 @@ warp-cli proxy port ${WARP_SOCKS_PORT} 2>/dev/null || {
 
 # Ждём перезапуск демона после смены режима
 log_info "Ожидаю перезапуск warp-svc после смены режима..."
-sleep 5
-for i in $(seq 1 10); do
+sleep 10
+for i in $(seq 1 15); do
     if warp-cli status &>/dev/null; then
         break
     fi
@@ -114,14 +114,20 @@ done
 # ──── Шаг 6: Регистрация (ПОСЛЕ смены режима) ────
 
 log_info "Регистрирую WARP аккаунт..."
-yes | warp-cli registration new 2>/dev/null || {
-    log_warn "Первая попытка регистрации не удалась, повтор..."
-    sleep 3
-    yes | warp-cli registration new 2>/dev/null || {
-        log_error "Не удалось зарегистрироваться в WARP"
-        exit 1
-    }
-}
+REGISTERED=false
+for attempt in 1 2 3; do
+    if yes | warp-cli registration new 2>/dev/null; then
+        REGISTERED=true
+        break
+    fi
+    log_warn "Попытка ${attempt}/3 не удалась, жду 5 сек..."
+    sleep 5
+done
+
+if [ "$REGISTERED" = false ]; then
+    log_error "Не удалось зарегистрироваться в WARP после 3 попыток"
+    exit 1
+fi
 log_info "WARP аккаунт зарегистрирован"
 sleep 3
 
