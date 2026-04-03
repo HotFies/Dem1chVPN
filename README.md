@@ -4,11 +4,12 @@
 
 **Персональный VPN-сервер с управлением через Telegram**
 
-VLESS + Reality + XTLS-Vision · Cloudflare WARP · DNS-over-HTTPS · Split‑Tunneling
+VLESS + Reality + XTLS-Vision · Cloudflare WARP · DNS-over-HTTPS · Split‑Tunneling · Mini App
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Xray Core](https://img.shields.io/badge/Xray--core-latest-brightgreen)](https://github.com/XTLS/Xray-core)
 [![Python 3.11+](https://img.shields.io/badge/Python-3.11+-yellow.svg)](https://python.org)
+[![React](https://img.shields.io/badge/React-18-61DAFB.svg)](https://react.dev)
 
 </div>
 
@@ -16,29 +17,43 @@ VLESS + Reality + XTLS-Vision · Cloudflare WARP · DNS-over-HTTPS · Split‑Tu
 
 ## 🤔 Что это?
 
-Dem1chVPN — это готовое решение для разворачивания **собственного VPN** на VPS-сервере. Разработан специально для использования в **России**: обходит блокировки, побеждает -замедление YouTube/Discord/Telegram и даёт доступ к санкционным сервисам (ChatGPT, Gemini, NotebookLM).
+Dem1chVPN — это готовое решение для разворачивания **собственного VPN** на VPS-сервере. Разработан специально для использования в **России**: обходит блокировки, побеждает замедление YouTube/Discord/Telegram и даёт доступ к санкционным сервисам (ChatGPT, Gemini, NotebookLM).
 
-Весь трафик шифруется протоколом **VLESS + Reality + XTLS-Vision** — ваш трафик неотличим от обычного HTTPS. Управление полностью через **Telegram-бот** — без веб-панелей и сложных конфигов.
+Весь трафик шифруется протоколом **VLESS + Reality + XTLS-Vision** — ваш трафик неотличим от обычного HTTPS. Управление полностью через **Telegram-бот** и **Mini App** — без веб-панелей и сложных конфигов.
 
-Один скрипт — и через 5 минут у тебя работающий VPN с подпиской, QR-кодами и ботом для управления.
+Один скрипт — и через 5 минут у тебя работающий VPN с подпиской, личным кабинетом и ботом для управления.
 
 ## ✨ Возможности
 
+### Ядро VPN
+
 | | Функция | Описание |
 |---|---------|----------|
-| 🔒 | **VLESS + Reality + XTLS-Vision** | Неотличимый от HTTPS, не детектируется  |
+| 🔒 | **VLESS + Reality + XTLS-Vision** | Неотличимый от HTTPS, не детектируется |
 | 🧬 | **Reality камуфляж** | Трафик неотличим от посещения `dl.google.com` |
 | 🌐 | **DNS-over-HTTPS** | DNS-запросы шифрованы, нет DNS-утечек |
 | ☁️ | **Cloudflare WARP** | Чистый IP Cloudflare для YouTube, AI, стриминга |
 | 🔀 | **Split-Tunneling** | Российские сайты — напрямую, зарубежные — через WARP |
+
+### Управление и UX
+
+| | Функция | Описание |
+|---|---------|----------|
 | 🤖 | **Telegram-бот** | Полное управление через inline-кнопки |
+| 📱 | **Mini App** | Premium веб-панель прямо внутри Telegram |
+| 🏠 | **Личный кабинет** | Статус, трафик, ссылки, инструкции — в одном месте |
 | 📡 | **Авто-подписки** | Конфиги обновляются на клиентах автоматически |
-| 📱 | **Mini App** | Веб-панель прямо внутри Telegram |
-| 🛡️ | **AdGuard Home** | Блокировка рекламы на уровне DNS (опционально) |
-| 💬 | **MTProto Proxy** | Telegram работает даже при проблемах с VPN (опционально) |
+| 📲 | **iOS Deeplinks** | Импорт подписки и маршрутов одним нажатием (V2RayTun) |
+| 🎫 | **Тикет-система** | Поддержка пользователей через Mini App |
 | 👥 | **Инвайт-система** | Удобное подключение друзей и семьи |
 | 📊 | **Мониторинг** | Трафик, нагрузка, проверка доступности IP |
-| 🎫 | **Тикет-система** | Поддержка пользователей через Mini App |
+
+### Дополнительные сервисы
+
+| | Функция | Описание |
+|---|---------|----------|
+| 🛡️ | **AdGuard Home** | Блокировка рекламы на уровне DNS (опционально) |
+| 💬 | **MTProto Proxy** | Telegram работает даже при проблемах с VPN (опционально) |
 
 ## 🚀 Как это работает?
 
@@ -59,7 +74,7 @@ Dem1chVPN — это готовое решение для разворачива
 │     │                                       │
 │     └── Всё остальное → Cloudflare WARP     │
 │         (YouTube, Discord, AI, стриминг)    │
-│         SOCKS5 → warp-svc (localhost)         │
+│         SOCKS5 → warp-svc (localhost)       │
 │                                             │
 │   ▼ Чистый IP Cloudflare                    │
 │   YouTube ✅ Discord ✅ ChatGPT ✅           │
@@ -113,88 +128,217 @@ chmod +x install.sh
 - Создаст systemd-сервисы
 - Автоматически определит hostname VPS для HTTPS-подписки
 - Настроит Caddy с автоматическим SSL-сертификатом (HTTP-01)
+- Соберёт React Mini App (Vite + TypeScript)
 - Запустит бота и подписочный сервер
 
 ### 3. Готово
 
 Откройте бота в Telegram → `/start` → добавьте пользователей → раздайте ссылки подписок.
 
+Пользователи получают кнопку **📱 Личный кабинет** в боте — там всё: статус, трафик, ссылки, инструкции, iOS deeplinks.
+
 ## 🏗️ Архитектура
 
 ```
-┌───────────────────────────────────────────────────┐
-│                     VPS                            │
-│                                                    │
-│   :443  → Xray (VLESS + Reality + XTLS-Vision)     │
-│            ├── DNS: port 53 → direct (bypass WARP)  │
-│            ├── DNS: DoH (1.1.1.1 + 8.8.8.8)        │
-│            ├── RU domains → direct                  │
-│            └── Foreign → WARP (SOCKS5 → warp-svc)    │
-│                                                    │
-│   :8443 → Caddy (HTTPS, auto-cert) → FastAPI (:8080)  │
-│            ├── /sub/{token}           — подписки        │
-│            ├── /sub/{token}/v2raytun  — deeplinks iOS    │
-│            ├── /sub/{token}/routing   — правила         │
-│            └── /webapp/              — Mini App          │
-│                                                    │
-│   Telegram Bot (aiogram 3) ← управление             │
+┌──────────────────────────────────────────────────────┐
+│                         VPS                          │
+│                                                      │
+│   :443  → Xray (VLESS + Reality + XTLS-Vision)       │
+│            ├── DNS: port 53 → direct (bypass WARP)   │
+│            ├── DNS: DoH (1.1.1.1 + 8.8.8.8)         │
+│            ├── RU domains → direct                   │
+│            └── Foreign → WARP (SOCKS5 → warp-svc)   │
+│                                                      │
+│   :8443 → Caddy (HTTPS, auto-cert) → FastAPI (:8080)│
+│            ├── /sub/{token}            — подписки    │
+│            ├── /sub/{token}/v2raytun   — deeplinks   │
+│            ├── /sub/{token}/routing    — правила     │
+│            ├── /api/my/account         — кабинет     │
+│            ├── /api/my/links           — ссылки      │
+│            ├── /api/users/*            — упр-ние     │
+│            ├── /api/tickets/*          — тикеты      │
+│            ├── /api/routes/*           — маршруты    │
+│            ├── /api/server/status      — мониторинг  │
+│            └── /webapp/                — Mini App    │
+│                                                      │
+│   Telegram Bot (aiogram 3) ← управление              │
 │   SQLite                   ← данные                  │
 │   gRPC :10085              ← Xray Stats API          │
-└───────────────────────────────────────────────────┘
+└──────────────────────────────────────────────────────┘
+```
+
+### Mini App — Архитектура
+
+```
+┌── Telegram Bot ──────────────────────────────────────┐
+│                                                      │
+│  Админ                      Пользователь             │
+│  ┌──────────────┐           ┌──────────────────┐     │
+│  │ 📱 Открыть   │           │ 📱 Личный        │     │
+│  │    панель     │           │    кабинет       │     │
+│  └──────┬───────┘           └───────┬──────────┘     │
+│         │                           │                │
+│         ▼                           ▼                │
+│  ┌─── Mini App (React + Vite) ──────────────────┐    │
+│  │                                               │   │
+│  │  Admin Pages:          User Pages:            │   │
+│  │  ├── Dashboard         ├── MyAccount (home)   │   │
+│  │  ├── UserList          ├── Tickets            │   │
+│  │  ├── RouteManager      └── HelpCenter         │   │
+│  │  ├── Settings                                 │   │
+│  │  ├── Tickets                                  │   │
+│  │  └── HelpCenter                               │   │
+│  │                                               │   │
+│  │  API: X-Telegram-Init-Data → HMAC-SHA256      │   │
+│  └───────────────────────────────────────────────┘   │
+└──────────────────────────────────────────────────────┘
 ```
 
 ## 📂 Структура проекта
 
 ```
 dem1chvpn/
-├── install.sh              # Установщик (всё-в-одном)
-├── requirements.txt        # Python-зависимости
-├── .env.example            # Шаблон конфигурации
+├── install.sh                  # Установщик (всё-в-одном)
+├── requirements.txt            # Python-зависимости
+├── .env.example                # Шаблон конфигурации
 │
 ├── server/
-│   ├── bot/                # Telegram-бот
-│   │   ├── main.py         # Точка входа + background tasks
-│   │   ├── config.py       # Конфигурация (Reality, WARP, DNS)
-│   │   ├── database.py     # SQLAlchemy модели
-│   │   ├── handlers/       # Обработчики команд
-│   │   ├── services/       # Бизнес-логика
-│   │   │   ├── xray_config.py   # Управление Xray конфигом
-│   │   │   ├── user_manager.py  # CRUD пользователей
-│   │   │   ├── route_manager.py # Маршрутизация (split-tunnel)
-│   │   │   └── warp_manager.py  # WARP SOCKS5 toggle
-│   │   ├── keyboards/      # Inline-клавиатуры
-│   │   └── utils/          # Утилиты
+│   ├── bot/                    # Telegram-бот (aiogram 3)
+│   │   ├── main.py             # Точка входа + background tasks
+│   │   ├── config.py           # Конфигурация (Reality, WARP, DNS)
+│   │   ├── database.py         # SQLAlchemy модели (SQLite)
+│   │   ├── handlers/           # Обработчики команд
+│   │   │   ├── start.py        #   /start + навигация + FSM clear
+│   │   │   ├── users.py        #   CRUD пользователей (FSM-safe)
+│   │   │   ├── routing.py      #   Управление маршрутами
+│   │   │   ├── monitoring.py   #   Статистика + speedtest
+│   │   │   ├── settings.py     #   Настройки сервера
+│   │   │   ├── tickets.py      #   Система тикетов
+│   │   │   ├── invite.py       #   Инвайт-ссылки
+│   │   │   ├── security.py     #   PIN-код + критич. операции
+│   │   │   ├── help.py         #   Инструкции
+│   │   │   └── wizard.py       #   Self-service (fallback)
+│   │   ├── services/           # Бизнес-логика
+│   │   │   ├── user_manager.py    # CRUD + трафик + подписки
+│   │   │   ├── xray_config.py     # Управление Xray конфигом
+│   │   │   ├── xray_api.py        # gRPC Stats API
+│   │   │   ├── route_manager.py   # Маршрутизация (split-tunnel)
+│   │   │   ├── warp_manager.py    # WARP SOCKS5 toggle
+│   │   │   ├── ticket_manager.py  # Тикет-система
+│   │   │   ├── invite_manager.py  # Инвайт-логика
+│   │   │   ├── adguard_api.py     # AdGuard Home API
+│   │   │   ├── mtproto_manager.py # MTProto Proxy
+│   │   │   ├── ip_checker.py      # Проверка IP / доступности
+│   │   │   ├── charts.py          # Генерация графиков (PIL)
+│   │   │   ├── backup.py          # Бэкап / восстановление
+│   │   │   └── updater.py         # Авто-обновление проекта
+│   │   ├── keyboards/          # Inline-клавиатуры
+│   │   │   └── menus.py        #   Все меню (admin + user + MiniApp)
+│   │   └── utils/              # Утилиты
+│   │       ├── auth.py            # Проверка is_admin
+│   │       ├── formatters.py      # Форматирование трафика/дат
+│   │       ├── validators.py      # Валидация имён/лимитов
+│   │       ├── qr_generator.py    # QR-коды для подписок
+│   │       └── telegram_helpers.py # safe_edit_text и т.п.
 │   │
-│   ├── subscription/       # FastAPI-сервер подписок
-│   │   ├── app.py          # Подписки + headers (dns, routing)
-│   │   ├── auth.py         # Валидация initData
-│   │   └── webapp_api.py   # REST API для Mini App
+│   ├── subscription/           # FastAPI-сервер подписок + API
+│   │   ├── app.py              #   Подписки + headers (dns, routing, deeplinks)
+│   │   ├── auth.py             #   HMAC-SHA256 валидация initData
+│   │   └── webapp_api.py       #   REST API для Mini App
+│   │                           #     /api/my/account — личный кабинет
+│   │                           #     /api/my/links   — ссылки пользователя
+│   │                           #     /api/users/*    — управление юзерами
+│   │                           #     /api/routes/*   — маршрутизация
+│   │                           #     /api/tickets/*  — тикеты
+│   │                           #     /api/server/*   — мониторинг
 │   │
-│   ├── webapp/             # React Mini App (Vite + TypeScript)
-│   ├── warp/               # Cloudflare WARP (SOCKS5 proxy)
-│   │   └── setup.sh        # Установка warp-svc + настройка outbound
-│   └── xray/               # Шаблон конфига Xray
+│   ├── webapp/                 # React Mini App (Vite + TypeScript)
+│   │   └── src/
+│   │       ├── App.tsx            # Роутер (admin/user pages)
+│   │       ├── api/client.ts      # API-клиент + типы
+│   │       ├── components/
+│   │       │   ├── MyAccount.tsx      # 🏠 Личный кабинет пользователя
+│   │       │   ├── Dashboard.tsx      # 📊 Панель администратора
+│   │       │   ├── UserList.tsx       # 👥 Управление пользователями
+│   │       │   ├── RouteManager.tsx   # 🔀 Маршрутизация
+│   │       │   ├── Settings.tsx       # ⚙️ Настройки сервера
+│   │       │   ├── Tickets.tsx        # 🎫 Тикет-система
+│   │       │   ├── TrafficChart.tsx   # 📈 Графики трафика
+│   │       │   └── HelpCenter.tsx     # 📖 Помощь и инструкции
+│   │       └── styles/
+│   │           └── index.css          # Dark Cyber-Glass Design System
+│   │
+│   ├── warp/                   # Cloudflare WARP (SOCKS5 proxy)
+│   │   └── setup.sh            #   Установка warp-svc + настройка outbound
+│   ├── adguard/                # AdGuard Home (DNS-блокировка рекламы)
+│   ├── mtproto/                # MTProto Proxy для Telegram
+│   └── xray/                   # Шаблон конфига Xray
 │       └── config_template.json
 │
-├── configs/                # Пресеты маршрутизации
-│   ├── v2rayn_routing.json    # Windows (v2rayN)
-│   ├── v2rayng_routing.json   # Android (v2rayNG)
-│   ├── streaming_rules.json   # Стриминг-сервисы
-│   └── gaming_rules.json      # Игровые сервисы
-└── docs/                   # Документация
+├── configs/                    # Пресеты маршрутизации
+│   ├── v2rayn_routing.json     #   Windows (v2rayN)
+│   ├── v2rayng_routing.json    #   Android (v2rayNG)
+│   ├── streaming_rules.json    #   Стриминг-сервисы
+│   └── gaming_rules.json       #   Игровые сервисы
+└── docs/                       # Документация
 ```
+
+## 📱 Mini App — Личный кабинет
+
+Пользователи получают доступ к **Personal Cabinet** прямо внутри Telegram:
+
+### Для пользователей
+
+| Раздел | Функции |
+|--------|---------|
+| **🏠 Кабинет** | Статус аккаунта, оставшийся срок, трафик (upload/download), прогресс-бар лимита |
+| **🔗 Подключение** | URL подписки, VLESS-ссылка, кнопки deeplink для iOS |
+| **📲 Быстрый импорт** | Одно нажатие → V2RayTun импортирует подписку и маршруты |
+| **📖 Инструкции** | Пошаговые гайды для iOS, Android, Windows, macOS, роутеров |
+| **❓ FAQ** | Частые вопросы с интерактивным аккордеоном |
+| **🎫 Тикеты** | Создание обращений к админу |
+
+### Для администратора
+
+| Раздел | Функции |
+|--------|---------|
+| **📊 Панель** | CPU, RAM, Disk, общий трафик, статус Xray/WARP |
+| **👥 Юзеры** | Список, статусы, блокировка, продление, лимиты, QR |
+| **🔀 Роуты** | Добавление доменов/IP в proxy/direct/block |
+| **⚙️ Настройки** | WARP toggle, AdGuard, MTProto, бэкап/обновление |
+| **🎫 Тикеты** | Просмотр и ответ на обращения |
+
+### Дизайн
+
+Mini App использует **Dark Cyber-Glass Design System**:
+- Glassmorphism с `backdrop-filter: blur`
+- Градиентные accent-цвета (cyan → violet)
+- Animated progress bars с shimmer-эффектом
+- Micro-анимации для переходов и hover-состояний
+- Мобильная оптимизация для Telegram WebApp
+- Типографика: DM Sans + JetBrains Mono
+
+## 📲 iOS — Быстрый импорт
+
+Для пользователей iOS реализован **one-tap import** через deeplinks V2RayTun:
+
+```
+📱 Личный кабинет → «Импорт подписки» → v2raytun://import/...
+📱 Личный кабинет → «Импорт маршрутов» → v2raytun://import_route/...
+```
+
+Маршруты передаются в формате base64-кодированного JSON и автоматически применяют split-tunneling правила (RU — direct, foreign — proxy).
 
 ## 📱 Клиенты для подключения
 
 | Платформа | Клиент | Ссылка |
 |-----------|--------|--------|
-| Windows | v2rayN | [GitHub](https://github.com/2dust/v2rayN/releases) |
-| Android | v2rayNG | [Google Play](https://play.google.com/store/apps/details?id=com.v2ray.ang) |
 | iOS | V2RayTun ⭐ | [App Store](https://apps.apple.com/app/v2raytun/id6476628951) |
 | iOS | Streisand | [App Store](https://apps.apple.com/app/streisand/id6450534064) |
 | iOS | V2Box | [App Store](https://apps.apple.com/app/v2box-v2ray-client/id6446814690) |
-| iOS | Shadowrocket | [App Store](https://apps.apple.com/app/shadowrocket/id932747118) |
-| macOS | V2Box | [App Store](https://apps.apple.com/app/v2box-v2ray-client/id6446814690) |
+| Android | v2rayNG | [Google Play](https://play.google.com/store/apps/details?id=com.v2ray.ang) |
+| Windows | v2rayN | [GitHub](https://github.com/2dust/v2rayN/releases) |
+| macOS | V2RayTun / V2Box | [App Store](https://apps.apple.com/app/v2raytun/id6476628951) |
 | Роутер | Passwall2 / XKEEN | OpenWRT / Keenetic |
 
 ## 🔀 Маршрутизация (Split-Tunneling)
@@ -206,38 +350,60 @@ Dem1chVPN использует **инвертированную маршрути
 | Сбер, Тинькофф, Госуслуги | 🟢 **DIRECT** | Банки блокируют VPN-IP |
 | ВК, Яндекс, Mail.ru, Rutube | 🟢 **DIRECT** | Работают и без VPN |
 | `geosite:category-ru` + `geoip:ru` | 🟢 **DIRECT** | Тысячи RU-доменов автоматически |
-| YouTube, Discord, Spotify | 🔵 **WARP** | Замедляются  |
+| YouTube, Discord, Spotify | 🔵 **WARP** | Замедляются |
 | ChatGPT, Gemini, NotebookLM | 🔵 **WARP** | Санкционные блокировки |
 | Netflix, Twitch, TikTok | 🔵 **WARP** | Нужен чистый IP |
 | Любой новый зарубежный сайт | 🔵 **WARP** | Автоматически, без настройки |
 
 > Не нужно поддерживать списки доменов — **всё зарубежное автоматически идёт через WARP**.
 
-## 🔧 Команды бота
+## 🔧 Управление
+
+### Бот — Команды
 
 | Команда | Описание |
 |---------|----------|
 | `/start` | Главное меню |
-| 👥 Пользователи | Добавить / удалить / заблокировать |
-| 🔀 Маршрутизация | Настройка proxy/direct доменов |
-| ☁️ WARP | Включить/выключить Cloudflare WARP |
-| 📊 Мониторинг | Статистика, трафик, speedtest |
-| ⚙️ Настройки | Обновление, бэкап, Xray |
-| 📖 Инструкции | Гайды для всех платформ |
-| 🎫 Тикеты | Поддержка через Mini App |
+
+### Бот — Админ-меню
+
+| Кнопка | Описание |
+|--------|----------|
+| 👥 Пользователи | Добавить / удалить / заблокировать / продлить / лимиты |
+| 🔀 Маршрутизация | Настройка proxy/direct/block доменов и IP |
+| 📊 Мониторинг | Статистика, трафик, speedtest, проверка IP |
+| ⚙️ Настройки | WARP, AdGuard, MTProto, бэкап, обновление |
+| 📱 Открыть панель | Mini App (веб-панель администратора) |
+| 📖 Помощь | Инструкции для всех платформ |
+
+### Бот — Меню пользователя
+
+| Кнопка | Описание |
+|--------|----------|
+| 📱 Личный кабинет | Mini App — статус, трафик, ссылки, инструкции |
+| 🎫 Тикет | Создать обращение к администратору |
+| 📖 Помощь | Инструкции по подключению |
+
+> При отсутствии домена (fallback) — пользователи видят кнопки «🔗 Моя ссылка» и «📊 Мой трафик» вместо Mini App.
 
 ## 🔐 Безопасность
 
+### Протокол
 - **Reality + XTLS-Vision** — трафик неотличим от посещения `dl.google.com`
-- **DNS-over-HTTPS** — DNS-запросы зашифрованы
+- **DNS-over-HTTPS** — DNS-запросы зашифрованы (1.1.1.1 + 8.8.8.8)
 - **Chrome TLS Fingerprint** — `fp: chrome` вместо рандомного
-- **HMAC-SHA256** валидация для Telegram Mini App
-- **PIN-код** для критических операций (удаление, ключи)
+
+### Сервер
 - **UFW** — только порты 22, 443, 8443
 - **fail2ban** — защита от брутфорса SSH
 - **BBR** — оптимизация TCP-стека
-- **Rate limiting** — защита API от перебора
 - Сервисы работают от **отдельного пользователя** (не root)
+
+### API и Mini App
+- **HMAC-SHA256** валидация Telegram initData
+- **PIN-код** для критических операций (удаление, ключи)
+- **Rate limiting** — защита API от перебора
+- **FSM state management** — предотвращение зависания callback'ов бота
 
 ## 📝 Лицензия
 
