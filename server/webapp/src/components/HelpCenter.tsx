@@ -48,6 +48,17 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
+/** Open a deeplink via Telegram WebApp or system browser */
+function openDeeplink(url: string) {
+  const tg = (window as any).Telegram?.WebApp;
+  if (tg?.openLink) {
+    // openLink opens in system browser which handles custom URL schemes
+    tg.openLink(url);
+  } else {
+    window.open(url, '_blank');
+  }
+}
+
 export default function HelpCenter() {
   const [links, setLinks] = useState<MyLinks | null>(null);
   const [loading, setLoading] = useState(true);
@@ -115,6 +126,9 @@ export default function HelpCenter() {
                   <div className="link-value">{links.sub_deeplink}</div>
                   <CopyButton text={links.sub_deeplink} />
                 </div>
+                <button className="btn-open-deeplink" onClick={() => openDeeplink(links.sub_deeplink!)}>
+                  Открыть в V2RayTun
+                </button>
               </div>
             )}
             {links.route_deeplink && (
@@ -126,6 +140,9 @@ export default function HelpCenter() {
                   </div>
                   <CopyButton text={links.route_deeplink} />
                 </div>
+                <button className="btn-open-deeplink" onClick={() => openDeeplink(links.route_deeplink!)}>
+                  Импорт маршрутов
+                </button>
               </div>
             )}
             {links.vless_url && (

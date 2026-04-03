@@ -2,17 +2,78 @@
 Dem1chVPN — AdGuard Home API Service
 Interact with AdGuard Home REST API.
 """
+import asyncio
 import aiohttp
+import logging
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 class AdGuardAPI:
     """Manage AdGuard Home via REST API."""
 
+    COMPOSE_DIR = "/opt/dem1chvpn/server/adguard"
+    CONTAINER_NAME = "dem1chvpn-adguard"
+
     def __init__(self, host: str = "127.0.0.1", port: int = 8053,
                  username: str = "admin", password: str = "dem1chvpn"):
         self.base_url = f"http://{host}:{port}"
         self.auth = aiohttp.BasicAuth(username, password)
+
+    # ── Docker container lifecycle ──
+
+    async def is_container_running(self) -> bool:
+        """Check if AdGuard Docker container is running."""
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "sudo", "docker", "inspect", "-f", "{{.State.Running}}", self.CONTAINER_NAME,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
+            return stdout.decode().strip() == "true"
+        except Exception as e:
+            logger.warning(f"Failed to check AdGuard container: {e}")
+            return False
+
+    async def start_container(self) -> bool:
+        """Start AdGuard container via docker compose."""
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "sudo", "docker", "compose", "up", "-d",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=self.COMPOSE_DIR,
+            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+            if proc.returncode != 0:
+                logger.error(f"AdGuard start failed (rc={proc.returncode}): {stderr.decode()}")
+                return False
+            # Wait for HTTP API to be ready
+            await asyncio.sleep(3)
+            return True
+        except Exception as e:
+            logger.error(f"AdGuard start exception: {e}")
+            return False
+
+    async def stop_container(self) -> bool:
+        """Stop AdGuard container via docker compose."""
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "sudo", "docker", "compose", "down",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                cwd=self.COMPOSE_DIR,
+            )
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+            if proc.returncode != 0:
+                logger.error(f"AdGuard stop failed (rc={proc.returncode}): {stderr.decode()}")
+                return False
+            return True
+        except Exception as e:
+            logger.error(f"AdGuard stop exception: {e}")
+            return False
 
     async def get_status(self) -> dict:
         """Get AdGuard Home status."""

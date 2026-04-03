@@ -50,6 +50,16 @@ function CopyBtn({ text, label }: { text: string; label?: string }) {
   );
 }
 
+/** Open a deeplink via Telegram WebApp or system browser */
+function openDeeplink(url: string) {
+  const tg = (window as any).Telegram?.WebApp;
+  if (tg?.openLink) {
+    tg.openLink(url);
+  } else {
+    window.open(url, '_blank');
+  }
+}
+
 /* ── Platform type ── */
 type Platform = 'ios' | 'android' | 'windows' | 'macos' | 'router' | null;
 
@@ -277,11 +287,9 @@ export default function MyAccount() {
                   <span className="ma-link-icon">📱</span>
                   iOS — V2RayTun (быстрый импорт)
                 </div>
-                <a
-                  href={data.sub_deeplink}
+                <button
                   className="ma-deeplink-btn"
-                  target="_blank"
-                  rel="noopener"
+                  onClick={() => openDeeplink(data.sub_deeplink!)}
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -289,7 +297,7 @@ export default function MyAccount() {
                     <line x1="12" y1="15" x2="12" y2="3" />
                   </svg>
                   Импорт подписки
-                </a>
+                </button>
                 <div className="ma-link-row ma-link-row--compact">
                   <code className="ma-link-value ma-link-value--small">{data.sub_deeplink.length > 60 ? data.sub_deeplink.substring(0, 60) + '...' : data.sub_deeplink}</code>
                   <CopyBtn text={data.sub_deeplink} />
@@ -304,18 +312,16 @@ export default function MyAccount() {
                   <span className="ma-link-icon">🔀</span>
                   Маршрутизация — iOS
                 </div>
-                <a
-                  href={data.route_deeplink}
+                <button
                   className="ma-deeplink-btn ma-deeplink-btn--routing"
-                  target="_blank"
-                  rel="noopener"
+                  onClick={() => openDeeplink(data.route_deeplink!)}
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
                     <path d="M8.59 13.51l6.83 3.98" /><path d="M15.41 6.51l-6.82 3.98" />
                   </svg>
                   Импорт маршрутов
-                </a>
+                </button>
                 <div className="ma-link-hint">Российские сайты — напрямую, остальное — через VPN</div>
               </div>
             )}

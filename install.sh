@@ -1268,6 +1268,17 @@ SUDOERS
             sed -i 's/^MTPROTO_ENABLED=false/MTPROTO_ENABLED=true/' "$ENV_FILE" 2>/dev/null || true
             grep -q '^MTPROTO_ENABLED=' "$ENV_FILE" || echo 'MTPROTO_ENABLED=true' >> "$ENV_FILE"
             log_info "MTProto включён в конфигурации"
+            # Убедимся, что контейнер запущен
+            if docker inspect -f '{{.State.Running}}' dem1chvpn-mtproto 2>/dev/null | grep -q true; then
+                log_info "MTProto контейнер работает ✓"
+            else
+                log_warn "MTProto контейнер не запустился, запускаю..."
+                if (cd "${DEM1CHVPN_DIR}/server/mtproto" && docker compose up -d); then
+                    log_info "MTProto запущен ✓"
+                else
+                    log_warn "MTProto не удалось запустить"
+                fi
+            fi
         else
             log_warn "MTProto не установлен (можно позже)"
         fi
@@ -1280,12 +1291,32 @@ SUDOERS
             sed -i 's/^ADGUARD_ENABLED=false/ADGUARD_ENABLED=true/' "$ENV_FILE" 2>/dev/null || true
             grep -q '^ADGUARD_ENABLED=' "$ENV_FILE" || echo 'ADGUARD_ENABLED=true' >> "$ENV_FILE"
             log_info "AdGuard Home включён в конфигурации"
+            # Убедимся, что контейнер запущен
+            if docker inspect -f '{{.State.Running}}' dem1chvpn-adguard 2>/dev/null | grep -q true; then
+                log_info "AdGuard контейнер работает ✓"
+            else
+                log_warn "AdGuard контейнер не запустился, запускаю..."
+                if (cd "${DEM1CHVPN_DIR}/server/adguard" && docker compose up -d); then
+                    log_info "AdGuard запущен ✓"
+                else
+                    log_warn "AdGuard не удалось запустить"
+                fi
+            fi
         else
             log_warn "AdGuard не установлен (можно позже)"
         fi
+    fi
+
+    # Перезапустить сервисы, чтобы подхватить новые значения .env
+    if [[ "$INSTALL_MTPROTO" =~ ^[Yy]$ ]] || [[ "$INSTALL_ADGUARD" =~ ^[Yy]$ ]]; then
+        log_info "Перезапускаю сервисы для применения конфигурации..."
+        systemctl restart dem1chvpn-bot 2>/dev/null || true
+        systemctl restart dem1chvpn-sub 2>/dev/null || true
+        log_info "Сервисы перезапущены ✓"
     fi
 
     show_summary
 }
 
 main "$@"
+

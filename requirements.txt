@@ -1,4 +1,4 @@
-# XShield Bot Python Dependencies
+# Dem1chVPN Bot Python Dependencies
 aiogram>=3.15.0
 aiosqlite>=0.20.0
 SQLAlchemy[asyncio]>=2.0.30

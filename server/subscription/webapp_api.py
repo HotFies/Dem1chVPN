@@ -197,8 +197,7 @@ async def get_settings():
 
     try:
         from server.bot.services.adguard_api import AdGuardAPI
-        status = await AdGuardAPI().get_status()
-        adguard_enabled = status.get("protection_enabled", False)
+        adguard_enabled = await AdGuardAPI().is_container_running()
     except Exception:
         pass
 
@@ -233,14 +232,19 @@ async def toggle_feature(feature: str):
         from server.bot.services.adguard_api import AdGuardAPI
         api_client = AdGuardAPI()
         try:
-            status = await api_client.get_status()
-            new_state = not status.get("protection_enabled", False)
-            success = await api_client.toggle_protection(new_state)
-            if not success:
-                raise HTTPException(500, "AdGuard toggle failed — check Docker permissions")
-            # Verify actual state
-            verify = await api_client.get_status()
-            return {"enabled": verify.get("protection_enabled", new_state)}
+            running = await api_client.is_container_running()
+            if running:
+                # Stop the container
+                success = await api_client.stop_container()
+                if not success:
+                    raise HTTPException(500, "Не удалось остановить AdGuard — проверьте Docker")
+                return {"enabled": False}
+            else:
+                # Start the container
+                success = await api_client.start_container()
+                if not success:
+                    raise HTTPException(500, "Не удалось запустить AdGuard — проверьте Docker")
+                return {"enabled": True}
         except HTTPException:
             raise
         except Exception as e:
@@ -249,15 +253,23 @@ async def toggle_feature(feature: str):
         from server.bot.services.mtproto_manager import MTProtoManager
         mgr = MTProtoManager()
         try:
-            if await mgr.is_running():
-                await mgr.stop()
+            running = await mgr.is_running()
+            if running:
+                success = await mgr.stop()
+                if not success:
+                    raise HTTPException(500, "Не удалось остановить MTProto — проверьте Docker")
+                return {"enabled": False}
             else:
-                await mgr.start()
-            # Verify actual state
-            import asyncio
-            await asyncio.sleep(2)
-            actual = await mgr.is_running()
-            return {"enabled": actual}
+                success = await mgr.start()
+                if not success:
+                    raise HTTPException(500, "Не удалось запустить MTProto — проверьте Docker")
+                # Give container a moment to start
+                import asyncio
+                await asyncio.sleep(2)
+                actual = await mgr.is_running()
+                return {"enabled": actual}
+        except HTTPException:
+            raise
         except Exception as e:
             raise HTTPException(500, f"MTProto toggle failed: {e}")
 

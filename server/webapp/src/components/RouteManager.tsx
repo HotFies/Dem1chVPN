@@ -19,11 +19,15 @@ const trashIcon = (
   </svg>
 )
 
+const PAGE_SIZE = 50
+
 export default function RouteManager() {
   const [rules, setRules] = useState<RouteRule[]>([])
   const [newDomain, setNewDomain] = useState('')
   const [filter, setFilter] = useState<'all' | 'proxy' | 'direct'>('all')
+  const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE)
 
   const loadRules = () => {
     getRoutes()
@@ -32,6 +36,9 @@ export default function RouteManager() {
   }
 
   useEffect(() => { loadRules() }, [])
+
+  // Reset visible count when filter/search changes
+  useEffect(() => { setVisibleCount(PAGE_SIZE) }, [filter, search])
 
   const handleAddDomain = async (type: 'proxy' | 'direct') => {
     if (!newDomain.trim()) return
@@ -45,7 +52,12 @@ export default function RouteManager() {
     loadRules()
   }
 
-  const filtered = rules.filter(r => filter === 'all' || r.rule_type === filter)
+  const filtered = rules
+    .filter(r => filter === 'all' || r.rule_type === filter)
+    .filter(r => !search || r.domain.toLowerCase().includes(search.toLowerCase()))
+
+  const visible = filtered.slice(0, visibleCount)
+  const hasMore = visibleCount < filtered.length
 
   const proxyCount = rules.filter(r => r.rule_type === 'proxy').length
   const directCount = rules.filter(r => r.rule_type === 'direct').length
@@ -103,6 +115,19 @@ export default function RouteManager() {
         ))}
       </div>
 
+      {/* Search within rules */}
+      {rules.length > 20 && (
+        <div className="route-search">
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Поиск домена..."
+            className="domain-input"
+          />
+        </div>
+      )}
+
       {loading ? (
         <div className="loading-page">
           <div className="spinner" />
@@ -110,27 +135,34 @@ export default function RouteManager() {
       ) : (
         <div className="rule-list">
           {filtered.length === 0 ? (
-            <div className="empty-state">Нет маршрутов</div>
+            <div className="empty-state">{search ? 'Ничего не найдено' : 'Нет маршрутов'}</div>
           ) : (
-            filtered.map((r, i) => (
-              <div
-                key={r.id}
-                className="rule-item"
-                style={{ animationDelay: `${i * 0.03}s` }}
-              >
-                <span className={`rule-type ${r.rule_type}`}>
-                  {r.rule_type === 'proxy' ? 'PRX' : 'DIR'}
-                </span>
-                <span className="rule-domain">{r.domain}</span>
-                <span className="rule-source">{r.added_by}</span>
-                <button className="btn-delete" onClick={() => handleDeleteDomain(r.domain)}>
-                  {trashIcon}
+            <>
+              {visible.map(r => (
+                <div key={r.id} className="rule-item">
+                  <span className={`rule-type ${r.rule_type}`}>
+                    {r.rule_type === 'proxy' ? 'PRX' : 'DIR'}
+                  </span>
+                  <span className="rule-domain">{r.domain}</span>
+                  <span className="rule-source">{r.added_by}</span>
+                  <button className="btn-delete" onClick={() => handleDeleteDomain(r.domain)}>
+                    {trashIcon}
+                  </button>
+                </div>
+              ))}
+              {hasMore && (
+                <button
+                  className="btn-load-more"
+                  onClick={() => setVisibleCount(v => v + PAGE_SIZE)}
+                >
+                  Показать ещё ({filtered.length - visibleCount} осталось)
                 </button>
-              </div>
-            ))
+              )}
+            </>
           )}
         </div>
       )}
     </div>
   )
 }
+

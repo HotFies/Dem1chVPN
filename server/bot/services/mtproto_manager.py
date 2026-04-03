@@ -3,8 +3,11 @@ Dem1chVPN — MTProto Manager Service
 Manage MTProto proxy for Telegram.
 """
 import asyncio
+import logging
 import os
 from ..config import config
+
+logger = logging.getLogger(__name__)
 
 
 class MTProtoManager:
@@ -17,13 +20,14 @@ class MTProtoManager:
         """Check if mtg container is running."""
         try:
             proc = await asyncio.create_subprocess_exec(
-                "docker", "inspect", "-f", "{{.State.Running}}", "dem1chvpn-mtproto",
+                "sudo", "docker", "inspect", "-f", "{{.State.Running}}", "dem1chvpn-mtproto",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
             stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
             return stdout.decode().strip() == "true"
-        except Exception:
+        except Exception as e:
+            logger.warning(f"Failed to check MTProto container: {e}")
             return False
 
     def is_installed(self) -> bool:
@@ -34,28 +38,36 @@ class MTProtoManager:
         """Start MTProto proxy."""
         try:
             proc = await asyncio.create_subprocess_exec(
-                "docker", "compose", "up", "-d",
+                "sudo", "docker", "compose", "up", "-d",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=self.compose_dir,
             )
-            await asyncio.wait_for(proc.communicate(), timeout=30)
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+            if proc.returncode != 0:
+                logger.error(f"MTProto start failed (rc={proc.returncode}): {stderr.decode()}")
+                return False
             return True
-        except Exception:
+        except Exception as e:
+            logger.error(f"MTProto start exception: {e}")
             return False
 
     async def stop(self) -> bool:
         """Stop MTProto proxy."""
         try:
             proc = await asyncio.create_subprocess_exec(
-                "docker", "compose", "down",
+                "sudo", "docker", "compose", "down",
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
                 cwd=self.compose_dir,
             )
-            await asyncio.wait_for(proc.communicate(), timeout=30)
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=30)
+            if proc.returncode != 0:
+                logger.error(f"MTProto stop failed (rc={proc.returncode}): {stderr.decode()}")
+                return False
             return True
-        except Exception:
+        except Exception as e:
+            logger.error(f"MTProto stop exception: {e}")
             return False
 
     async def restart(self) -> bool:
