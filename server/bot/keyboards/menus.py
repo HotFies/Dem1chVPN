@@ -27,7 +27,7 @@ def main_menu(is_admin: bool = False) -> InlineKeyboardMarkup:
             buttons.append([
                 InlineKeyboardButton(
                     text="📱 Личный кабинет",
-                    web_app=WebAppInfo(url=f"{config.sub_base_url}/webapp/#account"),
+                    web_app=WebAppInfo(url=f"{config.sub_base_url}/webapp/?page=account"),
                 ),
             ])
         else:
@@ -41,7 +41,7 @@ def main_menu(is_admin: bool = False) -> InlineKeyboardMarkup:
             buttons.append([
                 InlineKeyboardButton(
                     text="🎫 Тикет",
-                    web_app=WebAppInfo(url=f"{config.sub_base_url}/webapp/#tickets"),
+                    web_app=WebAppInfo(url=f"{config.sub_base_url}/webapp/?page=tickets"),
                 ),
             ])
 
@@ -50,7 +50,7 @@ def main_menu(is_admin: bool = False) -> InlineKeyboardMarkup:
         buttons.append([
             InlineKeyboardButton(
                 text="📖 Помощь",
-                web_app=WebAppInfo(url=f"{config.sub_base_url}/webapp/#help"),
+                web_app=WebAppInfo(url=f"{config.sub_base_url}/webapp/?page=help"),
             ),
         ])
     else:
@@ -185,7 +185,7 @@ def monitoring_menu() -> InlineKeyboardMarkup:
     if config.SUB_DOMAIN:
         ticket_row.append(InlineKeyboardButton(
             text="🎫 Тикеты",
-            web_app=WebAppInfo(url=f"{config.sub_base_url}/webapp/#tickets"),
+            web_app=WebAppInfo(url=f"{config.sub_base_url}/webapp/?page=tickets"),
         ))
     else:
         ticket_row.append(InlineKeyboardButton(text="🎫 Тикеты", callback_data="tickets:list"))
@@ -224,7 +224,7 @@ def help_menu() -> InlineKeyboardMarkup:
     if config.SUB_DOMAIN:
         buttons.append([InlineKeyboardButton(
             text="📖 Открыть инструкции",
-            web_app=WebAppInfo(url=f"{config.sub_base_url}/webapp/#help"),
+            web_app=WebAppInfo(url=f"{config.sub_base_url}/webapp/?page=help"),
         )])
     else:
         # Fallback: simple text help

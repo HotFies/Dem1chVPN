@@ -158,6 +158,10 @@ function Screenshot({ src, alt, onClick }: { src: string; alt: string; onClick: 
   );
 }
 
+/* ── Asset base path (works with Vite base: '/webapp/') ── */
+const BASE = import.meta.env.BASE_URL || '/webapp/';
+const img = (name: string) => `${BASE}img/appstore-guide/${name}`;
+
 /* ── Step data ── */
 const steps = [
   {
@@ -170,9 +174,9 @@ const steps = [
       </>
     ),
     images: [
-      { src: '/img/appstore-guide/step1.webp', alt: 'Настройки — ваше имя' },
-      { src: '/img/appstore-guide/step2.webp', alt: 'Контент и покупки' },
-      { src: '/img/appstore-guide/step3.webp', alt: 'Просмотреть аккаунт' },
+      { src: img('step1.webp'), alt: 'Настройки — ваше имя' },
+      { src: img('step2.webp'), alt: 'Контент и покупки' },
+      { src: img('step3.webp'), alt: 'Просмотреть аккаунт' },
     ],
   },
   {
@@ -184,9 +188,9 @@ const steps = [
       </>
     ),
     images: [
-      { src: '/img/appstore-guide/step4.webp', alt: 'Страна или регион' },
-      { src: '/img/appstore-guide/step5.webp', alt: 'Выбор United States' },
-      { src: '/img/appstore-guide/step6.webp', alt: 'Подтверждение смены' },
+      { src: img('step4.webp'), alt: 'Страна или регион' },
+      { src: img('step5.webp'), alt: 'Выбор United States' },
+      { src: img('step6.webp'), alt: 'Подтверждение смены' },
     ],
   },
   {
@@ -198,7 +202,7 @@ const steps = [
       </>
     ),
     images: [
-      { src: '/img/appstore-guide/step7.webp', alt: 'Принять условия' },
+      { src: img('step7.webp'), alt: 'Принять условия' },
     ],
   },
   {
@@ -210,7 +214,7 @@ const steps = [
       </>
     ),
     images: [
-      { src: '/img/appstore-guide/step8.webp', alt: 'Форма оплаты и адреса' },
+      { src: img('step8.webp'), alt: 'Форма оплаты и адреса' },
     ],
     copyData: [
       { label: '🏠 Адрес (Street)', value: '123 Main Street' },
@@ -229,7 +233,7 @@ const steps = [
       </>
     ),
     images: [
-      { src: '/img/appstore-guide/step9.webp', alt: 'Готово — завершение' },
+      { src: img('step9.webp'), alt: 'Готово — завершение' },
     ],
   },
 ];

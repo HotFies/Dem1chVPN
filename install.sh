@@ -219,6 +219,7 @@ SYSCTL
     ufw default deny incoming
     ufw default allow outgoing
     ufw allow 22/tcp       # SSH
+    ufw allow 80/tcp       # Caddy ACME (Let's Encrypt HTTP-01 challenge)
     ufw allow 443/tcp      # Xray (VLESS + Reality)
     ufw allow 8443/tcp     # Caddy (Подписка + Mini App HTTPS)
     ufw --force enable

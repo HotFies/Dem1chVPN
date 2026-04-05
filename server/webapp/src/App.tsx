@@ -75,14 +75,46 @@ const shieldIcon = (
 )
 
 function App() {
-  const hash = window.location.hash.replace('#', '');
-  const validHashes = ['dashboard', 'users', 'routes', 'tickets', 'settings', 'help', 'account'];
-  const initialPage = (validHashes.includes(hash) ? hash : 'dashboard') as Page;
-  const [page, setPage] = useState<Page>(initialPage)
+  /* ── Determine initial page from URL ──
+   * Telegram Mini App overwrites window.location.hash with #tgWebAppData=...
+   * So we pass the target page via query string: ?page=help
+   * Also support hash fallback for direct browser access: #help
+   * And Telegram's start_param for bot deep links
+   */
+  const getInitialPage = (): Page => {
+    // 1. Check URL query param: ?page=help
+    const urlParams = new URLSearchParams(window.location.search);
+    const qPage = urlParams.get('page');
+    if (qPage && validPages.includes(qPage)) return qPage as Page;
+
+    // 2. Check Telegram start_param (from bot.sendMessage with start_param)
+    const startParam = tg?.initDataUnsafe?.start_param;
+    if (startParam && validPages.includes(startParam)) return startParam as Page;
+
+    // 3. Fallback: check hash (works in direct browser access)
+    const hash = window.location.hash.replace('#', '');
+    if (hash && validPages.includes(hash)) return hash as Page;
+
+    return 'dashboard';
+  };
+
+  const validPages = ['dashboard', 'users', 'routes', 'tickets', 'settings', 'help', 'account'];
+
+  const getInitialGuide = (): boolean => {
+    const urlParams = new URLSearchParams(window.location.search);
+    if (urlParams.get('page') === 'appstore-guide') return true;
+    const startParam = tg?.initDataUnsafe?.start_param;
+    if (startParam === 'appstore-guide') return true;
+    const hash = window.location.hash.replace('#', '');
+    if (hash === 'appstore-guide') return true;
+    return false;
+  };
+
+  const [page, setPage] = useState<Page>(getInitialPage())
   const [isAdmin, setIsAdmin] = useState(false)
   const [authLoaded, setAuthLoaded] = useState(false)
   const [userId, setUserId] = useState<number | null>(null)
-  const [showGuide, setShowGuide] = useState(hash === 'appstore-guide')
+  const [showGuide, setShowGuide] = useState(getInitialGuide())
 
   useEffect(() => {
     if (tg?.initDataUnsafe?.user) {
