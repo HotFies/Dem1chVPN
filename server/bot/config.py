@@ -1,19 +1,16 @@
 """
 Dem1chVPN Bot — Configuration
-Loads settings from .env file or environment variables.
 """
 import os
 from pathlib import Path
 from dataclasses import dataclass, field
 from dotenv import load_dotenv
 
-# Load .env from project root
 ENV_PATH = Path(__file__).resolve().parent.parent.parent / ".env"
 load_dotenv(ENV_PATH)
 
 
 def _parse_admin_ids() -> list[int]:
-    """Parse ADMIN_IDS from env, silently skipping non-numeric values."""
     ids = []
     for x in os.getenv("ADMIN_IDS", "").split(","):
         x = x.strip()
@@ -31,74 +28,58 @@ def _parse_admin_ids() -> list[int]:
 
 @dataclass
 class Config:
-    """Main application configuration."""
 
-    # Telegram Bot
     BOT_TOKEN: str = os.getenv("BOT_TOKEN", "")
     ADMIN_IDS: list[int] = field(default_factory=_parse_admin_ids)
     PIN_CODE: str = os.getenv("PIN_CODE", "0000")
 
-    # Xray
     XRAY_API_HOST: str = os.getenv("XRAY_API_HOST", "127.0.0.1")
     XRAY_API_PORT: int = int(os.getenv("XRAY_API_PORT", "10085"))
     XRAY_CONFIG_PATH: str = os.getenv("XRAY_CONFIG_PATH", "/usr/local/etc/xray/config.json")
     XRAY_BINARY: str = os.getenv("XRAY_BINARY", "/usr/local/bin/xray")
     XRAY_INBOUND_TAG: str = os.getenv("XRAY_INBOUND_TAG", "vless-reality")
 
-    # Server
     SERVER_IP: str = os.getenv("SERVER_IP", "")
     SERVER_PORT: int = int(os.getenv("SERVER_PORT", "443"))
 
-    # Reality settings
     REALITY_DEST: str = os.getenv("REALITY_DEST", "dl.google.com:443")
     REALITY_SNI: str = os.getenv("REALITY_SNI", "dl.google.com")
     REALITY_PRIVATE_KEY: str = os.getenv("REALITY_PRIVATE_KEY", "")
     REALITY_PUBLIC_KEY: str = os.getenv("REALITY_PUBLIC_KEY", "")
     REALITY_SHORT_ID: str = os.getenv("REALITY_SHORT_ID", "")
 
-    # Database
     DB_PATH: str = os.getenv("DB_PATH", str(
         Path(__file__).resolve().parent.parent / "data" / "dem1chvpn.db"
     ))
 
-    # Subscription server
     SUB_HOST: str = os.getenv("SUB_HOST", "0.0.0.0")
     SUB_PORT: int = int(os.getenv("SUB_PORT", "8080"))
     SUB_DOMAIN: str = os.getenv("SUB_DOMAIN", "")
     SUB_EXTERNAL_PORT: int = int(os.getenv("SUB_EXTERNAL_PORT", "8443"))
 
-    # Geo data paths
     GEOIP_PATH: str = os.getenv("GEOIP_PATH", "/usr/local/share/xray/geoip.dat")
     GEOSITE_PATH: str = os.getenv("GEOSITE_PATH", "/usr/local/share/xray/geosite.dat")
 
-    # Backup
     BACKUP_DIR: str = os.getenv("BACKUP_DIR", "/opt/dem1chvpn/backups")
 
-    # Feature flags
     ADGUARD_ENABLED: bool = os.getenv("ADGUARD_ENABLED", "false").lower() == "true"
     WARP_ENABLED: bool = os.getenv("WARP_ENABLED", "false").lower() == "true"
     MTPROTO_ENABLED: bool = os.getenv("MTPROTO_ENABLED", "false").lower() == "true"
 
-    # Automation
-    TRAFFIC_RESET_DAY: int = int(os.getenv("TRAFFIC_RESET_DAY", "1"))  # Day of month (1-28)
+    TRAFFIC_RESET_DAY: int = int(os.getenv("TRAFFIC_RESET_DAY", "1"))
     XRAY_AUTO_UPDATE: bool = os.getenv("XRAY_AUTO_UPDATE", "true").lower() == "true"
 
-    # Default proxy domains (pre-configured for user's needs)
     DEFAULT_PROXY_DOMAINS: list[str] = field(default_factory=lambda: [
-        # AI Services
         "claude.ai", "anthropic.com",
         "chat.openai.com", "openai.com", "chatgpt.com",
         "gemini.google.com", "bard.google.com", "aistudio.google.com",
         "notebooklm.google.com", "notebooklm-pa.googleapis.com",
         "generativelanguage.googleapis.com",
-        # Video
         "youtube.com", "googlevideo.com", "ytimg.com", "yt.be",
         "youtu.be", "youtube-nocookie.com",
-        # Messaging
         "discord.com", "discord.gg", "discordapp.com", "discord.media",
         "web.telegram.org", "t.me", "telegram.org",
         "web.whatsapp.com", "whatsapp.com", "whatsapp.net",
-        # Social
         "instagram.com", "cdninstagram.com",
         "tiktok.com", "tiktokv.com", "musical.ly", "tiktokcdn.com",
         "isnssdk.com", "byteoversea.com", "ibytedtos.com",
@@ -106,7 +87,6 @@ class Config:
     ])
 
     def validate(self) -> list[str]:
-        """Validate configuration, return list of errors."""
         errors = []
         if not self.BOT_TOKEN:
             errors.append("BOT_TOKEN is not set")
@@ -122,7 +102,6 @@ class Config:
 
     @property
     def sub_base_url(self) -> str:
-        """Get full subscription base URL."""
         domain = self.SUB_DOMAIN or self.SERVER_IP
         return f"https://{domain}:{self.SUB_EXTERNAL_PORT}"
 

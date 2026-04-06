@@ -1,6 +1,5 @@
 """
 Dem1chVPN Bot — Monitoring Handler
-Server status, traffic stats, speedtest.
 """
 import psutil
 import asyncio
@@ -30,13 +29,13 @@ async def mon_status(callback: CallbackQuery):
     boot_time = psutil.boot_time()
     uptime_secs = (datetime.now(timezone.utc) - datetime.fromtimestamp(boot_time, tz=timezone.utc)).total_seconds()
 
-    # Xray status
+
     xray_mgr = XrayConfigManager()
     xray_running = await xray_mgr.is_xray_running()
     xray_version = await xray_mgr.get_xray_version()
     clients = await xray_mgr.get_clients()
 
-    # User count + online
+
     user_mgr = UserManager()
     user_count = await user_mgr.count_users()
     online_users = await user_mgr.get_online_users()
@@ -53,22 +52,22 @@ async def mon_status(callback: CallbackQuery):
         f"  Uptime: {format_uptime(uptime_secs)}\n\n"
     )
 
-    # Network stats
+
     net = psutil.net_io_counters()
     text += (
         f"📈 <b>Сеть (с загрузки):</b>\n"
         f"  ↑ {format_traffic(net.bytes_sent)}  ↓ {format_traffic(net.bytes_recv)}\n\n"
     )
 
-    # Services status
+
     text += "🔌 <b>Сервисы:</b>\n"
     text += (
         f"  {'🟢' if xray_running else '🔴'} Xray v{xray_version}"
         f" ({len(clients)} клиентов)\n"
     )
 
-    # WARP
     try:
+        warp_status = "🔴 Отключен"
         from ..services.warp_manager import WarpManager
         warp = WarpManager()
         warp_on = warp.is_enabled()
@@ -76,32 +75,32 @@ async def mon_status(callback: CallbackQuery):
     except Exception:
         text += "  ⚪ WARP (не установлен)\n"
 
-    # AdGuard
-    try:
-        from ..services.adguard_api import AdGuardAPI
-        ag = AdGuardAPI()
-        ag_status = await ag.get_status()
-        ag_on = ag_status.get("protection_enabled", False)
-        ag_stats = await ag.get_stats()
-        blocked = ag_stats.get("num_blocked_filtering", 0)
-        text += f"  {'🟢' if ag_on else '🔴'} AdGuard Home"
-        if blocked:
-            text += f" ({blocked:,} заблокировано)"
-        text += "\n"
-    except Exception:
-        text += "  ⚪ AdGuard (не установлен)\n"
+    if config.ADGUARD_ENABLED:
+        try:
+            from ..services.adguard_api import AdGuardAPI
+            ag = AdGuardAPI()
+            ag_status = await ag.get_status()
+            ag_on = ag_status.get("protection_enabled", False)
+            ag_stats = await ag.get_stats()
+            blocked = ag_stats.get("num_blocked_filtering", 0)
+            text += f"  {'🟢' if ag_on else '🔴'} AdGuard Home"
+            if blocked:
+                text += f" ({blocked:,} заблокировано)"
+            text += "\n"
+        except Exception:
+            text += "  ⚪ AdGuard (не установлен)\n"
 
-    # MTProto
-    try:
-        from ..services.mtproto_manager import MTProtoManager
-        mt = MTProtoManager()
-        mt_on = await mt.is_running()
-        text += f"  {'🟢' if mt_on else '🔴'} MTProto Proxy\n"
-    except Exception:
-        text += "  ⚪ MTProto (не установлен)\n"
+    if config.MTPROTO_ENABLED:
+        try:
+            from ..services.mtproto_manager import MTProtoManager
+            mt = MTProtoManager()
+            mt_on = await mt.is_running()
+            text += f"  {'🟢' if mt_on else '🔴'} MTProto Proxy\n"
+        except Exception:
+            text += "  ⚪ MTProto (не установлен)\n"
 
-    # Caddy
     try:
+        caddy_status = "🔴 Off"
         proc = await asyncio.create_subprocess_exec(
             "systemctl", "is-active", "caddy",
             stdout=asyncio.subprocess.PIPE,
@@ -183,7 +182,6 @@ async def mon_traffic_day(callback: CallbackQuery):
         reply_markup=monitoring_menu(),
     )
 
-    # Send chart if there's data
     if chart_data and (total_up + total_down) > 0:
         try:
             from ..services.charts import generate_overview_chart
@@ -194,7 +192,7 @@ async def mon_traffic_day(callback: CallbackQuery):
                 chart_file, caption="📊 График трафика пользователей"
             )
         except Exception:
-            pass  # Chart generation is optional
+            pass
 
     await callback.answer()
 
@@ -218,7 +216,7 @@ async def mon_speedtest(callback: CallbackQuery):
         import json
         data = json.loads(stdout.decode())
 
-        download = data.get("download", 0) / 1_000_000  # bits to Mbps
+        download = data.get("download", 0) / 1_000_000
         upload = data.get("upload", 0) / 1_000_000
         ping = data.get("ping", 0)
         server = data.get("server", {}).get("name", "Unknown")

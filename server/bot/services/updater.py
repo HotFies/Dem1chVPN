@@ -1,6 +1,5 @@
 """
 Dem1chVPN — Updater Service
-Handles updating Xray-core and geo databases.
 """
 import asyncio
 import logging
@@ -31,34 +30,15 @@ class XrayUpdater:
         Returns: {"success": bool, "version": str, "output": str}
         """
         try:
-            # Step 1: Download installer script
-            script_path = "/tmp/xray_install.sh"
-            dl_proc = await asyncio.create_subprocess_exec(
-                "curl", "-fsSL", "-o", script_path,
-                "https://raw.githubusercontent.com/XTLS/Xray-install/main/install-release.sh",
-                stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
-            )
-            await asyncio.wait_for(dl_proc.communicate(), timeout=30)
-            if dl_proc.returncode != 0:
-                return {"success": False, "version": "unknown", "output": "Failed to download installer"}
-
-            # Step 2: Execute saved script (needs root — sudoers configured during install)
+            install_cmd = "bash -c \"$(curl -L https://github.com/XTLS/Xray-install/raw/main/install-release.sh)\" @ install"
             proc = await asyncio.create_subprocess_exec(
-                "sudo", "bash", script_path,
+                "sudo", "sh", "-c", install_cmd,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
             stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
-            # Cleanup
-            import os
-            try:
-                os.unlink(script_path)
-            except OSError:
-                pass
             output = stdout.decode() + stderr.decode()
 
-            # Get new version
             version = await self._get_version()
             success = proc.returncode == 0
 
@@ -87,7 +67,6 @@ class XrayUpdater:
             dest = config.GEOIP_PATH if geo_type == "geoip" else config.GEOSITE_PATH
             results[geo_type] = await self._download_with_fallback(urls, dest)
 
-        # Restart Xray to apply new geo data
         if any(results.values()):
             await self._restart_xray()
             logger.info("Geo databases updated, Xray restarted")

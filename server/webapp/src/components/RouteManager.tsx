@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { getRoutes, addRoute, deleteRoute, type RouteRule } from '../api/client'
 
-/* Icons */
+
 const routeIcon = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="18" cy="5" r="3" />
@@ -37,7 +37,7 @@ export default function RouteManager() {
 
   useEffect(() => { loadRules() }, [])
 
-  // Reset visible count when filter/search changes
+  // Сбрасываем счетчик, если поменяли фильтр или поиск
   useEffect(() => { setVisibleCount(PAGE_SIZE) }, [filter, search])
 
   const handleAddDomain = async (type: 'proxy' | 'direct') => {
@@ -115,7 +115,6 @@ export default function RouteManager() {
         ))}
       </div>
 
-      {/* Search within rules */}
       {rules.length > 20 && (
         <div className="route-search">
           <input

@@ -1,7 +1,5 @@
 """
 Dem1chVPN Bot — Invite Handler
-Create and manage invitation links.
-Uses CommandStart with deep_link filter to handle invite activation BEFORE the generic /start.
 """
 from datetime import datetime, timedelta, timezone
 
@@ -42,7 +40,7 @@ async def invite_start(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-# ── Cancel invite FSM ──
+
 
 @router.callback_query(F.data == "menu:users", InviteStates.waiting_name)
 @router.callback_query(F.data == "menu:users", InviteStates.waiting_limit)
@@ -117,7 +115,6 @@ async def invite_days(message: Message, state: FSMContext):
     data = await state.get_data()
     await state.clear()
 
-    # Create invitation
     mgr = InviteManager()
     invite = await mgr.create_invite(
         name=data["name"],
@@ -126,7 +123,6 @@ async def invite_days(message: Message, state: FSMContext):
         created_by=message.from_user.id,
     )
 
-    # Audit log
     user_mgr = UserManager()
     await user_mgr.log_action(
         "invite_created",
@@ -134,7 +130,6 @@ async def invite_days(message: Message, state: FSMContext):
         details=f"Name: {data['name']}, code: {invite.code}",
     )
 
-    # Bot username for the link
     bot_info = await message.bot.get_me()
     link = f"https://t.me/{bot_info.username}?start=inv_{invite.code}"
 
@@ -156,16 +151,12 @@ async def invite_days(message: Message, state: FSMContext):
     )
 
 
-# ── Handle invite deep link ──
-# This handler uses CommandStart with a magic_filter to catch /start inv_XXXX
-# It MUST be registered before the generic /start handler (in main.py router order)
+
 
 @router.message(CommandStart(deep_link=True, magic=F.args.startswith(("inv_", "link_"))))
 async def invite_activate(message: Message, command: CommandObject):
-    """Activate an invitation link via /start inv_XXXX or /start link_XXXX deep link."""
     args = command.args or ""
 
-    # ── Link Telegram account (link_USERID) ──
     if args.startswith("link_"):
         try:
             vpn_user_id = int(args.replace("link_", ""))
@@ -175,7 +166,6 @@ async def invite_activate(message: Message, command: CommandObject):
 
         user_mgr = UserManager()
 
-        # Check if this TG already linked
         existing = await user_mgr.get_user_by_telegram_id(message.from_user.id)
         if existing:
             await message.answer(
@@ -184,7 +174,6 @@ async def invite_activate(message: Message, command: CommandObject):
             )
             return
 
-        # Get VPN user
         user = await user_mgr.get_user(vpn_user_id)
         if not user:
             await message.answer("❌ Аккаунт не найден. Обратитесь к администратору.")
@@ -194,10 +183,8 @@ async def invite_activate(message: Message, command: CommandObject):
             await message.answer("❌ Этот аккаунт уже привязан к другому Telegram.")
             return
 
-        # Link!
         await user_mgr.link_telegram(vpn_user_id, message.from_user.id)
 
-        # Generate VLESS link for welcome
         xray_mgr = XrayConfigManager()
         vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
         sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
@@ -213,7 +200,6 @@ async def invite_activate(message: Message, command: CommandObject):
             "Нажмите /start для доступа к меню."
         )
 
-        # Notify admin
         for admin_id in config.ADMIN_IDS:
             try:
                 await message.bot.send_message(
@@ -237,7 +223,6 @@ async def invite_activate(message: Message, command: CommandObject):
         )
         return
 
-    # Check if user already exists
     user_mgr = UserManager()
     existing = await user_mgr.get_user_by_telegram_id(message.from_user.id)
     if existing:
@@ -247,7 +232,6 @@ async def invite_activate(message: Message, command: CommandObject):
         )
         return
 
-    # Create user
     user = await user_mgr.create_user(
         name=invite.name,
         traffic_limit=invite.traffic_limit,
@@ -255,26 +239,22 @@ async def invite_activate(message: Message, command: CommandObject):
         telegram_id=message.from_user.id,
     )
 
-    # Add to Xray
     xray_mgr = XrayConfigManager()
     await xray_mgr.add_client(user.uuid, user.email)
 
-    # Mark invite as used
     await inv_mgr.use_invite(code)
 
-    # Audit log
     await user_mgr.log_action(
         "user_created_via_invite",
         target_user_id=user.id,
         details=f"Name: {user.name}, invite: {code}, tg: @{message.from_user.username or '—'}",
     )
 
-    # Generate VLESS link
     vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
     sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
     sub_deeplink = f"v2raytun://import/{sub_url}"
+    win_sub_deeplink = f"dem1chvpn://import/{sub_url}"
 
-    # Send welcome
     await message.answer(
         f"🎉 <b>Добро пожаловать в Dem1chVPN!</b>\n\n"
         f"Аккаунт <b>{user.name}</b> создан.\n\n"
@@ -282,6 +262,8 @@ async def invite_activate(message: Message, command: CommandObject):
         f"━━━━━━━━━━━━━━━━━━━━━\n\n"
         f"📱 <b>v2RayTun (iOS) — автоимпорт:</b>\n"
         f"<code>{sub_deeplink}</code>\n\n"
+        f"🖥️ <b>Dem1chVPN (Windows) — автоимпорт:</b>\n"
+        f"<code>{win_sub_deeplink}</code>\n\n"
         f"📡 <b>Подписка</b> (для других клиентов):\n"
         f"<code>{sub_url}</code>\n\n"
         f"🔗 <b>Прямая ссылка</b> (для роутеров):\n"
@@ -289,7 +271,6 @@ async def invite_activate(message: Message, command: CommandObject):
         "Нажмите /start для доступа к меню."
     )
 
-    # Notify admin
     for admin_id in config.ADMIN_IDS:
         try:
             await message.bot.send_message(

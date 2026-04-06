@@ -1,6 +1,6 @@
 """
-Dem1chVPN — IP Block Checker Service
-Checks if VPS IP is accessible from target regions.
+Dem1chVPN — Сервис проверки блокировок IP
+Через API Globalping стучимся на сервер из РФ.
 """
 import aiohttp
 import asyncio
@@ -11,19 +11,19 @@ from typing import Optional
 
 logger = logging.getLogger("dem1chvpn.ip_checker")
 
-# Persistent state file for consecutive failure tracking
+# Стейт-файл для трекинга неудачных проверок
 _STATE_FILE = Path("/tmp/dem1chvpn_ip_check_state.json")
 
 
 class IPBlockChecker:
-    """Checks if the server IP is blocked from Russia."""
+
 
     def __init__(self, server_ip: str):
         self.server_ip = server_ip
         self._load_state()
 
     def _load_state(self):
-        """Load persistent state from disk."""
+
         try:
             if _STATE_FILE.exists():
                 data = json.loads(_STATE_FILE.read_text())
@@ -37,7 +37,7 @@ class IPBlockChecker:
             self.is_blocked = False
 
     def _save_state(self):
-        """Persist state to disk."""
+
         try:
             _STATE_FILE.write_text(json.dumps({
                 "consecutive_failures": self.consecutive_failures,
@@ -47,12 +47,12 @@ class IPBlockChecker:
             logger.warning(f"Could not save IP check state: {e}")
 
     async def check_from_globalping(self) -> Optional[bool]:
-        """Check accessibility from Russia via Globalping API."""
+        """Стучимся из РФ через API Globalping"""
         try:
             async with aiohttp.ClientSession(
                 timeout=aiohttp.ClientTimeout(total=30)
             ) as session:
-                # Create measurement
+
                 async with session.post(
                     "https://api.globalping.io/v1/measurements",
                     json={
@@ -72,7 +72,7 @@ class IPBlockChecker:
                 if not measurement_id:
                     return None
 
-                # Wait for results
+
                 await asyncio.sleep(10)
 
                 async with session.get(
@@ -86,7 +86,7 @@ class IPBlockChecker:
                 if not results:
                     return None
 
-                # If all probes failed → likely blocked
+                # Если все пинги отвалились — скорее всего блокировка
                 successful = sum(
                     1 for r in results
                     if r.get("result", {}).get("statusCode", 0) > 0
@@ -98,7 +98,7 @@ class IPBlockChecker:
             return None
 
     async def check_simple(self) -> bool:
-        """Simple self-check if the server is reachable."""
+
         try:
             async with aiohttp.ClientSession(
                 timeout=aiohttp.ClientTimeout(total=5)
@@ -111,7 +111,7 @@ class IPBlockChecker:
             return False
 
     async def run_check(self) -> dict:
-        """Run full check and return results."""
+
         vps_ok = await self.check_simple()
         russia_ok = await self.check_from_globalping()
 
@@ -126,7 +126,7 @@ class IPBlockChecker:
         else:
             self.consecutive_failures = 0
 
-        # 3+ consecutive failures = blocked
+        # 3 фейла подряд = блок
         if self.consecutive_failures >= 3:
             self.is_blocked = True
             result["blocked"] = True
@@ -134,13 +134,13 @@ class IPBlockChecker:
             self.is_blocked = False
             result["blocked"] = False
 
-        # Persist state for next call
+
         self._save_state()
 
         return result
 
     async def get_formatted_status(self) -> str:
-        """Get formatted check result for bot."""
+
         result = await self.run_check()
 
         vps = "✅" if result["vps_reachable"] else "❌"

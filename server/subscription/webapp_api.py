@@ -1,7 +1,5 @@
 """
 Dem1chVPN — WebApp REST API
-REST endpoints for the Telegram Mini App.
-All admin endpoints require Telegram initData validation.
 """
 import psutil
 from datetime import datetime, timezone
@@ -11,7 +9,7 @@ from fastapi.responses import JSONResponse
 import sys
 from pathlib import Path
 
-# Ensure project root is in path for imports
+
 PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent)
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
@@ -26,11 +24,10 @@ from .auth import require_admin, require_auth, validate_init_data
 api = APIRouter(prefix="/api")
 
 
-# ── Auth ──
 
 @api.post("/auth/check")
 async def auth_check(request: Request):
-    """Verify Telegram Mini App initData."""
+
     data = await request.json()
     init_data = data.get("initData", "")
 
@@ -46,11 +43,10 @@ async def auth_check(request: Request):
     }
 
 
-# ── Server Status ──
 
 @api.get("/status", dependencies=[Depends(require_auth)])
 async def server_status():
-    """Get server status for dashboard."""
+
     cpu = psutil.cpu_percent(interval=0.5)
     mem = psutil.virtual_memory()
 
@@ -87,7 +83,6 @@ async def server_status():
     }
 
 
-# ── Users ──
 
 @api.get("/users", dependencies=[Depends(require_admin)])
 async def list_users():
@@ -113,7 +108,7 @@ async def list_users():
 
 @api.post("/users/{user_id}/toggle", dependencies=[Depends(require_admin)])
 async def toggle_user(user_id: int):
-    """Toggle user active status."""
+
     mgr = UserManager()
     user = await mgr.toggle_user(user_id)
     if not user:
@@ -130,7 +125,7 @@ async def toggle_user(user_id: int):
 
 @api.get("/users/{user_id}/link", dependencies=[Depends(require_admin)])
 async def get_user_link(user_id: int):
-    """Get VLESS link for a user."""
+
     mgr = UserManager()
     user = await mgr.get_user(user_id)
     if not user:
@@ -143,7 +138,6 @@ async def get_user_link(user_id: int):
     return {"vless_url": vless_url, "sub_url": sub_url}
 
 
-# ── Routes ──
 
 @api.get("/routes", dependencies=[Depends(require_admin)])
 async def list_routes():
@@ -180,11 +174,10 @@ async def delete_route(domain: str):
     return {"success": result}
 
 
-# ── Settings ──
 
 @api.get("/settings", dependencies=[Depends(require_admin)])
 async def get_settings():
-    # Check real service status instead of static config values
+
     warp_enabled = False
     adguard_enabled = False
     mtproto_enabled = False
@@ -223,7 +216,7 @@ async def toggle_feature(feature: str):
         mgr = WarpManager()
         try:
             new_state = await mgr.toggle()
-            # Verify actual state
+
             actual = mgr.is_enabled()
             return {"enabled": actual}
         except Exception as e:
@@ -234,13 +227,13 @@ async def toggle_feature(feature: str):
         try:
             running = await api_client.is_container_running()
             if running:
-                # Stop the container
+
                 success = await api_client.stop_container()
                 if not success:
                     raise HTTPException(500, "Не удалось остановить AdGuard — проверьте Docker")
                 return {"enabled": False}
             else:
-                # Start the container
+
                 success = await api_client.start_container()
                 if not success:
                     raise HTTPException(500, "Не удалось запустить AdGuard — проверьте Docker")
@@ -263,7 +256,7 @@ async def toggle_feature(feature: str):
                 success = await mgr.start()
                 if not success:
                     raise HTTPException(500, "Не удалось запустить MTProto — проверьте Docker")
-                # Give container a moment to start
+
                 import asyncio
                 await asyncio.sleep(2)
                 actual = await mgr.is_running()
@@ -276,7 +269,6 @@ async def toggle_feature(feature: str):
     raise HTTPException(400, "Unknown feature")
 
 
-# ── Actions ──
 
 @api.post("/xray/restart", dependencies=[Depends(require_admin)])
 async def restart_xray():
@@ -299,7 +291,7 @@ async def update_geo():
 
 @api.post("/backup", dependencies=[Depends(require_admin)])
 async def create_backup():
-    """Create and return backup info."""
+
     import asyncio
     proc = await asyncio.create_subprocess_exec(
         "bash", "/opt/dem1chvpn/cron/backup.sh",
@@ -309,18 +301,17 @@ async def create_backup():
     return {"success": True, "message": "Backup created. Check /opt/dem1chvpn/backups/"}
 
 
-# ── Tickets ──
 
 from server.bot.services.ticket_manager import TicketManager
 
 
 async def _get_auth_user(request: Request) -> dict:
-    """Get authenticated user info (any user, not just admin)."""
+
     return await require_auth(request)
 
 
 async def _require_vpn_user(request: Request) -> dict:
-    """Require that user is a VPN user (has account in DB)."""
+
     auth = await require_auth(request)
     user_id = auth.get("user_id")
     if not user_id:
@@ -334,7 +325,7 @@ async def _require_vpn_user(request: Request) -> dict:
 
 
 async def _send_bot_message(chat_id: int, text: str):
-    """Send a message via Bot API directly (no bot instance needed)."""
+
     import aiohttp
     url = f"https://api.telegram.org/bot{config.BOT_TOKEN}/sendMessage"
     async with aiohttp.ClientSession() as session:
@@ -347,7 +338,7 @@ async def _send_bot_message(chat_id: int, text: str):
 
 @api.get("/tickets/my")
 async def get_my_tickets(request: Request):
-    """Get tickets for current user (VPN users only)."""
+
     auth = await _require_vpn_user(request)
     user_id = auth["user_id"]
     ticket_mgr = TicketManager()
@@ -369,7 +360,7 @@ async def get_my_tickets(request: Request):
 
 @api.post("/tickets")
 async def create_ticket(request: Request):
-    """Create a new ticket (VPN users only)."""
+
     auth = await _require_vpn_user(request)
     data = await request.json()
     message = data.get("message", "").strip()
@@ -384,7 +375,7 @@ async def create_ticket(request: Request):
         message=message[:2000],
     )
 
-    # Notify admin(s) via Bot API
+
     for admin_id in config.ADMIN_IDS:
         try:
             await _send_bot_message(
@@ -404,7 +395,7 @@ async def create_ticket(request: Request):
 
 @api.get("/tickets", dependencies=[Depends(require_admin)])
 async def list_all_tickets(status: str = "all"):
-    """List all tickets (admin only). Filter: open, closed, all."""
+
     ticket_mgr = TicketManager()
 
     if status == "open":
@@ -433,7 +424,7 @@ async def list_all_tickets(status: str = "all"):
 
 @api.post("/tickets/{ticket_id}/reply", dependencies=[Depends(require_admin)])
 async def reply_to_ticket(ticket_id: int, request: Request):
-    """Reply to a ticket and mark as resolved (admin only)."""
+
     data = await request.json()
     reply_text = data.get("reply", "").strip()
 
@@ -446,7 +437,7 @@ async def reply_to_ticket(ticket_id: int, request: Request):
     if not ticket:
         raise HTTPException(404, "Ticket not found")
 
-    # Send reply to user via Bot API
+
     try:
         await _send_bot_message(
             ticket.user_telegram_id,
@@ -462,7 +453,7 @@ async def reply_to_ticket(ticket_id: int, request: Request):
 
 @api.post("/tickets/{ticket_id}/close", dependencies=[Depends(require_admin)])
 async def close_ticket(ticket_id: int):
-    """Close a ticket without reply (admin only)."""
+
     ticket_mgr = TicketManager()
     ticket = await ticket_mgr.resolve_ticket(ticket_id)
 
@@ -472,15 +463,11 @@ async def close_ticket(ticket_id: int):
     return {"success": True, "id": ticket_id}
 
 
-# ── User Links (for Help Center) ──
 
 @api.get("/my/links", dependencies=[Depends(require_auth)])
 async def my_links(request: Request):
-    """Return current user's personal VPN links.
 
-    Used by HelpCenter to show personalized setup instructions.
-    """
-    # Get telegram_id from auth header
+
     init_data = request.headers.get("X-Telegram-Init-Data", "")
     result = validate_init_data(init_data)
     if not result:
@@ -499,17 +486,31 @@ async def my_links(request: Request):
             "vless_url": None,
             "sub_deeplink": None,
             "route_deeplink": None,
+            "sub_redirect_url": None,
+            "route_redirect_url": None,
+            "win_sub_deeplink": None,
+            "win_route_deeplink": None,
+            "win_sub_redirect_url": None,
+            "win_route_redirect_url": None,
         }
 
     xray_mgr = XrayConfigManager()
     vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
     sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
     sub_deeplink = f"v2raytun://import/{sub_url}"
+    win_sub_deeplink = f"dem1chvpn://import/{sub_url}"
 
-    # Build routing deeplink
+
     from server.subscription.app import _build_routing_header
     routing_b64 = await _build_routing_header()
     route_deeplink = f"v2raytun://import_route/{routing_b64}" if routing_b64 else None
+    win_route_deeplink = f"dem1chvpn://import_route/{routing_b64}" if routing_b64 else None
+
+
+    sub_redirect_url = f"{config.sub_base_url}/redirect/sub/{user.subscription_token}"
+    route_redirect_url = f"{config.sub_base_url}/redirect/route/{user.subscription_token}" if routing_b64 else None
+    win_sub_redirect_url = f"{config.sub_base_url}/redirect/win/sub/{user.subscription_token}"
+    win_route_redirect_url = f"{config.sub_base_url}/redirect/win/route/{user.subscription_token}" if routing_b64 else None
 
     return {
         "has_account": True,
@@ -518,17 +519,19 @@ async def my_links(request: Request):
         "vless_url": vless_url,
         "sub_deeplink": sub_deeplink,
         "route_deeplink": route_deeplink,
+        "sub_redirect_url": sub_redirect_url,
+        "route_redirect_url": route_redirect_url,
+        "win_sub_deeplink": win_sub_deeplink,
+        "win_route_deeplink": win_route_deeplink,
+        "win_sub_redirect_url": win_sub_redirect_url,
+        "win_route_redirect_url": win_route_redirect_url,
     }
 
 
-# ── User Account (for MyAccount component) ──
 
 @api.get("/my/account")
 async def my_account(request: Request):
-    """Return full account data for the personal cabinet Mini App.
 
-    Combines account status, traffic, links, and deeplinks.
-    """
     init_data = request.headers.get("X-Telegram-Init-Data", "")
     result = validate_init_data(init_data)
     if not result:
@@ -552,20 +555,29 @@ async def my_account(request: Request):
     vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
     sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
     sub_deeplink = f"v2raytun://import/{sub_url}"
+    win_sub_deeplink = f"dem1chvpn://import/{sub_url}"
 
-    # Build routing deeplink
+
     route_deeplink = None
+    win_route_deeplink = None
     try:
         from server.subscription.app import _build_routing_header
         routing_b64 = await _build_routing_header()
         route_deeplink = f"v2raytun://import_route/{routing_b64}" if routing_b64 else None
+        win_route_deeplink = f"dem1chvpn://import_route/{routing_b64}" if routing_b64 else None
     except Exception:
         pass
 
-    # Traffic usage percentage
+
     traffic_percent = 0
     if user.traffic_limit and user.traffic_limit > 0:
         traffic_percent = min(round(user.traffic_total / user.traffic_limit * 100, 1), 100)
+
+
+    sub_redirect_url = f"{config.sub_base_url}/redirect/sub/{user.subscription_token}"
+    route_redirect_url = f"{config.sub_base_url}/redirect/route/{user.subscription_token}" if route_deeplink else None
+    win_sub_redirect_url = f"{config.sub_base_url}/redirect/win/sub/{user.subscription_token}"
+    win_route_redirect_url = f"{config.sub_base_url}/redirect/win/route/{user.subscription_token}" if route_deeplink else None
 
     return {
         "has_account": True,
@@ -584,4 +596,10 @@ async def my_account(request: Request):
         "vless_url": vless_url,
         "sub_deeplink": sub_deeplink,
         "route_deeplink": route_deeplink,
+        "sub_redirect_url": sub_redirect_url,
+        "route_redirect_url": route_redirect_url,
+        "win_sub_deeplink": win_sub_deeplink,
+        "win_route_deeplink": win_route_deeplink,
+        "win_sub_redirect_url": win_sub_redirect_url,
+        "win_route_redirect_url": win_route_redirect_url,
     }

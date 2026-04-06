@@ -12,7 +12,7 @@ type Page = 'dashboard' | 'users' | 'routes' | 'settings' | 'tickets' | 'help' |
 
 const tg = (window as any).Telegram?.WebApp
 
-/* ── SVG Nav Icons ── */
+
 const icons = {
   dashboard: (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -75,23 +75,23 @@ const shieldIcon = (
 )
 
 function App() {
-  /* ── Determine initial page from URL ──
-   * Telegram Mini App overwrites window.location.hash with #tgWebAppData=...
-   * So we pass the target page via query string: ?page=help
-   * Also support hash fallback for direct browser access: #help
-   * And Telegram's start_param for bot deep links
+  /**
+   * Определяем стартовую страницу.
+   * Телега перетирает hash своими данными (#tgWebAppData=...),
+   * поэтому юзаем query-параметр (?page=...) или start_param от бота.
+   * Для дебага в браузере оставляем фоллбэк на hash (#help).
    */
   const getInitialPage = (): Page => {
-    // 1. Check URL query param: ?page=help
+    // 1. Через квери-параметр (?page=help)
     const urlParams = new URLSearchParams(window.location.search);
     const qPage = urlParams.get('page');
     if (qPage && validPages.includes(qPage)) return qPage as Page;
 
-    // 2. Check Telegram start_param (from bot.sendMessage with start_param)
+    // 2. Через start_param от телеги
     const startParam = tg?.initDataUnsafe?.start_param;
     if (startParam && validPages.includes(startParam)) return startParam as Page;
 
-    // 3. Fallback: check hash (works in direct browser access)
+    // 3. Фоллбэк на хэш (для обычного браузера)
     const hash = window.location.hash.replace('#', '');
     if (hash && validPages.includes(hash)) return hash as Page;
 
@@ -139,7 +139,7 @@ function App() {
   const userPages = ['account', 'tickets', 'help'] as const
   const pages = isAdmin ? [...adminPages, 'help' as const] : userPages
 
-  // Set default page for non-admin users ONLY after auth is loaded
+  // Ставим страницу по дефолту для обычных юзеров только после авторизации
   useEffect(() => {
     if (authLoaded && !isAdmin && page === 'dashboard') {
       setPage('account');

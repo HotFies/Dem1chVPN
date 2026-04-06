@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getMyAccount, formatBytes, type MyAccount as MyAccountData } from '../api/client';
 
-/* ── Icons ── */
+
 const copyIcon = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
@@ -23,7 +23,7 @@ const externalLinkIcon = (
   </svg>
 );
 
-/* ── Copy Button ── */
+
 function CopyBtn({ text, label }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false);
 
@@ -50,23 +50,19 @@ function CopyBtn({ text, label }: { text: string; label?: string }) {
   );
 }
 
-/** Open a deeplink — custom URL schemes (v2raytun://) need special handling */
-function openDeeplink(url: string) {
-  const isCustomScheme = !/^https?:\/\//i.test(url);
-  if (isCustomScheme) {
-    // Custom URL schemes (v2raytun://) — navigate directly so iOS opens the app
-    window.location.href = url;
+function openDeeplink(redirectUrl: string | null | undefined, fallbackDeeplink: string) {
+  const tg = (window as any).Telegram?.WebApp;
+
+  if (redirectUrl && tg?.openLink) {
+    tg.openLink(redirectUrl);
+  } else if (redirectUrl) {
+    window.open(redirectUrl, '_blank');
   } else {
-    const tg = (window as any).Telegram?.WebApp;
-    if (tg?.openLink) {
-      tg.openLink(url);
-    } else {
-      window.open(url, '_blank');
-    }
+    window.location.href = fallbackDeeplink;
   }
 }
 
-/* ── Platform type ── */
+
 type Platform = 'ios' | 'android' | 'windows' | 'macos' | 'router' | null;
 
 const platformMeta: { id: Platform; icon: string; label: string }[] = [
@@ -77,7 +73,7 @@ const platformMeta: { id: Platform; icon: string; label: string }[] = [
   { id: 'router', icon: '📡', label: 'Роутер' },
 ];
 
-/* ── Date formatter ── */
+
 function fmtDate(iso: string | null | undefined): string {
   if (!iso) return '♾️ Бессрочно';
   const d = new Date(iso);
@@ -91,7 +87,7 @@ function daysLeft(iso: string | null | undefined): string {
   const diff = Math.ceil((exp.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
   if (diff < 0) return 'истёк';
   if (diff === 0) return 'сегодня';
-  // Russian plural: 1 день, 2-4 дня, 5-20 дней, 21 день, 22-24 дня...
+  
   const mod10 = diff % 10;
   const mod100 = diff % 100;
   const word = (mod10 === 1 && mod100 !== 11) ? 'день'
@@ -100,9 +96,7 @@ function daysLeft(iso: string | null | undefined): string {
   return `${diff} ${word}`;
 }
 
-/* ══════════════════════════════════════════════════
-   MyAccount Component
-   ══════════════════════════════════════════════════ */
+
 
 export default function MyAccount() {
   const [data, setData] = useState<MyAccountData | null>(null);
@@ -117,7 +111,7 @@ export default function MyAccount() {
       .finally(() => setLoading(false));
   }, []);
 
-  /* ── Loading state ── */
+
   if (loading) {
     return (
       <div className="my-account">
@@ -129,7 +123,7 @@ export default function MyAccount() {
     );
   }
 
-  /* ── No account ── */
+
   if (!data?.has_account) {
     return (
       <div className="my-account">
@@ -153,7 +147,6 @@ export default function MyAccount() {
   const isExpired = data.expired;
   const isActive = data.active && !isExpired;
 
-  /* progress bar color */
   const barColor = trafficPct > 90 ? 'var(--coral)' :
                    trafficPct > 70 ? 'var(--amber)' :
                    'var(--cyan)';
@@ -161,7 +154,6 @@ export default function MyAccount() {
   return (
     <div className="my-account">
 
-      {/* ═══ Hero Status Card ═══ */}
       <div className={`ma-hero ${isActive ? 'ma-hero--active' : 'ma-hero--inactive'}`}>
         <div className="ma-hero-top">
           <div className="ma-hero-user">
@@ -182,7 +174,6 @@ export default function MyAccount() {
           </div>
         </div>
 
-        {/* Expiry info */}
         {data.expiry && (
           <div className="ma-expiry-row">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14" strokeLinecap="round" strokeLinejoin="round">
@@ -198,7 +189,6 @@ export default function MyAccount() {
         )}
       </div>
 
-      {/* ═══ Traffic Card ═══ */}
       <div className="ma-card">
         <div className="ma-card-title">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -224,7 +214,6 @@ export default function MyAccount() {
           </div>
         </div>
 
-        {/* Progress bar */}
         {isLimited && (
           <div className="ma-progress-wrap">
             <div className="ma-progress-info">
@@ -250,7 +239,6 @@ export default function MyAccount() {
         )}
       </div>
 
-      {/* ═══ Quick Setup — Links ═══ */}
       <div className="ma-card">
         <button
           className="ma-card-toggle"
@@ -271,7 +259,6 @@ export default function MyAccount() {
         {linksOpen && (
           <div className="ma-links-body">
 
-            {/* Subscription URL */}
             {data.sub_url && (
               <div className="ma-link-block">
                 <div className="ma-link-label">
@@ -286,7 +273,6 @@ export default function MyAccount() {
               </div>
             )}
 
-            {/* iOS Quick Import */}
             {data.sub_deeplink && (
               <div className="ma-link-block ma-ios-block">
                 <div className="ma-link-label">
@@ -295,7 +281,7 @@ export default function MyAccount() {
                 </div>
                 <button
                   className="ma-deeplink-btn"
-                  onClick={() => openDeeplink(data.sub_deeplink!)}
+                  onClick={() => openDeeplink(data.sub_redirect_url, data.sub_deeplink!)}
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -311,7 +297,6 @@ export default function MyAccount() {
               </div>
             )}
 
-            {/* Routing deeplink for iOS */}
             {data.route_deeplink && (
               <div className="ma-link-block">
                 <div className="ma-link-label">
@@ -320,7 +305,7 @@ export default function MyAccount() {
                 </div>
                 <button
                   className="ma-deeplink-btn ma-deeplink-btn--routing"
-                  onClick={() => openDeeplink(data.route_deeplink!)}
+                  onClick={() => openDeeplink(data.route_redirect_url, data.route_deeplink!)}
                 >
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
@@ -332,7 +317,30 @@ export default function MyAccount() {
               </div>
             )}
 
-            {/* Direct VLESS Link */}
+            {data.win_sub_deeplink && (
+              <div className="ma-link-block ma-win-block">
+                <div className="ma-link-label">
+                  <span className="ma-link-icon">🖥️</span>
+                  Windows — Dem1chVPN (быстрый импорт)
+                </div>
+                <button
+                  className="ma-deeplink-btn ma-deeplink-btn--windows"
+                  onClick={() => openDeeplink(data.win_sub_redirect_url, data.win_sub_deeplink!)}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  Импорт подписки
+                </button>
+                <div className="ma-link-row ma-link-row--compact">
+                  <code className="ma-link-value ma-link-value--small">{data.win_sub_deeplink.length > 60 ? data.win_sub_deeplink.substring(0, 60) + '...' : data.win_sub_deeplink}</code>
+                  <CopyBtn text={data.win_sub_deeplink} />
+                </div>
+              </div>
+            )}
+
             {data.vless_url && (
               <div className="ma-link-block">
                 <div className="ma-link-label">
@@ -350,7 +358,6 @@ export default function MyAccount() {
         )}
       </div>
 
-      {/* ═══ Setup Instructions ═══ */}
       <div className="ma-card">
         <div className="ma-card-title">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -411,17 +418,19 @@ export default function MyAccount() {
         {platform === 'windows' && (
           <div className="ma-instructions" key="windows">
             <div className="ma-inst-app">
-              <span>v2rayN</span>
-              <a href="https://github.com/2dust/v2rayN/releases" target="_blank" rel="noopener" className="ma-inst-link">
-                {externalLinkIcon} GitHub
+              <span>Dem1chVPN ⭐</span>
+              <a href="https://github.com/HotFies/Dem1chVPN/releases/download/demichvpn-win-v.1.0.0/Dem1chVPN-1.0.0-Setup.exe" target="_blank" rel="noopener" className="ma-inst-link">
+                {externalLinkIcon} Скачать
               </a>
             </div>
             <ol className="ma-steps">
-              <li>Скачайте <strong>v2rayN</strong> с GitHub Releases, распакуйте</li>
-              <li>Скопируйте URL подписки из раздела выше</li>
-              <li>v2rayN → Subscription → Add → вставьте URL</li>
-              <li>Update → выберите сервер → Enable System Proxy</li>
+              <li>Скачайте <strong>Dem1chVPN-Setup.exe</strong> по ссылке выше</li>
+              <li>Запустите установщик и следуйте инструкциям</li>
+              <li>Нажмите <strong>«Импорт подписки»</strong> в разделе Windows выше — приложение импортирует конфигурацию</li>
+              <li>Или скопируйте URL подписки и вставьте в настройках приложения</li>
+              <li>Включите VPN — нажмите кнопку подключения</li>
             </ol>
+            <div className="ma-inst-note">💡 Также можно использовать <a href="https://github.com/2dust/v2rayN/releases" target="_blank" rel="noopener">v2rayN</a>: Subscription → Add → вставьте URL подписки</div>
           </div>
         )}
 
@@ -457,7 +466,6 @@ export default function MyAccount() {
         )}
       </div>
 
-      {/* ═══ FAQ ═══ */}
       <div className="ma-card">
         <div className="ma-card-title">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

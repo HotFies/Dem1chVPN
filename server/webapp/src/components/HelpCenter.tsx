@@ -48,19 +48,24 @@ function CopyButton({ text }: { text: string }) {
   );
 }
 
-/** Open a deeplink — custom URL schemes (v2raytun://) need special handling */
-function openDeeplink(url: string) {
-  const isCustomScheme = !/^https?:\/\//i.test(url);
-  if (isCustomScheme) {
-    // Custom URL schemes (v2raytun://) — navigate directly so iOS opens the app
-    window.location.href = url;
+/**
+ * Открываем диплинк через редирект (чтобы Telegram WebView не блочил).
+ * Телега режет кастомные схемы (v2raytun://).
+ * Решение: открываем HTTPS-страницу во внешнем браузере через tg.openLink(),
+ * а она уже редиректит куда нужно.
+ */
+function openDeeplink(redirectUrl: string | null | undefined, fallbackDeeplink: string) {
+  const tg = (window as any).Telegram?.WebApp;
+
+  if (redirectUrl && tg?.openLink) {
+    // Из телеги → открываем страницу редиректа во внешнем браузере
+    tg.openLink(redirectUrl);
+  } else if (redirectUrl) {
+    // Не в телеге, но есть редирект → в новой вкладке
+    window.open(redirectUrl, '_blank');
   } else {
-    const tg = (window as any).Telegram?.WebApp;
-    if (tg?.openLink) {
-      tg.openLink(url);
-    } else {
-      window.open(url, '_blank');
-    }
+    // Фоллбэк: пробуем сырой диплинк
+    window.location.href = fallbackDeeplink;
   }
 }
 
@@ -102,7 +107,7 @@ export default function HelpCenter({ onOpenGuide }: { onOpenGuide?: () => void }
         </h2>
       </div>
 
-      {/* Personal Links Card */}
+      {/* Карточка личных ссылок */}
       {links?.has_account && (
         <div className="card help-links-card">
           <div className="card-header">
@@ -131,7 +136,7 @@ export default function HelpCenter({ onOpenGuide }: { onOpenGuide?: () => void }
                   <div className="link-value">{links.sub_deeplink}</div>
                   <CopyButton text={links.sub_deeplink} />
                 </div>
-                <button className="btn-open-deeplink" onClick={() => openDeeplink(links.sub_deeplink!)}>
+                <button className="btn-open-deeplink" onClick={() => openDeeplink(links.sub_redirect_url, links.sub_deeplink!)}>
                   Открыть в V2RayTun
                 </button>
               </div>
@@ -145,7 +150,7 @@ export default function HelpCenter({ onOpenGuide }: { onOpenGuide?: () => void }
                   </div>
                   <CopyButton text={links.route_deeplink} />
                 </div>
-                <button className="btn-open-deeplink" onClick={() => openDeeplink(links.route_deeplink!)}>
+                <button className="btn-open-deeplink" onClick={() => openDeeplink(links.route_redirect_url, links.route_deeplink!)}>
                   Импорт маршрутов
                 </button>
               </div>
@@ -165,7 +170,7 @@ export default function HelpCenter({ onOpenGuide }: { onOpenGuide?: () => void }
         </div>
       )}
 
-      {/* Platform Selection */}
+      {/* Выбор платформы */}
       <div className="card">
         <div className="card-header">
           <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -198,14 +203,14 @@ export default function HelpCenter({ onOpenGuide }: { onOpenGuide?: () => void }
         </div>
       </div>
 
-      {/* Platform Instructions */}
+      {/* Инструкции по платформам */}
       {platform === 'ios' && (
         <div className="card help-instructions" key="ios">
           <div className="card-header">
             <span>🍎 Инструкция для iOS</span>
           </div>
           <div className="card-body">
-            {/* Region change banner */}
+            {/* Баннер смены региона */}
             <div className="guide-banner" onClick={onOpenGuide}>
               <div className="guide-banner-icon">🇺🇸</div>
               <div className="guide-banner-text">
@@ -326,9 +331,9 @@ export default function HelpCenter({ onOpenGuide }: { onOpenGuide?: () => void }
           </div>
           <div className="card-body">
             <div className="help-app-header">
-              <span className="help-app-name">v2rayN</span>
-              <a href="https://github.com/2dust/v2rayN/releases" target="_blank" rel="noopener" className="help-download-btn">
-                📥 GitHub
+              <span className="help-app-name">Dem1chVPN ⭐</span>
+              <a href="https://github.com/HotFies/Dem1chVPN/releases/download/demichvpn-win-v.1.0.0/Dem1chVPN-1.0.0-Setup.exe" target="_blank" rel="noopener" className="help-download-btn">
+                📥 Скачать
               </a>
             </div>
 
@@ -336,29 +341,39 @@ export default function HelpCenter({ onOpenGuide }: { onOpenGuide?: () => void }
               <div className="help-step">
                 <div className="step-number">1</div>
                 <div className="step-content">
-                  <strong>Скачайте v2rayN</strong>
-                  <p>Загрузите последнюю версию с GitHub Releases</p>
-                  <p>Распакуйте архив в удобную папку</p>
+                  <strong>Скачайте Dem1chVPN</strong>
+                  <p>Загрузите <code>Dem1chVPN-Setup.exe</code> по кнопке выше</p>
                 </div>
               </div>
 
               <div className="help-step">
                 <div className="step-number">2</div>
                 <div className="step-content">
-                  <strong>Добавьте подписку</strong>
-                  <p>Скопируйте URL подписки из блока выше</p>
-                  <p>v2rayN → Subscription → Add → Вставьте URL</p>
+                  <strong>Установите приложение</strong>
+                  <p>Запустите установщик и следуйте инструкциям</p>
                 </div>
               </div>
 
               <div className="help-step">
                 <div className="step-number">3</div>
                 <div className="step-content">
-                  <strong>Обновите и подключитесь</strong>
-                  <p>Subscription → Update → Выберите сервер</p>
-                  <p>Правый клик на иконку в трее → System Proxy → Enable</p>
+                  <strong>Импортируйте подписку</strong>
+                  <p>Нажмите «Импорт подписки» (Windows) в разделе «Ваши ссылки» выше</p>
+                  <p>Или скопируйте URL подписки и вставьте в настройках приложения</p>
                 </div>
               </div>
+
+              <div className="help-step">
+                <div className="step-number">4</div>
+                <div className="step-content">
+                  <strong>Подключитесь</strong>
+                  <p>Нажмите кнопку подключения — готово! 🎉</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="help-note">
+              💡 Альтернатива: можно использовать <a href="https://github.com/2dust/v2rayN/releases" target="_blank" rel="noopener">v2rayN</a> — Subscription → Add → вставьте URL подписки
             </div>
           </div>
         </div>
@@ -462,7 +477,7 @@ export default function HelpCenter({ onOpenGuide }: { onOpenGuide?: () => void }
         </div>
       )}
 
-      {/* FAQ */}
+      {/* ЧаВо */}
       {!platform && (
         <div className="card">
           <div className="card-header">

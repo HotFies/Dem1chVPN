@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { getServerStatus, formatBytes, formatPercent, type ServerStatus } from '../api/client'
 
-/* ── SVG Circular Gauge ── */
+
 function CircularGauge({ value, max, color, label }: {
   value: number; max: number; color: string; label: string
 }) {
@@ -13,14 +13,14 @@ function CircularGauge({ value, max, color, label }: {
   return (
     <div className="gauge-card">
       <svg className="gauge-svg" viewBox="0 0 64 64">
-        {/* Track */}
+        {/* Трек */}
         <circle
           cx="32" cy="32" r={radius}
           fill="none"
           stroke="rgba(255,255,255,0.06)"
           strokeWidth="5"
         />
-        {/* Fill */}
+        {/* Заполнение */}
         <circle
           cx="32" cy="32" r={radius}
           fill="none"
@@ -35,7 +35,7 @@ function CircularGauge({ value, max, color, label }: {
             filter: `drop-shadow(0 0 4px ${color}40)`,
           }}
         />
-        {/* Percentage text */}
+        {/* Проценты */}
         <text
           x="32" y="34"
           textAnchor="middle"
@@ -52,7 +52,7 @@ function CircularGauge({ value, max, color, label }: {
   )
 }
 
-/* ── Icons (with explicit sizing) ── */
+
 const globeIcon = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" width="20" height="20">
     <circle cx="12" cy="12" r="10" />
@@ -110,7 +110,7 @@ export default function Dashboard() {
 
   return (
     <div className="dashboard">
-      {/* Hero Status Card */}
+      {/* Карточка статуса */}
       <div className={`hero-status ${status.xray_running ? 'active-glow' : ''}`}>
         <div className="hero-top">
           <div className="hero-title">
@@ -129,7 +129,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Server Stats — Circular Gauges */}
+      {/* Стата сервака — круговые графики */}
       <div className="stats-row">
         <CircularGauge value={status.cpu} max={100} color="#00d4ff" label="CPU" />
         <CircularGauge
@@ -142,7 +142,7 @@ export default function Dashboard() {
         />
       </div>
 
-      {/* Resource details with progress bars */}
+      {/* Подробные ресурсы с прогресс-барами */}
       <div className="card">
         <div className="card-header">
           <span className="card-header-icon">{serverIcon}</span>
@@ -186,7 +186,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Traffic Today */}
+      {/* Трафик за сегодня */}
       <div className="card">
         <div className="card-header">
           <span className="card-header-icon">{trendingUpIcon}</span>

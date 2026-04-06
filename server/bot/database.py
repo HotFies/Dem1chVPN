@@ -1,6 +1,5 @@
 """
 Dem1chVPN Bot — Database Models & Engine
-Uses SQLAlchemy async with aiosqlite for SQLite.
 """
 import uuid as uuid_lib
 import secrets
@@ -19,37 +18,29 @@ from .config import config
 Base = declarative_base()
 
 
-# ──────────────────────────────────────────────
-# Models
-# ──────────────────────────────────────────────
-
 class User(Base):
-    """VPN user (Xray client)."""
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(100), nullable=False)
     uuid = Column(String(36), unique=True, nullable=False, default=lambda: str(uuid_lib.uuid4()))
-    email = Column(String(200), unique=True, nullable=False)  # Tag for Xray stats
-    telegram_id = Column(BigInteger, nullable=True)  # TG user ID for self-service
+    email = Column(String(200), unique=True, nullable=False)
+    telegram_id = Column(BigInteger, nullable=True)
     subscription_token = Column(String(64), unique=True, nullable=False,
                                 default=lambda: secrets.token_urlsafe(32))
 
-    # Limits
-    traffic_limit = Column(BigInteger, nullable=True)  # Bytes, None = unlimited
+    traffic_limit = Column(BigInteger, nullable=True)
     traffic_used_up = Column(BigInteger, default=0)
     traffic_used_down = Column(BigInteger, default=0)
-    expiry_date = Column(DateTime, nullable=True)  # None = never expires
+    expiry_date = Column(DateTime, nullable=True)
 
-    # Status
     is_active = Column(Boolean, default=True)
-    warning_sent = Column(Boolean, default=False)  # True = 80% traffic warning was sent
-    last_seen_at = Column(DateTime, nullable=True)  # Last time user had traffic (online detection)
+    warning_sent = Column(Boolean, default=False)
+    last_seen_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
     updated_at = Column(DateTime, default=lambda: datetime.now(timezone.utc),
                         onupdate=lambda: datetime.now(timezone.utc))
 
-    # Relationships
     traffic_logs = relationship("TrafficLog", back_populates="user", cascade="all, delete-orphan")
 
     @property
@@ -73,13 +64,12 @@ class User(Base):
 
 
 class RouteRule(Base):
-    """Custom routing rule (domain → proxy/direct)."""
     __tablename__ = "route_rules"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     domain = Column(String(255), unique=True, nullable=False)
-    rule_type = Column(String(10), nullable=False)  # "proxy" or "direct"
-    added_by = Column(String(50), default="admin")  # "admin", "antifilter", "auto", "user"
+    rule_type = Column(String(10), nullable=False)
+    added_by = Column(String(50), default="admin")
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     def __repr__(self):
@@ -87,19 +77,18 @@ class RouteRule(Base):
 
 
 class Invite(Base):
-    """Invitation link for new users."""
     __tablename__ = "invites"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     code = Column(String(32), unique=True, nullable=False,
                   default=lambda: secrets.token_urlsafe(8))
-    name = Column(String(100), nullable=False)  # Pre-set name for the user
-    traffic_limit = Column(BigInteger, nullable=True)  # Bytes
-    days_valid = Column(Integer, nullable=True)  # Account validity in days
+    name = Column(String(100), nullable=False)
+    traffic_limit = Column(BigInteger, nullable=True)
+    days_valid = Column(Integer, nullable=True)
     max_uses = Column(Integer, default=1)
     times_used = Column(Integer, default=0)
     is_active = Column(Boolean, default=True)
-    created_by = Column(BigInteger, nullable=True)  # Admin TG ID
+    created_by = Column(BigInteger, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     @property
@@ -111,7 +100,6 @@ class Invite(Base):
 
 
 class TrafficLog(Base):
-    """Periodic traffic snapshot per user."""
     __tablename__ = "traffic_logs"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -124,7 +112,6 @@ class TrafficLog(Base):
 
 
 class ServerConfig(Base):
-    """Key-value store for server settings."""
     __tablename__ = "server_config"
 
     key = Column(String(100), primary_key=True)
@@ -137,7 +124,6 @@ class ServerConfig(Base):
 
 
 class BackupRecord(Base):
-    """Backup history."""
     __tablename__ = "backup_records"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -147,14 +133,13 @@ class BackupRecord(Base):
 
 
 class AuditLog(Base):
-    """Admin action log for accountability."""
     __tablename__ = "audit_log"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
-    action = Column(String(100), nullable=False)        # e.g. "user_created", "user_deleted"
-    admin_id = Column(BigInteger, nullable=True)         # Telegram ID of admin
-    target_user_id = Column(Integer, nullable=True)      # DB user ID (if applicable)
-    details = Column(Text, nullable=True)                # Additional info (JSON or text)
+    action = Column(String(100), nullable=False)
+    admin_id = Column(BigInteger, nullable=True)
+    target_user_id = Column(Integer, nullable=True)
+    details = Column(Text, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     def __repr__(self):
@@ -162,7 +147,6 @@ class AuditLog(Base):
 
 
 class Ticket(Base):
-    """Support ticket from user to admin."""
     __tablename__ = "tickets"
 
     id = Column(Integer, primary_key=True, autoincrement=True)
@@ -178,23 +162,16 @@ class Ticket(Base):
         return f"<Ticket(id={self.id}, user={self.user_name}, resolved={self.is_resolved})>"
 
 
-# ──────────────────────────────────────────────
-# Database engine & session
-# ──────────────────────────────────────────────
-
 def get_db_url() -> str:
-    """Get async SQLite URL."""
     return f"sqlite+aiosqlite:///{config.DB_PATH}"
 
 
-# Async engine
 engine = create_async_engine(
     get_db_url(),
     echo=False,
     future=True,
 )
 
-# Async session factory
 async_session = async_sessionmaker(
     engine,
     class_=AsyncSession,
@@ -203,8 +180,6 @@ async_session = async_sessionmaker(
 
 
 async def init_db():
-    """Create all tables if they don't exist."""
-    # Ensure data directory exists
     db_dir = Path(config.DB_PATH).parent
     db_dir.mkdir(parents=True, exist_ok=True)
 

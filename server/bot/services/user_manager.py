@@ -1,6 +1,5 @@
 """
 Dem1chVPN — User Manager Service
-CRUD operations for VPN users + auto-limit enforcement.
 """
 import logging
 from datetime import datetime, timedelta, timezone
@@ -33,7 +32,6 @@ class UserManager:
         import uuid as uuid_module
         async with async_session() as session:
             user_uuid = str(uuid_module.uuid4())
-            # Use UUID prefix in email to guarantee uniqueness
             email_base = name.lower().replace(' ', '_').replace('@', '')[:20]
             email = f"{email_base}_{user_uuid[:8]}@dem1chvpn"
 
@@ -222,8 +220,6 @@ class UserManager:
     async def get_traffic_exceeded_users(self) -> list[User]:
         """Get active users who exceeded their traffic limit."""
         async with async_session() as session:
-            # SQLAlchemy can't compute traffic_total in SQL easily,
-            # so we fetch all limited users and check in Python.
             result = await session.execute(
                 select(User).where(
                     User.is_active == True,
@@ -233,7 +229,7 @@ class UserManager:
             users = list(result.scalars().all())
             return [u for u in users if u.traffic_total >= u.traffic_limit]
 
-    # ── Audit Logging ──
+
 
     async def log_action(
         self,
@@ -253,7 +249,7 @@ class UserManager:
             session.add(entry)
             await session.commit()
 
-    # ── Online Status (#1) ──
+
 
     async def update_last_seen(self, email: str):
         """Update last_seen_at for a user (called from traffic_sync)."""
@@ -277,7 +273,7 @@ class UserManager:
             )
             return list(result.scalars().all())
 
-    # ── Extend / Reset (#2) ──
+
 
     async def extend_user(self, user_id: int, days: int) -> Optional[User]:
         """Extend user expiry by N days (from now or from current expiry)."""
@@ -287,8 +283,6 @@ class UserManager:
             if user:
                 base = user.expiry_date if user.expiry_date and user.expiry_date > datetime.now(timezone.utc) else datetime.now(timezone.utc)
                 user.expiry_date = base + timedelta(days=days)
-                # Only reactivate if was blocked specifically by expiry
-                # (i.e. the user was inactive AND had an expired date)
                 if not user.is_active and user.expiry_date and not user.is_traffic_exceeded:
                     user.is_active = True
                 await session.commit()
@@ -302,12 +296,12 @@ class UserManager:
             user = result.scalar_one_or_none()
             if user:
                 user.traffic_limit = limit_bytes
-                user.warning_sent = False  # Reset warning flag
+                user.warning_sent = False
                 await session.commit()
                 await session.refresh(user)
             return user
 
-    # ── 80% Warning (#3) ──
+
 
     async def set_warning_sent(self, user_id: int, sent: bool = True):
         """Mark that 80% warning was sent to user."""
@@ -331,7 +325,7 @@ class UserManager:
             users = list(result.scalars().all())
             return [u for u in users if u.traffic_limit and u.traffic_total >= u.traffic_limit * 0.8]
 
-    # ── Monthly Reset (#6) ──
+
 
     async def reset_all_traffic_limited(self) -> int:
         """Reset traffic for all users with a limit. Returns count reset."""
@@ -352,7 +346,6 @@ class UserManager:
     async def reactivate_traffic_blocked(self) -> list[User]:
         """Reactivate users that were auto-blocked by traffic limit."""
         async with async_session() as session:
-            # Find users blocked by traffic with a limit
             result = await session.execute(
                 select(User).where(
                     User.is_active == False,
@@ -362,7 +355,6 @@ class UserManager:
             users = list(result.scalars().all())
             reactivated = []
             for user in users:
-                # Only reactivate if traffic is now under limit (after reset)
                 if user.traffic_total < (user.traffic_limit or 0):
                     user.is_active = True
                     reactivated.append(user)
@@ -375,7 +367,6 @@ class UserManager:
         Returns: (reset_count, reactivated_users)
         """
         async with async_session() as session:
-            # Step 1: Reset traffic for all limited users
             result = await session.execute(
                 select(User).where(User.traffic_limit != None)
             )
@@ -387,7 +378,6 @@ class UserManager:
                 user.warning_sent = False
                 reset_count += 1
 
-            # Step 2: Reactivate users blocked by traffic (now within same session)
             result = await session.execute(
                 select(User).where(
                     User.is_active == False,
@@ -397,7 +387,6 @@ class UserManager:
             blocked_users = list(result.scalars().all())
             reactivated = []
             for user in blocked_users:
-                # After reset above, traffic_total is 0 → always under limit
                 if user.traffic_total < (user.traffic_limit or 0):
                     user.is_active = True
                     reactivated.append(user)
@@ -405,7 +394,7 @@ class UserManager:
             await session.commit()
             return reset_count, reactivated
 
-    # ── Traffic Snapshots (#8) ──
+
 
     async def save_traffic_snapshot(self, user_id: int, upload: int, download: int):
         """Save a traffic snapshot to TrafficLog."""
@@ -425,7 +414,7 @@ class UserManager:
             )
             return list(result.scalars().all())
 
-    # ── Broadcast (#7) ──
+
 
     async def get_users_with_telegram(self) -> list[User]:
         """Get all users with linked Telegram ID (for broadcast)."""

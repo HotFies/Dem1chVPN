@@ -1,6 +1,5 @@
 """
 Dem1chVPN Bot — Security Handler (PIN-protection middleware)
-Protects critical operations with PIN code confirmation.
 """
 import logging
 from aiogram import Router, F, BaseMiddleware
@@ -14,7 +13,7 @@ from ..utils.auth import is_admin
 router = Router()
 logger = logging.getLogger("dem1chvpn.security")
 
-# Actions that require PIN
+
 PROTECTED_PREFIXES = [
     "confirm:delete_user",
     "confirm:regen_keys",
@@ -32,7 +31,6 @@ class AdminCheckMiddleware(BaseMiddleware):
 
     async def __call__(self, handler, event: TelegramObject, data: dict):
         if isinstance(event, CallbackQuery):
-            # Admin-only callback prefixes
             admin_prefixes = (
                 "users:", "user:", "route:", "mon:", "set:", "confirm:",
                 "menu:users", "menu:routing", "menu:monitoring", "menu:settings",
@@ -40,11 +38,9 @@ class AdminCheckMiddleware(BaseMiddleware):
             )
             cb_data = event.data or ""
 
-            # Self-service and help are available to all
             if cb_data.startswith(("self:", "help:", "menu:help", "menu:main", "wiz:", "noop")):
                 return await handler(event, data)
 
-            # Admin-only checks
             if any(cb_data.startswith(p) for p in admin_prefixes):
                 if not is_admin(event.from_user.id):
                     await event.answer("⛔ Нет доступа", show_alert=True)
@@ -53,14 +49,13 @@ class AdminCheckMiddleware(BaseMiddleware):
         return await handler(event, data)
 
 
-# Register middleware on the router
+
 router.callback_query.middleware(AdminCheckMiddleware())
 
 
 @router.callback_query(lambda c: any(c.data.startswith(a) for a in PROTECTED_PREFIXES))
 async def pin_protect(callback: CallbackQuery, state: FSMContext):
     """Intercept protected actions and ask for PIN."""
-    # Save the original callback data so we can replay it
     await state.update_data(
         pending_action=callback.data,
         pending_message_id=callback.message.message_id,
@@ -86,7 +81,6 @@ async def pin_verify(message: Message, state: FSMContext):
     pending = data.get("pending_action", "")
     await state.clear()
 
-    # Parse action: format is "confirm:ACTION:TARGET_ID"
     parts = pending.split(":")
     action = parts[1] if len(parts) > 1 else ""
     target_id = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 0
@@ -118,7 +112,6 @@ async def _execute_delete_user(message: Message, user_id: int):
         await xray_mgr.remove_client(user.email)
         await mgr.delete_user(user_id)
 
-        # Audit log
         await mgr.log_action(
             "user_deleted",
             admin_id=message.from_user.id,
@@ -169,11 +162,9 @@ async def _execute_regen_keys(message: Message):
         await xray_mgr.update_reality_settings(private_key=private_key)
         await xray_mgr.reload_xray()
 
-        # Update runtime config so VLESS URLs use the new keys immediately
         config.REALITY_PRIVATE_KEY = private_key
         config.REALITY_PUBLIC_KEY = public_key
 
-        # Audit log
         mgr = UserManager()
         await mgr.log_action(
             "keys_regenerated",

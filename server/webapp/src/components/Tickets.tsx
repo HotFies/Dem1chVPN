@@ -10,7 +10,7 @@ interface TicketsProps {
 
 type FilterTab = 'open' | 'closed' | 'all'
 
-/* Icons */
+
 const ticketIcon = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
@@ -117,13 +117,11 @@ export default function Tickets({ isAdmin }: TicketsProps) {
 
   return (
     <div className="tickets-page">
-      {/* Header */}
       <div className="section-header">
         <div className="section-icon">{ticketIcon}</div>
         <h2>{isAdmin ? 'Тикеты' : 'Мои обращения'}</h2>
       </div>
 
-      {/* Admin filter tabs */}
       {isAdmin && (
         <div className="filter-tabs">
           {([
@@ -143,7 +141,6 @@ export default function Tickets({ isAdmin }: TicketsProps) {
         </div>
       )}
 
-      {/* Create ticket button (user) */}
       {!isAdmin && !showCreate && (
         <button
           className="btn-create-ticket"
@@ -154,7 +151,6 @@ export default function Tickets({ isAdmin }: TicketsProps) {
         </button>
       )}
 
-      {/* Create form */}
       {showCreate && (
         <div className="card ticket-create-form">
           <div className="card-header">
@@ -194,7 +190,6 @@ export default function Tickets({ isAdmin }: TicketsProps) {
         </div>
       )}
 
-      {/* Ticket list */}
       {loading ? (
         <div className="loading-page">
           <div className="spinner" />
@@ -215,7 +210,6 @@ export default function Tickets({ isAdmin }: TicketsProps) {
               className={`ticket-card ${ticket.is_resolved ? 'resolved' : 'open'}`}
               style={{ animationDelay: `${i * 0.05}s` }}
             >
-              {/* Ticket header */}
               <div
                 className="ticket-card-header"
                 onClick={() => setExpandedId(expandedId === ticket.id ? null : ticket.id)}
@@ -234,7 +228,6 @@ export default function Tickets({ isAdmin }: TicketsProps) {
                 <span className="ticket-date">{formatDate(ticket.created_at)}</span>
               </div>
 
-              {/* Ticket body */}
               <div className={`ticket-body ${expandedId === ticket.id ? 'expanded' : ''}`}>
                 <div className="ticket-message">
                   <span className="ticket-label">Сообщение</span>
@@ -254,7 +247,6 @@ export default function Tickets({ isAdmin }: TicketsProps) {
                   </div>
                 )}
 
-                {/* Admin actions */}
                 {isAdmin && !ticket.is_resolved && expandedId === ticket.id && (
                   <div className="ticket-actions">
                     {replyTicketId === ticket.id ? (

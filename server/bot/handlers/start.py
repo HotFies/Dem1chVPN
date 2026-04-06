@@ -1,6 +1,5 @@
 """
 Dem1chVPN Bot — Start Handler
-Main menu and navigation.
 """
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
@@ -34,7 +33,6 @@ async def cmd_start(message: Message):
         await message.answer(text, reply_markup=main_menu(is_admin=True))
         return
 
-    # Check if user is a linked VPN user
     from ..services.user_manager import UserManager
     mgr = UserManager()
     vpn_user = await mgr.get_user_by_telegram_id(user_id)
@@ -47,7 +45,6 @@ async def cmd_start(message: Message):
         )
         await message.answer(text, reply_markup=main_menu(is_admin=False))
     else:
-        # Not a VPN user → reject
         await message.answer(
             "🛡️ <b>Dem1chVPN</b>\n\n"
             "⛔ Вы не являетесь пользователем VPN.\n\n"
@@ -55,7 +52,7 @@ async def cmd_start(message: Message):
         )
 
 
-# ── Navigation callbacks ──
+
 
 @router.callback_query(F.data == "menu:main")
 async def menu_main(callback: CallbackQuery, state: FSMContext):

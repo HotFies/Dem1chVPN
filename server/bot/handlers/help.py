@@ -1,6 +1,5 @@
 """
 Dem1chVPN Bot — Help Handler
-Connection instructions for all platforms (updated for 2025/2026 client versions).
 """
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
@@ -12,24 +11,28 @@ router = Router()
 INSTRUCTIONS = {
     "windows": (
         "🖥️ <b>Инструкция для Windows</b>\n\n"
+        "<b>Вариант 1: Dem1chVPN ⭐ (рекомендуется)</b>\n\n"
+        "<b>1. Скачайте Dem1chVPN:</b>\n"
+        '   📥 <a href="https://github.com/HotFies/Dem1chVPN/releases/download/demichvpn-win-v.1.0.0/Dem1chVPN-1.0.0-Setup.exe">GitHub Releases</a>\n'
+        "   Файл: <code>Dem1chVPN-Setup.exe</code>\n\n"
+        "<b>2. Установка:</b>\n"
+        "   • Запустите установщик\n"
+        "   • Следуйте инструкциям мастера установки\n\n"
+        "<b>3. Импорт подписки:</b>\n"
+        "   • В личном кабинете нажмите «Импорт подписки» (Windows)\n"
+        "   • Или вставьте URL подписки в настройках приложения\n\n"
+        "<b>4. Подключение:</b>\n"
+        "   • Нажмите кнопку подключения в приложении\n"
+        "   • Готово! 🎉\n\n"
+        "━━━━━━━━━━━━━━━━━\n\n"
+        "<b>Вариант 2: v2rayN (альтернатива)</b>\n\n"
         "<b>1. Скачайте v2rayN:</b>\n"
         '   📥 <a href="https://github.com/2dust/v2rayN/releases">GitHub Releases</a>\n'
         "   Файл: <code>v2rayN-windows-64-SelfContained.zip</code>\n\n"
-        "<b>2. Установка:</b>\n"
-        "   • Распакуйте архив в любую папку\n"
-        "   • Запустите <code>v2rayN.exe</code>\n\n"
-        "<b>3. Добавьте подписку:</b>\n"
-        '   • Верхнее меню: Subscription → Subscription setting\n'
-        '   • Нажмите Add\n'
-        '   • В поле URL вставьте ссылку подписки → OK\n'
-        '   • Subscription → Update subscription\n\n'
-        "<b>4. Настройте маршрутизацию (один раз):</b>\n"
-        '   • Routing Settings → Import rules from URL\n'
-        "   • Вставьте URL маршрутизации из бота\n"
-        "   • РФ-сервисы будут работать напрямую\n\n"
-        "<b>5. Подключение:</b>\n"
-        '   • Выберите сервер → Enter\n'
-        '   • В трее появится значок v2rayN'
+        "<b>2. Настройка:</b>\n"
+        "   • Распакуйте архив, запустите <code>v2rayN.exe</code>\n"
+        '   • Subscription → Add → вставьте URL подписки\n'
+        '   • Update subscription → Выберите сервер → Enter'
     ),
     "android": (
         "📱 <b>Инструкция для Android</b>\n\n"
@@ -133,7 +136,7 @@ INSTRUCTIONS = {
         "и VPS-сервером за рубежом для ускорения и стабилизации "
         "интернет-соединения.\n\n"
         "<b>Клиенты для подключения:</b>\n"
-        "🖥️ Windows: v2rayN\n"
+        "🖥️ Windows: Dem1chVPN / v2rayN\n"
         "📱 Android: v2rayNG\n"
         "🍎 iOS: V2RayTun\n"
         "🐧 Linux: Nekoray / v2rayA\n"

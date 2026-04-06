@@ -1,6 +1,5 @@
 """
 Dem1chVPN Bot — Ticket System Handler
-Allows VPN users to submit tickets, admins to view/reply/close.
 """
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message
@@ -28,7 +27,7 @@ class TicketReplyStates(StatesGroup):
     waiting_reply = State()
 
 
-# ── User: Create Ticket ──
+
 
 @router.callback_query(F.data == "self:ticket")
 async def self_ticket_start(callback: CallbackQuery, state: FSMContext):
@@ -84,7 +83,7 @@ async def self_ticket_submit(message: Message, state: FSMContext):
     ticket = await ticket_mgr.create_ticket(
         user_telegram_id=message.from_user.id,
         user_name=message.from_user.full_name,
-        message=text[:2000],  # Limit
+        message=text[:2000],
     )
 
     if ticket:
@@ -94,7 +93,6 @@ async def self_ticket_submit(message: Message, state: FSMContext):
             reply_markup=back_button("menu:main"),
         )
 
-        # Notify admin(s)
         from ..config import config
         for admin_id in config.ADMIN_IDS:
             try:
@@ -113,7 +111,7 @@ async def self_ticket_submit(message: Message, state: FSMContext):
         )
 
 
-# ── Admin: Ticket List ──
+
 
 @router.callback_query(F.data == "tickets:list")
 async def tickets_list(callback: CallbackQuery):
@@ -133,7 +131,7 @@ async def tickets_list(callback: CallbackQuery):
     await callback.answer()
 
 
-# ── Admin: View Ticket ──
+
 
 @router.callback_query(F.data.startswith("ticket:view:"))
 async def ticket_view(callback: CallbackQuery):
@@ -184,7 +182,7 @@ async def _show_ticket_view(callback: CallbackQuery, ticket_id: int):
     )
 
 
-# ── Admin: Reply to Ticket ──
+
 
 @router.callback_query(F.data.startswith("ticket:reply:"))
 async def ticket_reply_start(callback: CallbackQuery, state: FSMContext):
@@ -231,7 +229,6 @@ async def ticket_reply_send(message: Message, state: FSMContext):
             reply_markup=back_button("tickets:list"),
         )
 
-        # Send reply to user
         try:
             await message.bot.send_message(
                 ticket.user_telegram_id,

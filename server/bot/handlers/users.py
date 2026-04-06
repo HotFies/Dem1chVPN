@@ -1,7 +1,5 @@
 """
 Dem1chVPN Bot — User Management Handler
-Add/list/delete/toggle users via Telegram bot.
-Uses hybrid button approach: actions → new message, navigation → edit.
 """
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message, BufferedInputFile
@@ -107,7 +105,7 @@ class SetLimitStates(StatesGroup):
     waiting_limit = State()
 
 
-# ── Noop handler (for pagination page counter) ──
+
 
 @router.callback_query(F.data == "noop")
 async def noop(callback: CallbackQuery):
@@ -115,7 +113,7 @@ async def noop(callback: CallbackQuery):
     await callback.answer()
 
 
-# ── Add User Flow ──
+
 
 @router.callback_query(F.data == "users:add")
 async def users_add_start(callback: CallbackQuery, state: FSMContext):
@@ -235,8 +233,9 @@ async def users_add_expiry(message: Message, state: FSMContext):
     vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
     sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
 
-    # v2RayTun deeplinks
+    # Deeplinks
     sub_deeplink = f"v2raytun://import/{sub_url}"
+    win_sub_deeplink = f"dem1chvpn://import/{sub_url}"
     route_deeplink = _build_routing_deeplink()
 
     # Send info
@@ -255,6 +254,9 @@ async def users_add_expiry(message: Message, state: FSMContext):
         )
     info_text += (
         f"━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"🖥️ <b>Dem1chVPN (Windows) — автоимпорт:</b>\n"
+        f"<code>{win_sub_deeplink}</code>\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━━\n\n"
         f"📡 <b>Подписка</b> (для других клиентов):\n"
         f"<code>{sub_url}</code>\n"
         f"<i>↳ v2rayN / v2rayNG / Streisand</i>\n\n"
@@ -265,7 +267,7 @@ async def users_add_expiry(message: Message, state: FSMContext):
     await message.answer(info_text, reply_markup=user_actions(user.id, has_telegram=bool(user.telegram_id)))
 
 
-# ── List Users (Paginated) ──
+
 
 @router.callback_query(F.data.startswith("users:list"))
 async def users_list(callback: CallbackQuery, state: FSMContext):
@@ -309,7 +311,7 @@ async def users_list(callback: CallbackQuery, state: FSMContext):
         await callback.answer()
 
 
-# ── User Info ──
+
 
 @router.callback_query(F.data.startswith("user:info:"))
 async def user_info(callback: CallbackQuery, state: FSMContext):
@@ -338,7 +340,7 @@ async def user_info(callback: CallbackQuery, state: FSMContext):
             await callback.answer()
 
 
-# ── Get Link (action → new message) ──
+
 
 @router.callback_query(F.data.startswith("user:link:"))
 async def user_link(callback: CallbackQuery):
@@ -368,7 +370,7 @@ async def user_link(callback: CallbackQuery):
 
 
 
-# ── Toggle Active (action → new message + notification) ──
+
 
 @router.callback_query(F.data.startswith("user:toggle:"))
 async def user_toggle(callback: CallbackQuery):
@@ -426,7 +428,7 @@ async def user_toggle(callback: CallbackQuery):
     await callback.answer(f"{status}: {user.name}", show_alert=True)
 
 
-# ── Delete User ──
+
 
 @router.callback_query(F.data.startswith("user:delete:"))
 async def user_delete_confirm(callback: CallbackQuery):
@@ -451,7 +453,7 @@ async def user_delete_confirm(callback: CallbackQuery):
 # confirm:delete_user is handled by security.py (PIN-protected)
 
 
-# ── Subscription Link (action → new message) ──
+
 
 @router.callback_query(F.data.startswith("user:sub:"))
 async def user_subscription(callback: CallbackQuery):
@@ -466,8 +468,9 @@ async def user_subscription(callback: CallbackQuery):
 
     sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
 
-    # v2RayTun deeplinks
+    # Deeplinks
     sub_deeplink = f"v2raytun://import/{sub_url}"
+    win_sub_deeplink = f"dem1chvpn://import/{sub_url}"
     route_deeplink = _build_routing_deeplink()
 
     # Remove old keyboard
@@ -486,6 +489,9 @@ async def user_subscription(callback: CallbackQuery):
         )
     text += (
         f"━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"🖥️ <b>Dem1chVPN (Windows) — автоимпорт:</b>\n"
+        f"<code>{win_sub_deeplink}</code>\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━━\n\n"
         f"📋 <b>Для других клиентов</b> (скопируйте URL):\n"
         f"<code>{sub_url}</code>\n\n"
         f"💡 <b>Инструкция:</b>\n"
@@ -502,7 +508,7 @@ async def user_subscription(callback: CallbackQuery):
     await callback.answer()
 
 
-# ── User Traffic ──
+
 
 @router.callback_query(F.data.startswith("user:traffic:"))
 async def user_traffic(callback: CallbackQuery):
@@ -538,7 +544,7 @@ async def user_traffic(callback: CallbackQuery):
     await callback.answer()
 
 
-# ── All Users Traffic ──
+
 
 @router.callback_query(F.data == "users:traffic_all")
 async def users_traffic_all(callback: CallbackQuery):
@@ -584,7 +590,7 @@ async def users_traffic_all(callback: CallbackQuery):
     await callback.answer()
 
 
-# ── Extend User Expiry (#2) ──
+
 
 @router.callback_query(F.data.startswith("user:extend:"))
 async def user_extend_start(callback: CallbackQuery, state: FSMContext):
@@ -656,7 +662,7 @@ async def user_extend_process(message: Message, state: FSMContext):
                              reply_markup=back_button("menu:users"))
 
 
-# ── Reset Traffic (#2) ──
+
 
 @router.callback_query(F.data.startswith("user:reset_traffic:"))
 async def user_reset_traffic(callback: CallbackQuery):
@@ -691,7 +697,7 @@ async def user_reset_traffic(callback: CallbackQuery):
         await callback.answer("❌ Пользователь не найден", show_alert=True)
 
 
-# ── Set Traffic Limit (#2) ──
+
 
 @router.callback_query(F.data.startswith("user:set_limit:"))
 async def user_set_limit_start(callback: CallbackQuery, state: FSMContext):
@@ -760,7 +766,7 @@ async def user_set_limit_process(message: Message, state: FSMContext):
                              reply_markup=back_button("menu:users"))
 
 
-# ── User Traffic Chart (#8) ──
+
 
 @router.callback_query(F.data.startswith("user:chart:"))
 async def user_chart(callback: CallbackQuery):
@@ -808,7 +814,7 @@ async def user_chart(callback: CallbackQuery):
     await callback.answer()
 
 
-# ── Link Telegram Account (#link) ──
+
 
 @router.callback_query(F.data.startswith("user:link_tg:"))
 async def user_link_tg(callback: CallbackQuery):

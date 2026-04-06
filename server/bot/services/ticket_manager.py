@@ -1,6 +1,5 @@
 """
 Dem1chVPN — Ticket Manager Service
-CRUD for support tickets (user → admin communication).
 """
 import logging
 from datetime import datetime, timezone

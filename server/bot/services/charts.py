@@ -1,7 +1,6 @@
 """
-Dem1chVPN — Traffic Charts Generator
-Creates PNG charts for traffic visualization using matplotlib.
-Premium dark theme with gradient bars and smooth curves.
+Dem1chVPN — Генератор графиков трафика
+Рендерит PNG графики нагрузки через matplotlib.
 """
 import io
 from datetime import datetime, timedelta, timezone
@@ -15,7 +14,7 @@ from matplotlib.ticker import FuncFormatter
 import numpy as np
 
 
-# ── Color Palette (matches Mini App) ──
+# ── Цветовая палитра (как в Mini App) ──
 BG_DEEP = "#050a18"
 BG_CARD = "#0c1428"
 TEXT_PRIMARY = "#e8edf5"
@@ -31,7 +30,7 @@ VIOLET_SOFT = "#a78bfa"
 
 
 def _format_bytes_axis(val, pos):
-    """Format axis labels as human-readable bytes."""
+
     if val >= 1024 ** 3:
         return f"{val / (1024 ** 3):.1f} GB"
     elif val >= 1024 ** 2:
@@ -42,7 +41,7 @@ def _format_bytes_axis(val, pos):
 
 
 def _format_bytes_short(val):
-    """Format bytes as short string."""
+
     if val >= 1024 ** 3:
         return f"{val / (1024 ** 3):.1f} GB"
     elif val >= 1024 ** 2:
@@ -53,7 +52,7 @@ def _format_bytes_short(val):
 
 
 def _apply_style(fig, ax):
-    """Apply premium dark theme styling."""
+
     fig.patch.set_facecolor(BG_DEEP)
     ax.set_facecolor(BG_CARD)
     ax.tick_params(colors=TEXT_SECONDARY, labelsize=9)
@@ -64,7 +63,7 @@ def _apply_style(fig, ax):
         spine.set_visible(False)
     ax.grid(True, alpha=0.15, color=GRID_COLOR, linewidth=0.5)
 
-    # Subtle rounded border effect
+    # Эффект закругленных рамок
     ax.patch.set_linewidth(1)
     ax.patch.set_edgecolor("#1a2744")
 
@@ -74,11 +73,7 @@ def generate_user_traffic_chart(
     upload_data: list[tuple[datetime, int]],
     download_data: list[tuple[datetime, int]],
 ) -> bytes:
-    """
-    Generate a traffic chart for a single user.
-    Data format: list of (datetime, bytes) tuples.
-    Returns PNG bytes.
-    """
+    """Рисует график загрузки/отдачи для конкретного юзера (возвращает PNG)"""
     fig, ax = plt.subplots(figsize=(10, 5))
     _apply_style(fig, ax)
 
@@ -116,11 +111,7 @@ def generate_user_traffic_chart(
 def generate_overview_chart(
     users: list[dict],
 ) -> bytes:
-    """
-    Generate overview bar chart of all users' traffic.
-    users: list of {"name": str, "upload": int, "download": int}
-    Returns PNG bytes.
-    """
+    """Рисует общий график трафика по всем юзерам (возвращает PNG)"""
     fig, ax = plt.subplots(figsize=(10, max(4, len(users) * 0.7 + 1.5)))
     _apply_style(fig, ax)
 
@@ -134,7 +125,7 @@ def generate_overview_chart(
         buf.seek(0)
         return buf.getvalue()
 
-    # Sort by total traffic (largest at top)
+    # Сортируем: кто больше накачал, тот выше
     users = sorted(users, key=lambda u: u["upload"] + u["download"])
 
     names = [u["name"] for u in users]
@@ -154,7 +145,7 @@ def generate_overview_chart(
                       height=bar_height, color=VIOLET, alpha=0.85,
                       label="↑ Upload", zorder=3)
 
-    # Add value labels to the right of bars
+    # Добавляем подписи со значениями справа от баров
     max_val = max(max(downloads) if downloads else 0,
                   max(uploads) if uploads else 0)
     for bar in bars_down:
@@ -175,7 +166,7 @@ def generate_overview_chart(
     ax.set_yticklabels(names, fontsize=11, color=TEXT_PRIMARY, fontweight="500")
     ax.xaxis.set_major_formatter(FuncFormatter(_format_bytes_axis))
 
-    # Title with date
+    # Заголовок с датой
     now = datetime.now()
     ax.set_title(f"Dem1chVPN • Трафик ({now.strftime('%d.%m.%Y')})",
                  fontsize=14, fontweight="bold", pad=15, loc="left",
@@ -184,7 +175,7 @@ def generate_overview_chart(
     ax.legend(loc="lower right", framealpha=0.3, facecolor=BG_CARD,
               edgecolor=GRID_COLOR, fontsize=10, labelcolor=TEXT_PRIMARY)
 
-    # Add some padding on the right for labels
+    # Отступ справа для подписей
     if max_val > 0:
         ax.set_xlim(right=max_val * 1.2)
 
@@ -202,10 +193,7 @@ def generate_server_load_chart(
     cpu_values: list[float],
     ram_values: list[float],
 ) -> bytes:
-    """
-    Generate server load chart (CPU + RAM over time).
-    Returns PNG bytes.
-    """
+    """Рисует график нагрузки на сервер: CPU/RAM (возвращает PNG)"""
     fig, ax = plt.subplots(figsize=(10, 4))
     _apply_style(fig, ax)
 

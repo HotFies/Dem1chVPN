@@ -1,6 +1,5 @@
 """
 Dem1chVPN — Route Manager Service
-CRUD for routing rules + antifilter sync.
 """
 import aiohttp
 from typing import Optional
@@ -100,35 +99,28 @@ class RouteManager:
 
     async def generate_client_routing_config(self) -> dict:
         """Generate routing config for client subscription (split-tunneling).
-
-        Russian domains (all TLDs + geosite + CDNs) go DIRECT.
-        Blocked/throttled services go through PROXY.
-        Everything else — default outbound (proxy in client config).
         """
         proxy_domains = await self.get_proxy_domains()
         direct_domains = await self.get_direct_domains()
 
-        # Fallback to config defaults if DB has no proxy domains yet
         if not proxy_domains:
             proxy_domains = config.DEFAULT_PROXY_DOMAINS
 
         rules = []
 
-        # ── Rule 1: All Russian domains → DIRECT ──
         direct_domain_list = [
             "geosite:category-ru",
             "regexp:.*\\.ru$",
             "regexp:.*\\.su$",
-            "regexp:.*\\.xn--p1ai$",      # .рф
-            "regexp:.*\\.xn--p1acf$",     # .рус
-            "regexp:.*\\.xn--80adxhks$",  # .москва
-            "regexp:.*\\.xn--80asehdb$",  # .онлайн
-            "regexp:.*\\.xn--80aswg$",    # .сайт
-            "regexp:.*\\.xn--c1avg$",     # .орг
-            "regexp:.*\\.xn--d1acj3b$",   # .дети
+            "regexp:.*\\.xn--p1ai$",
+            "regexp:.*\\.xn--p1acf$",
+            "regexp:.*\\.xn--80adxhks$",
+            "regexp:.*\\.xn--80asehdb$",
+            "regexp:.*\\.xn--80aswg$",
+            "regexp:.*\\.xn--c1avg$",
+            "regexp:.*\\.xn--d1acj3b$",
             "regexp:.*\\.moscow$",
             "regexp:.*\\.tatar$",
-            # Russian CDNs & services with non-.ru domains
             "domain:userapi.com", "domain:vk.com", "domain:vk.me",
             "domain:vkuseraudio.net", "domain:vkuservideo.net",
             "domain:vk-cdn.net", "domain:vkontakte.com",
@@ -143,9 +135,11 @@ class RouteManager:
             "domain:t1.cloud", "domain:dbo-dengi.online",
             "domain:moex.com", "domain:turbopages.org",
             "domain:webvisor.com", "domain:naydex.net",
-            # Государство + налоги (критичные API-домены)
             "domain:nalog.ru",
             "domain:nalog.gov.ru",
+            "domain:lkfl.nalog.ru",
+            "domain:lkfl2.nalog.ru",
+            "domain:lknpd.nalog.ru",
             "domain:gosuslugi.ru",
             "domain:esia.gosuslugi.ru",
             "domain:gu-st.ru",
@@ -156,9 +150,45 @@ class RouteManager:
             "domain:cbr.ru",
             "domain:goskey.ru",
             "domain:pfr.gov.ru",
-            # Платёжные системы
+            "domain:sfr.gov.ru",
+            "domain:fss.ru",
+            "domain:rosreestr.ru",
+            "domain:rosreestr.gov.ru",
+            "domain:mvd.ru",
+            "domain:mvd.gov.ru",
+            "domain:fssp.gov.ru",
+            "domain:zakupki.gov.ru",
+            "domain:bus.gov.ru",
+            "domain:rpn.gov.ru",
+            "domain:fas.gov.ru",
+            "domain:rostrud.gov.ru",
+            "domain:fns.su",
             "domain:nspk.ru",
             "domain:mir.ru",
+            "domain:qiwi.com",
+            "domain:yoomoney.ru",
+            "domain:sberbank.com", "domain:sber.me",
+            "domain:sberbank.ru", "domain:sber.ru",
+            "domain:tinkoff.ru", "domain:tbank.ru", "domain:tbank-online.com",
+            "domain:tochka.com", "domain:tochka-tech.com",
+            "domain:vtb.ru", "domain:alfabank.ru", "domain:alfa.me",
+            "domain:alfaclick.ru", "domain:gazprombank.ru",
+            "domain:raiffeisen.ru", "domain:rshb.ru",
+            "domain:rosbank.ru", "domain:psbank.ru",
+            "domain:open.ru", "domain:mkb.ru",
+            "domain:sovcombank.ru", "domain:pochtabank.ru",
+            "domain:homecredit.ru", "domain:uralsib.ru",
+            "domain:akbars.ru", "domain:bnkv.ru",
+            "domain:mts.ru", "domain:megafon.ru",
+            "domain:beeline.ru", "domain:tele2.ru",
+            "domain:rt.ru", "domain:rostelecom.ru",
+            "domain:ttk.ru", "domain:dom.ru",
+            "domain:rzd.ru", "domain:aeroflot.ru",
+            "domain:s7.ru", "domain:utair.ru",
+            "domain:pochta.ru", "domain:cdek.ru",
+            "domain:ngenix.net", "domain:cdnvideo.net",
+            "domain:selcdn.net", "domain:selectel.cloud",
+            "domain:2gis.com",
         ]
         if direct_domains:
             direct_domain_list.extend(f"domain:{d}" for d in direct_domains)
@@ -169,14 +199,12 @@ class RouteManager:
             "domain": direct_domain_list,
         })
 
-        # ── Rule 2: Russian IPs → DIRECT ──
         rules.append({
             "type": "field",
             "outboundTag": "direct",
             "ip": ["geoip:ru", "geoip:private"],
         })
 
-        # ── Rule 3: Blocked/throttled services → PROXY ──
         if proxy_domains:
             rules.append({
                 "type": "field",
@@ -184,13 +212,9 @@ class RouteManager:
                 "domain": [f"domain:{d}" for d in proxy_domains],
             })
 
-        # Split-tunnel: no catch-all rule.
-        # Client's first outbound (proxy) handles unmatched traffic by default.
-
         return {
             "routing": {
                 "domainStrategy": "IPIfNonMatch",
                 "rules": rules,
             }
         }
-

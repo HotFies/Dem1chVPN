@@ -1,6 +1,5 @@
 """
-Dem1chVPN — QR Code Generator
-Generates QR codes for VLESS connection URLs.
+Dem1chVPN — Генератор QR-кодов
 """
 import io
 import qrcode
@@ -10,12 +9,9 @@ from PIL import Image, ImageDraw, ImageFont
 
 
 def generate_qr_code(data: str, box_size: int = 10, border: int = 2) -> bytes:
-    """
-    Generate a styled QR code image.
-    Returns PNG bytes.
-    """
+
     qr = qrcode.QRCode(
-        version=None,  # Auto-detect
+        version=None,
         error_correction=qrcode.constants.ERROR_CORRECT_M,
         box_size=box_size,
         border=border,
@@ -23,7 +19,7 @@ def generate_qr_code(data: str, box_size: int = 10, border: int = 2) -> bytes:
     qr.add_data(data)
     qr.make(fit=True)
 
-    # Create styled QR image
+
     img = qr.make_image(
         image_factory=StyledPilImage,
         module_drawer=RoundedModuleDrawer(),
@@ -31,11 +27,11 @@ def generate_qr_code(data: str, box_size: int = 10, border: int = 2) -> bytes:
         back_color="#ffffff",
     )
 
-    # Add padding and branding
+
     img_pil = img.get_image()
     width, height = img_pil.size
 
-    # Create canvas with extra space for text
+
     padding = 30
     text_height = 40
     canvas = Image.new(
@@ -45,7 +41,7 @@ def generate_qr_code(data: str, box_size: int = 10, border: int = 2) -> bytes:
     )
     canvas.paste(img_pil, (padding, padding))
 
-    # Add branding text
+
     draw = ImageDraw.Draw(canvas)
     try:
         font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 16)
@@ -59,7 +55,7 @@ def generate_qr_code(data: str, box_size: int = 10, border: int = 2) -> bytes:
     y = height + padding * 2 + 5
     draw.text((x, y), text, fill="#1a1a2e", font=font)
 
-    # Convert to bytes
+
     buffer = io.BytesIO()
     canvas.save(buffer, format="PNG", optimize=True)
     buffer.seek(0)

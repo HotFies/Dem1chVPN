@@ -1,6 +1,5 @@
 """
 Dem1chVPN — MTProto Manager Service
-Manage MTProto proxy for Telegram.
 """
 import asyncio
 import logging
@@ -83,7 +82,7 @@ class MTProtoManager:
         """Generate Telegram MTProto proxy link."""
         secret = self.get_secret()
         server_ip = config.SERVER_IP
-        port = config.SERVER_PORT  # 443, via Xray fallback
+        port = config.SERVER_PORT
 
         if not secret:
             return ""

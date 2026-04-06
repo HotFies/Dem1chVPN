@@ -1,6 +1,5 @@
 """
 Dem1chVPN Bot — Entry Point
-Main bot application with aiogram 3.
 """
 import asyncio
 import logging
@@ -17,18 +16,17 @@ from .handlers import invite, wizard, security, tickets
 from .services.user_manager import UserManager
 from .services.xray_config import XrayConfigManager
 
-# Configure logging with rotation
 log_handlers = [logging.StreamHandler(sys.stdout)]
 try:
     from logging.handlers import RotatingFileHandler
     log_handlers.append(RotatingFileHandler(
         "/var/log/dem1chvpn/bot.log",
-        maxBytes=5 * 1024 * 1024,  # 5 MB per file
+        maxBytes=5 * 1024 * 1024,
         backupCount=3,
         encoding="utf-8",
     ))
 except (OSError, FileNotFoundError):
-    pass  # OK on Windows / development
+    pass
 
 logging.basicConfig(
     level=logging.INFO,
@@ -39,14 +37,11 @@ logger = logging.getLogger("dem1chvpn")
 
 
 async def on_startup(bot: Bot):
-    """Called when bot starts."""
     logger.info("🛡️ Dem1chVPN Bot starting...")
 
-    # Initialize database
     await init_db()
     logger.info("✅ Database initialized")
 
-    # Notify admin
     for admin_id in config.ADMIN_IDS:
         try:
             await bot.send_message(
@@ -61,30 +56,22 @@ async def on_startup(bot: Bot):
 
 
 async def traffic_sync_task(bot: Bot):
-    """
-    Background task: periodically sync traffic stats from Xray gRPC API.
-    Runs every 60 seconds, queries Xray Stats, updates DB.
-    Auto-blocks users who exceed their traffic limit.
-    Tracks online status, saves snapshots, sends 80% warnings.
-    """
     from .services.xray_api import XrayAPI
 
     api = XrayAPI()
     mgr = UserManager()
     xray_mgr = XrayConfigManager()
-    snapshot_counter = 0  # Save snapshots every ~15 iterations (15 min)
+    snapshot_counter = 0
 
     while True:
         try:
-            await asyncio.sleep(60)  # Check every 60 seconds
+            await asyncio.sleep(60)
             snapshot_counter += 1
 
-            # Get stats and reset counters
             all_stats = await api.get_all_user_stats(reset=True)
             if not all_stats:
                 continue
 
-            # Update each user's traffic
             all_users = await mgr.get_all_users()
             for user in all_users:
                 stats = all_stats.get(user.email)
@@ -95,10 +82,8 @@ async def traffic_sync_task(bot: Bot):
                         download=stats["downlink"],
                     )
 
-                    # #1 — Update last_seen (online detection)
                     await mgr.update_last_seen(user.email)
 
-                    # #8 — Periodic traffic snapshots (every ~15 min)
                     if snapshot_counter % 15 == 0:
                         updated_user = await mgr.get_user(user.id)
                         if updated_user:
@@ -108,12 +93,10 @@ async def traffic_sync_task(bot: Bot):
                                 updated_user.traffic_used_down,
                             )
 
-                    # Re-read user to get fresh traffic_total after update
                     updated_user = await mgr.get_user(user.id)
                     if not updated_user:
                         continue
 
-                    # #3 — 80% traffic warning
                     if (
                         updated_user.is_active
                         and updated_user.traffic_limit
@@ -138,7 +121,6 @@ async def traffic_sync_task(bot: Bot):
                             except Exception:
                                 pass
 
-                        # Notify admin about warning
                         for admin_id in config.ADMIN_IDS:
                             try:
                                 await bot.send_message(
@@ -148,7 +130,6 @@ async def traffic_sync_task(bot: Bot):
                             except Exception:
                                 pass
 
-                    # Auto-block if traffic limit exceeded
                     if (
                         updated_user.is_active
                         and updated_user.traffic_limit
@@ -166,7 +147,6 @@ async def traffic_sync_task(bot: Bot):
                             details=f"Traffic {updated_user.traffic_total} >= limit {updated_user.traffic_limit}",
                         )
 
-                        # Notify admin
                         for admin_id in config.ADMIN_IDS:
                             try:
                                 await bot.send_message(
@@ -178,7 +158,6 @@ async def traffic_sync_task(bot: Bot):
                             except Exception:
                                 pass
 
-                        # Notify user (if linked)
                         if updated_user.telegram_id:
                             try:
                                 await bot.send_message(
@@ -198,10 +177,6 @@ async def traffic_sync_task(bot: Bot):
 
 
 async def expiry_check_task(bot: Bot):
-    """
-    Background task: check for expired user accounts every 5 minutes.
-    Auto-blocks expired users and sends notifications.
-    """
     mgr = UserManager()
     xray_mgr = XrayConfigManager()
 
@@ -231,7 +206,6 @@ async def expiry_check_task(bot: Bot):
                     except Exception:
                         pass
 
-                # Notify user
                 if user.telegram_id:
                     try:
                         await bot.send_message(
@@ -251,7 +225,6 @@ async def expiry_check_task(bot: Bot):
 
 
 async def on_shutdown(bot: Bot):
-    """Called when bot stops."""
     logger.info("🛡️ Dem1chVPN Bot shutting down...")
     for admin_id in config.ADMIN_IDS:
         try:
@@ -261,10 +234,6 @@ async def on_shutdown(bot: Bot):
 
 
 async def monthly_reset_task(bot: Bot):
-    """
-    Background task: auto-reset traffic on TRAFFIC_RESET_DAY of each month.
-    Only resets users with a traffic limit.
-    """
     from datetime import datetime, timezone
 
     mgr = UserManager()
@@ -278,13 +247,11 @@ async def monthly_reset_task(bot: Bot):
             now = datetime.now(timezone.utc)
             reset_day = config.TRAFFIC_RESET_DAY
 
-            # Check if it's the reset day and we haven't reset this month
             if now.day == reset_day and last_reset_month != now.month:
                 logger.info(f"Monthly traffic reset triggered (day={reset_day})")
 
                 reset_count, reactivated = await mgr.reset_and_reactivate_traffic()
 
-                # Re-add reactivated users to Xray
                 for user in reactivated:
                     await xray_mgr.add_client(user.uuid, user.email)
 
@@ -302,7 +269,6 @@ async def monthly_reset_task(bot: Bot):
                     except Exception:
                         pass
 
-                # Notify reactivated users
                 for user in reactivated:
                     if user.telegram_id:
                         try:
@@ -323,21 +289,17 @@ async def monthly_reset_task(bot: Bot):
 
 
 async def auto_update_check_task(bot: Bot):
-    """
-    Background task: check for new Xray-core version daily.
-    Does NOT auto-install — only notifies admin.
-    """
     import aiohttp
 
     if not config.XRAY_AUTO_UPDATE:
-        return  # Feature disabled
+        return
 
     xray_mgr = XrayConfigManager()
     last_notified_version = None
 
     while True:
         try:
-            await asyncio.sleep(86400)  # Check daily (24h)
+            await asyncio.sleep(86400)
 
             current_version = await xray_mgr.get_xray_version()
 
@@ -380,30 +342,23 @@ async def auto_update_check_task(bot: Bot):
 
 
 async def main():
-    """Main entry point."""
-    # Validate config
     errors = config.validate()
     if errors:
         for err in errors:
             logger.error(f"❌ Config error: {err}")
         sys.exit(1)
 
-    # Create bot & dispatcher
     bot = Bot(
         token=config.BOT_TOKEN,
         default=DefaultBotProperties(parse_mode=ParseMode.HTML),
     )
     dp = Dispatcher()
 
-    # Register event handlers
     dp.startup.register(on_startup)
     dp.shutdown.register(on_shutdown)
 
-    # Register routers (handlers)
-    # ORDER MATTERS: security middleware must be first,
-    # invite must be before start (to handle /start inv_XXX deep links)
-    dp.include_router(security.router)  # Must be first (middleware)
-    dp.include_router(invite.router)    # Must be before start (deep links)
+    dp.include_router(security.router)
+    dp.include_router(invite.router)
     dp.include_router(start.router)
     dp.include_router(users.router)
     dp.include_router(routing.router)
@@ -413,13 +368,11 @@ async def main():
     dp.include_router(wizard.router)
     dp.include_router(tickets.router)
 
-    # Start background tasks
     sync_task = asyncio.create_task(traffic_sync_task(bot))
     expiry_task = asyncio.create_task(expiry_check_task(bot))
     reset_task = asyncio.create_task(monthly_reset_task(bot))
     update_task = asyncio.create_task(auto_update_check_task(bot))
 
-    # Start polling
     logger.info("🚀 Starting polling...")
     try:
         await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types())
@@ -436,7 +389,6 @@ async def main():
 
 
 def run():
-    """Entry point for systemd service."""
     asyncio.run(main())
 
 

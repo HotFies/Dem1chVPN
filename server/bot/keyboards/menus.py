@@ -1,6 +1,5 @@
 """
 Dem1chVPN Bot — Inline Keyboards
-All bot menus and inline keyboards.
 """
 import math
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton, WebAppInfo
@@ -21,7 +20,6 @@ def main_menu(is_admin: bool = False) -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="⚙️ Настройки", callback_data="menu:settings"),
         ])
     else:
-        # User self-service menu
         if config.SUB_DOMAIN:
             # Primary: Mini App personal cabinet
             buttons.append([
@@ -31,12 +29,10 @@ def main_menu(is_admin: bool = False) -> InlineKeyboardMarkup:
                 ),
             ])
         else:
-            # Fallback: inline buttons when domain not configured
             buttons.append([
                 InlineKeyboardButton(text="🔗 Моя ссылка", callback_data="self:link"),
                 InlineKeyboardButton(text="📊 Мой трафик", callback_data="self:traffic"),
             ])
-        # Ticket button → Mini App
         if config.SUB_DOMAIN:
             buttons.append([
                 InlineKeyboardButton(
@@ -45,7 +41,6 @@ def main_menu(is_admin: bool = False) -> InlineKeyboardMarkup:
                 ),
             ])
 
-    # Help button → direct Mini App (no intermediate step) or fallback
     if config.SUB_DOMAIN:
         buttons.append([
             InlineKeyboardButton(
@@ -58,7 +53,6 @@ def main_menu(is_admin: bool = False) -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="📖 Помощь", callback_data="menu:help"),
         ])
 
-    # Mini App button (if domain configured)
     if config.SUB_DOMAIN and is_admin:
         buttons.append([
             InlineKeyboardButton(
@@ -103,7 +97,6 @@ def user_list_keyboard(
             )
         ])
 
-    # Pagination row
     total_pages = math.ceil(total_count / per_page) if total_count > 0 else 1
     if total_pages > 1:
         nav = []
@@ -140,7 +133,6 @@ def user_actions(user_id: int, has_telegram: bool = False) -> InlineKeyboardMark
             InlineKeyboardButton(text="📊 Лимит", callback_data=f"user:set_limit:{user_id}"),
         ],
     ]
-    # Link Telegram button (only if not linked)
     if not has_telegram:
         buttons.append([
             InlineKeyboardButton(text="🔗 Привязать Telegram", callback_data=f"user:link_tg:{user_id}"),
@@ -180,7 +172,6 @@ def monitoring_menu() -> InlineKeyboardMarkup:
             InlineKeyboardButton(text="⚡ Speedtest", callback_data="mon:speedtest"),
         ],
     ]
-    # Tickets → Mini App (if domain configured)
     ticket_row = []
     if config.SUB_DOMAIN:
         ticket_row.append(InlineKeyboardButton(
@@ -227,7 +218,6 @@ def help_menu() -> InlineKeyboardMarkup:
             web_app=WebAppInfo(url=f"{config.sub_base_url}/webapp/?page=help"),
         )])
     else:
-        # Fallback: simple text help
         buttons.append([InlineKeyboardButton(text="📖 Общая инструкция", callback_data="help:general")])
     buttons.append([InlineKeyboardButton(text="◀️ Назад", callback_data="menu:main")])
     return InlineKeyboardMarkup(inline_keyboard=buttons)

@@ -1,6 +1,5 @@
 """
 Dem1chVPN Bot — Routing Handler
-Manage proxy/direct domain routing rules.
 """
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message
@@ -23,7 +22,7 @@ class RouteStates(StatesGroup):
     waiting_check_domain = State()
 
 
-# ── Cancel FSM for routing ──
+
 
 @router.callback_query(F.data == "menu:routing", RouteStates.waiting_proxy_domain)
 @router.callback_query(F.data == "menu:routing", RouteStates.waiting_direct_domain)
@@ -40,7 +39,7 @@ async def route_cancel(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 
-# ── Add to PROXY ──
+
 
 @router.callback_query(F.data == "route:add_proxy")
 async def route_add_proxy(callback: CallbackQuery, state: FSMContext):
@@ -85,7 +84,7 @@ async def route_add_proxy_domain(message: Message, state: FSMContext):
         )
 
 
-# ── Add to DIRECT ──
+
 
 @router.callback_query(F.data == "route:add_direct")
 async def route_add_direct(callback: CallbackQuery, state: FSMContext):
@@ -128,7 +127,7 @@ async def route_add_direct_domain(message: Message, state: FSMContext):
         )
 
 
-# ── List Rules ──
+
 
 @router.callback_query(F.data == "route:list")
 async def route_list(callback: CallbackQuery):
@@ -140,7 +139,7 @@ async def route_list(callback: CallbackQuery):
 
     lines.append("🔵 <b>PROXY (через туннель):</b>")
     if proxy_rules:
-        for r in proxy_rules[:30]:  # Limit display
+        for r in proxy_rules[:30]:
             lines.append(f"  • {r.domain} <i>({r.added_by})</i>")
         if len(proxy_rules) > 30:
             lines.append(f"  ... и ещё {len(proxy_rules) - 30}")
@@ -167,7 +166,7 @@ async def route_list(callback: CallbackQuery):
     await callback.answer()
 
 
-# ── Delete Rule ──
+
 
 @router.callback_query(F.data == "route:delete")
 async def route_delete(callback: CallbackQuery, state: FSMContext):
@@ -201,7 +200,7 @@ async def route_delete_domain(message: Message, state: FSMContext):
         )
 
 
-# ── Check Site ──
+
 
 @router.callback_query(F.data == "route:check")
 async def route_check(callback: CallbackQuery, state: FSMContext):
@@ -225,7 +224,6 @@ async def route_check_domain(message: Message, state: FSMContext):
     mgr = RouteManager()
     result = await mgr.check_site(domain)
 
-    # Determine routing status
     rule = await mgr.get_rule(domain)
     route_status = "🔵 PROXY" if rule and rule.rule_type == "proxy" else (
         "🟢 DIRECT" if rule and rule.rule_type == "direct" else "⚪ По умолчанию"
@@ -242,7 +240,7 @@ async def route_check_domain(message: Message, state: FSMContext):
     )
 
 
-# ── Update Lists ──
+
 
 @router.callback_query(F.data == "route:update")
 async def route_update(callback: CallbackQuery):

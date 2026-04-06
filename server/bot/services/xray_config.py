@@ -1,6 +1,5 @@
 """
-Dem1chVPN — Xray Config Manager
-Manages Xray configuration file and generates VLESS URLs.
+Dem1chVPN — Конфигуратор Xray
 """
 import json
 import logging
@@ -15,7 +14,7 @@ logger = logging.getLogger("dem1chvpn.xray_config")
 
 
 class XrayConfigManager:
-    """Manages Xray JSON config and generates client URLs. Singleton — always same instance."""
+
     _instance = None
 
     def __new__(cls):
@@ -25,37 +24,36 @@ class XrayConfigManager:
         return cls._instance
 
     def __init__(self):
-        pass  # config_path set in __new__
+        pass
 
     def _read_config(self) -> dict:
-        """Read Xray config file (sync, use _aread_config in async context)."""
+
         with open(self.config_path, "r") as f:
             return json.load(f)
 
     def _write_config(self, cfg: dict):
-        """Write Xray config file (sync, use _awrite_config in async context)."""
+
         with open(self.config_path, "w") as f:
             json.dump(cfg, f, indent=2, ensure_ascii=False)
 
     async def _aread_config(self) -> dict:
-        """Read Xray config without blocking the event loop."""
+
         import asyncio
         return await asyncio.to_thread(self._read_config)
 
     async def _awrite_config(self, cfg: dict):
-        """Write Xray config without blocking the event loop."""
+
         import asyncio
         await asyncio.to_thread(self._write_config, cfg)
 
     async def add_client(self, uuid: str, email: str) -> bool:
-        """Add a client to Xray config."""
+
         try:
             cfg = await self._aread_config()
             for inbound in cfg.get("inbounds", []):
                 if inbound.get("tag") == config.XRAY_INBOUND_TAG:
                     clients = inbound.get("settings", {}).get("clients", [])
-                    # Check if already exists
-                    if any(c.get("id") == uuid for c in clients):
+                    if any(c.get("email") == email for c in clients):
                         return True
                     clients.append({
                         "id": uuid,
@@ -73,7 +71,7 @@ class XrayConfigManager:
             return False
 
     async def remove_client(self, email: str) -> bool:
-        """Remove a client from Xray config by email."""
+
         try:
             cfg = await self._aread_config()
             for inbound in cfg.get("inbounds", []):
@@ -92,7 +90,7 @@ class XrayConfigManager:
             return False
 
     async def get_clients(self) -> list[dict]:
-        """Get list of all clients from config."""
+
         try:
             cfg = await self._aread_config()
             for inbound in cfg.get("inbounds", []):
@@ -103,7 +101,7 @@ class XrayConfigManager:
             return []
 
     def generate_vless_url(self, uuid: str, remark: str = "Dem1chVPN") -> str:
-        """Generate a VLESS connection URL."""
+
         params = {
             "encryption": "none",
             "security": "reality",
@@ -124,7 +122,7 @@ class XrayConfigManager:
         )
 
     async def reload_xray(self):
-        """Reload Xray service."""
+
         import asyncio
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -141,7 +139,7 @@ class XrayConfigManager:
             logger.error(f"Error restarting Xray: {e}")
 
     async def get_xray_version(self) -> str:
-        """Get Xray-core version."""
+
         import asyncio
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -156,7 +154,7 @@ class XrayConfigManager:
             return "unknown"
 
     async def is_xray_running(self) -> bool:
-        """Check if Xray service is running."""
+
         import asyncio
         try:
             proc = await asyncio.create_subprocess_exec(
@@ -176,7 +174,7 @@ class XrayConfigManager:
         private_key: Optional[str] = None,
         short_id: Optional[str] = None,
     ):
-        """Update Reality settings in config."""
+
         cfg = await self._aread_config()
         for inbound in cfg.get("inbounds", []):
             if inbound.get("tag") == config.XRAY_INBOUND_TAG:

@@ -30,7 +30,7 @@ export default function TrafficChart({ users: propUsers }: TrafficChartProps) {
   useEffect(() => {
     if (users.length === 0) return;
     drawChart();
-    // Redraw on resize
+    // Перерисовываем при ресайзе
     const handleResize = () => drawChart();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
@@ -66,14 +66,14 @@ export default function TrafficChart({ users: propUsers }: TrafficChartProps) {
     const barWidth = Math.min(barGroupWidth * 0.35, 36);
     const gap = 3;
 
-    // New color scheme matching design system
+    // Цветовая схема под дизайн-систему
     const uploadColor = '#00d4ff';
     const downloadColor = '#7c3aed';
     const textColor = '#e8edf5';
     const hintColor = '#5a6d8f';
     const gridColor = 'rgba(255, 255, 255, 0.04)';
 
-    // Grid lines
+    // Сетка
     ctx.strokeStyle = gridColor;
     ctx.lineWidth = 1;
     const gridLines = 4;
@@ -91,16 +91,16 @@ export default function TrafficChart({ users: propUsers }: TrafficChartProps) {
       ctx.fillText(formatBytes(val), padding.left - 8, y + 4);
     }
 
-    // Bars
+    // Столбцы
     users.forEach((user, idx) => {
       const x = padding.left + barGroupWidth * idx + barGroupWidth / 2;
 
-      // Upload bar
+      // Столбец отдачи
       const upH = (user.traffic_up / maxTraffic) * chartH;
       const upX = x - barWidth - gap / 2;
       const upY = padding.top + chartH - upH;
 
-      // Gradient for upload
+      // Градиент для отдачи
       const upGrad = ctx.createLinearGradient(0, upY, 0, upY + upH);
       upGrad.addColorStop(0, uploadColor);
       upGrad.addColorStop(1, 'rgba(0, 212, 255, 0.3)');
@@ -108,7 +108,7 @@ export default function TrafficChart({ users: propUsers }: TrafficChartProps) {
       roundedRect(ctx, upX, upY, barWidth, upH, 4);
       ctx.fill();
 
-      // Download bar
+      // Столбец скачивания
       const downH = (user.traffic_down / maxTraffic) * chartH;
       const downX = x + gap / 2;
       const downY = padding.top + chartH - downH;
@@ -120,7 +120,7 @@ export default function TrafficChart({ users: propUsers }: TrafficChartProps) {
       roundedRect(ctx, downX, downY, barWidth, downH, 4);
       ctx.fill();
 
-      // User name label
+      // Имя юзера
       ctx.fillStyle = textColor;
       ctx.font = '11px "DM Sans", sans-serif';
       ctx.textAlign = 'center';
@@ -137,11 +137,11 @@ export default function TrafficChart({ users: propUsers }: TrafficChartProps) {
       ctx.restore();
     });
 
-    // Legend
+    // Легенда
     const legendY = 10;
     ctx.font = '11px "DM Sans", sans-serif';
 
-    // Upload legend
+    // Легенда отдачи
     ctx.fillStyle = uploadColor;
     roundedRect(ctx, padding.left, legendY, 10, 10, 2);
     ctx.fill();
@@ -149,7 +149,7 @@ export default function TrafficChart({ users: propUsers }: TrafficChartProps) {
     ctx.textAlign = 'left';
     ctx.fillText('↑ Исходящий', padding.left + 14, legendY + 9);
 
-    // Download legend
+    // Легенда скачивания
     ctx.fillStyle = downloadColor;
     roundedRect(ctx, padding.left + 100, legendY, 10, 10, 2);
     ctx.fill();

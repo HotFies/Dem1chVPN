@@ -1,6 +1,5 @@
 """
-Dem1chVPN — AdGuard Home API Service
-Interact with AdGuard Home REST API.
+Dem1chVPN — API-клиент для AdGuard Home
 """
 import asyncio
 import aiohttp
@@ -11,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class AdGuardAPI:
-    """Manage AdGuard Home via REST API."""
+    # API-клиент к собственному AdGuard Home
 
     COMPOSE_DIR = "/opt/dem1chvpn/server/adguard"
     CONTAINER_NAME = "dem1chvpn-adguard"
@@ -21,10 +20,10 @@ class AdGuardAPI:
         self.base_url = f"http://{host}:{port}"
         self.auth = aiohttp.BasicAuth(username, password)
 
-    # ── Docker container lifecycle ──
+    # ── Управление контейнером ──
 
     async def is_container_running(self) -> bool:
-        """Check if AdGuard Docker container is running."""
+
         try:
             proc = await asyncio.create_subprocess_exec(
                 "sudo", "docker", "inspect", "-f", "{{.State.Running}}", self.CONTAINER_NAME,
@@ -38,7 +37,7 @@ class AdGuardAPI:
             return False
 
     async def start_container(self) -> bool:
-        """Start AdGuard container via docker compose."""
+
         try:
             proc = await asyncio.create_subprocess_exec(
                 "sudo", "docker", "compose", "up", "-d",
@@ -50,7 +49,7 @@ class AdGuardAPI:
             if proc.returncode != 0:
                 logger.error(f"AdGuard start failed (rc={proc.returncode}): {stderr.decode()}")
                 return False
-            # Wait for HTTP API to be ready
+            # Ждем пока поднимется HTTP API
             await asyncio.sleep(3)
             return True
         except Exception as e:
@@ -58,7 +57,7 @@ class AdGuardAPI:
             return False
 
     async def stop_container(self) -> bool:
-        """Stop AdGuard container via docker compose."""
+
         try:
             proc = await asyncio.create_subprocess_exec(
                 "sudo", "docker", "compose", "down",
@@ -76,7 +75,7 @@ class AdGuardAPI:
             return False
 
     async def get_status(self) -> dict:
-        """Get AdGuard Home status."""
+
         try:
             async with aiohttp.ClientSession(auth=self.auth) as session:
                 async with session.get(f"{self.base_url}/control/status") as resp:
@@ -87,7 +86,7 @@ class AdGuardAPI:
             return {"running": False}
 
     async def get_stats(self) -> dict:
-        """Get filtering statistics."""
+
         try:
             async with aiohttp.ClientSession(auth=self.auth) as session:
                 async with session.get(f"{self.base_url}/control/stats") as resp:
@@ -98,7 +97,7 @@ class AdGuardAPI:
             return {}
 
     async def toggle_protection(self, enabled: bool) -> bool:
-        """Enable/disable DNS protection."""
+
         try:
             async with aiohttp.ClientSession(auth=self.auth) as session:
                 async with session.post(
@@ -110,7 +109,7 @@ class AdGuardAPI:
             return False
 
     async def get_query_log(self, limit: int = 10) -> list:
-        """Get recent DNS query log."""
+
         try:
             async with aiohttp.ClientSession(auth=self.auth) as session:
                 async with session.get(
@@ -125,7 +124,7 @@ class AdGuardAPI:
             return []
 
     async def add_filter_url(self, name: str, url: str) -> bool:
-        """Add a filter list URL."""
+
         try:
             async with aiohttp.ClientSession(auth=self.auth) as session:
                 async with session.post(
@@ -137,7 +136,7 @@ class AdGuardAPI:
             return False
 
     async def get_formatted_stats(self) -> str:
-        """Get formatted stats text for bot."""
+
         stats = await self.get_stats()
         status = await self.get_status()
 

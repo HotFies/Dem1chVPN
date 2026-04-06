@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react'
 import { getSettings, toggleFeature, restartXray, updateGeo, createBackup, type Settings as SettingsType } from '../api/client'
 
-/* ── Icons ── */
+
 const settingsIcon = (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="3" />
@@ -99,7 +99,7 @@ export default function Settings() {
     setToggling(feature)
     try {
       const result = await toggleFeature(feature)
-      // Use actual server response instead of optimistic toggle
+      // Меняем стейт только по реальному ответу от сервака
       setSettings(prev =>
         prev ? { ...prev, [`${feature}_enabled`]: result.enabled } : null
       )
@@ -166,7 +166,6 @@ export default function Settings() {
         <h2>Настройки</h2>
       </div>
 
-      {/* Feature toggles */}
       <div className="settings-list">
         {features.map(f => (
           <div
@@ -202,7 +201,6 @@ export default function Settings() {
         ))}
       </div>
 
-      {/* Server info */}
       <div className="server-info">
         <div className="info-row">
           <span className="info-label">IP сервера</span>
@@ -238,7 +236,6 @@ export default function Settings() {
         </div>
       </div>
 
-      {/* Action buttons */}
       <div className="settings-actions">
         <button
           className="btn-action"
@@ -266,7 +263,6 @@ export default function Settings() {
         </button>
       </div>
 
-      {/* Error toast */}
       {toast && (
         <div className="toast-error">{toast}</div>
       )}

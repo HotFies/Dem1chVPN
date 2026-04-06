@@ -1,6 +1,5 @@
 """
 Dem1chVPN — Backup Service
-Backup and restore operations for Dem1chVPN configuration.
 """
 import os
 import io
@@ -36,15 +35,12 @@ class BackupManager:
 
         buf = io.BytesIO()
         with tarfile.open(fileobj=buf, mode="w:gz") as tar:
-            # Xray config
             if os.path.exists(config.XRAY_CONFIG_PATH):
                 tar.add(config.XRAY_CONFIG_PATH, arcname="xray_config.json")
 
-            # Database
             if os.path.exists(config.DB_PATH):
                 tar.add(config.DB_PATH, arcname="dem1chvpn.db")
 
-            # .env
             env_path = str(Path(config.DB_PATH).resolve().parent.parent / ".env")
             if os.path.exists(env_path):
                 tar.add(env_path, arcname=".env")
@@ -52,12 +48,10 @@ class BackupManager:
         buf.seek(0)
         backup_bytes = buf.getvalue()
 
-        # Also save to disk
         disk_path = self.backup_dir / filename
         with open(disk_path, "wb") as f:
             f.write(backup_bytes)
 
-        # Clean old backups (keep last 7)
         self._cleanup_old_backups(keep=7)
 
         logger.info(f"Backup created: {filename} ({len(backup_bytes)} bytes)")
@@ -76,7 +70,6 @@ class BackupManager:
             with tarfile.open(fileobj=buf, mode="r:gz") as tar:
                 members = tar.getnames()
 
-                # Security: reject archives with path traversal
                 for name in members:
                     if name.startswith('/') or '..' in name:
                         result["errors"].append(f"Rejected unsafe path: {name}")
@@ -103,7 +96,6 @@ class BackupManager:
                         else:
                             continue
 
-                        # Backup current file before overwriting
                         if os.path.exists(dest):
                             shutil.copy2(dest, f"{dest}.bak")
 

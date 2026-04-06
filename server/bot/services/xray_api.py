@@ -1,7 +1,5 @@
 """
-Dem1chVPN — Xray gRPC API Client
-Communicates with Xray Stats API for traffic monitoring and user management.
-Uses grpcio to interact with Xray's built-in gRPC API (port 10085).
+Dem1chVPN — gRPC клиент к Xray
 """
 import asyncio
 import logging
@@ -14,47 +12,37 @@ from ..config import config
 
 logger = logging.getLogger("dem1chvpn.xray_api")
 
-# Xray gRPC proto definitions (generated inline to avoid proto compilation)
-# These match xray-core's app/stats/command and app/proxyman/command protos
-
 
 class XrayAPI:
-    """Async client for Xray gRPC API (StatsService + HandlerService)."""
+
 
     def __init__(self):
         self.address = f"{config.XRAY_API_HOST}:{config.XRAY_API_PORT}"
 
     def _get_channel(self):
-        """Get gRPC channel (insecure, localhost only)."""
+
         return grpc.insecure_channel(self.address)
 
     async def get_user_traffic(self, email: str, reset: bool = False) -> dict:
-        """
-        Get traffic stats for a user by email tag.
-        Returns: {"uplink": int, "downlink": int} in bytes.
-        If reset=True, resets counters after reading.
-        """
+
         uplink = await self._query_stats(f"user>>>{email}>>>traffic>>>uplink", reset)
         downlink = await self._query_stats(f"user>>>{email}>>>traffic>>>downlink", reset)
         return {"uplink": uplink, "downlink": downlink}
 
     async def get_inbound_traffic(self, tag: str = "vless-reality") -> dict:
-        """Get traffic stats for an inbound by tag."""
+
         uplink = await self._query_stats(f"inbound>>>{tag}>>>traffic>>>uplink", False)
         downlink = await self._query_stats(f"inbound>>>{tag}>>>traffic>>>downlink", False)
         return {"uplink": uplink, "downlink": downlink}
 
     async def get_outbound_traffic(self, tag: str = "direct") -> dict:
-        """Get traffic stats for an outbound by tag."""
+
         uplink = await self._query_stats(f"outbound>>>{tag}>>>traffic>>>uplink", False)
         downlink = await self._query_stats(f"outbound>>>{tag}>>>traffic>>>downlink", False)
         return {"uplink": uplink, "downlink": downlink}
 
     async def get_all_user_stats(self, reset: bool = False) -> dict:
-        """
-        Get traffic stats for ALL users at once.
-        Returns: {email: {"uplink": int, "downlink": int}}
-        """
+
         users = {}
         try:
             stats = await self._query_all_stats(reset)
@@ -65,7 +53,7 @@ class XrayAPI:
                     parts = name.split(">>>")
                     if len(parts) == 4:
                         email = parts[1]
-                        direction = parts[3]  # "uplink" or "downlink"
+                        direction = parts[3]
                         if email not in users:
                             users[email] = {"uplink": 0, "downlink": 0}
                         users[email][direction] = value
@@ -74,7 +62,7 @@ class XrayAPI:
         return users
 
     async def get_sys_stats(self) -> dict:
-        """Get system-level stats (connections, memory)."""
+
         try:
             return await self._call_sys_stats()
         except Exception as e:
@@ -82,7 +70,7 @@ class XrayAPI:
             return {}
 
     async def _query_stats(self, name: str, reset: bool = False) -> int:
-        """Query a single stat by name."""
+
         loop = asyncio.get_running_loop()
         try:
             return await loop.run_in_executor(
@@ -93,7 +81,7 @@ class XrayAPI:
             return 0
 
     async def _query_all_stats(self, reset: bool = False) -> list:
-        """Query all stats."""
+
         loop = asyncio.get_running_loop()
         try:
             return await loop.run_in_executor(
@@ -104,7 +92,7 @@ class XrayAPI:
             return []
 
     async def _call_sys_stats(self) -> dict:
-        """Get system stats."""
+
         loop = asyncio.get_running_loop()
         try:
             return await loop.run_in_executor(None, self._sync_sys_stats)
@@ -112,10 +100,10 @@ class XrayAPI:
             logger.error(f"Sys stats query failed: {e}")
             return {}
 
-    # ── Synchronous gRPC calls (run in executor) ──
+
 
     def _sync_query_stats(self, name: str, reset: bool) -> int:
-        """Synchronous single stat query."""
+
         channel = grpc.insecure_channel(self.address)
         try:
             stub = _StatsServiceStub(channel)
@@ -135,7 +123,7 @@ class XrayAPI:
             channel.close()
 
     def _sync_query_all_stats(self, reset: bool) -> list:
-        """Synchronous all stats query."""
+
         channel = grpc.insecure_channel(self.address)
         try:
             stub = _StatsServiceStub(channel)
@@ -151,7 +139,7 @@ class XrayAPI:
             channel.close()
 
     def _sync_sys_stats(self) -> dict:
-        """Synchronous system stats query."""
+
         channel = grpc.insecure_channel(self.address)
         try:
             stub = _StatsServiceStub(channel)
@@ -174,10 +162,7 @@ class XrayAPI:
             channel.close()
 
 
-# ──────────────────────────────────────────────
-# Minimal gRPC stub definitions (inline, no proto compilation needed)
-# These use raw gRPC channel calls matching Xray's stats service.
-# ──────────────────────────────────────────────
+
 
 from dataclasses import dataclass, field as dc_field
 
@@ -217,7 +202,6 @@ class _GetStatsRequest:
         self.reset = reset
 
     def SerializeToString(self):
-        # Protobuf encoding: field 1 = string (name), field 2 = bool (reset)
         result = b""
         if self.name:
             name_bytes = self.name.encode("utf-8")
@@ -248,7 +232,7 @@ class _SysStatsRequest:
 
 
 def _encode_varint(value: int) -> bytes:
-    """Encode an integer as a protobuf varint."""
+
     result = bytearray()
     while value > 0x7F:
         result.append((value & 0x7F) | 0x80)
@@ -258,7 +242,7 @@ def _encode_varint(value: int) -> bytes:
 
 
 def _decode_varint(data: bytes, pos: int) -> tuple[int, int]:
-    """Decode a varint from data at pos. Returns (value, new_pos)."""
+
     value = 0
     shift = 0
     while pos < len(data):
@@ -272,16 +256,14 @@ def _decode_varint(data: bytes, pos: int) -> tuple[int, int]:
 
 
 def _varint_to_signed64(value: int) -> int:
-    """Convert unsigned varint to signed int64 (protobuf int64 encoding).
-    Negative int64 values are encoded as 10-byte varints (large unsigned numbers).
-    """
+
     if value >= (1 << 63):
         value -= (1 << 64)
     return value
 
 
 def _deserialize_stat(data: bytes) -> _Stat:
-    """Minimal protobuf deserializer for Stat message."""
+
     stat = _Stat()
     i = 0
     while i < len(data):
@@ -290,22 +272,22 @@ def _deserialize_stat(data: bytes) -> _Stat:
         field_num = tag >> 3
         wire_type = tag & 0x07
 
-        if wire_type == 2:  # Length-delimited (string)
+        if wire_type == 2:
             length, i = _decode_varint(data, i)
-            if field_num == 1:  # name
+            if field_num == 1:
                 stat.name = data[i:i + length].decode("utf-8")
             i += length
-        elif wire_type == 0:  # Varint
+        elif wire_type == 0:
             value, i = _decode_varint(data, i)
-            if field_num == 2:  # value (int64 — may be negative)
+            if field_num == 2:
                 stat.value = _varint_to_signed64(value)
         else:
-            break  # Unknown wire type
+            break
     return stat
 
 
 def _deserialize_get_stats_response(data: bytes) -> _GetStatsResponse:
-    """Deserialize GetStatsResponse."""
+
     resp = _GetStatsResponse()
     i = 0
     while i < len(data):
@@ -316,7 +298,7 @@ def _deserialize_get_stats_response(data: bytes) -> _GetStatsResponse:
         field_num = tag >> 3
         wire_type = tag & 0x07
 
-        if wire_type == 2 and field_num == 1:  # stat sub-message
+        if wire_type == 2 and field_num == 1:
             length, i = _decode_varint(data, i)
             resp.stat = _deserialize_stat(data[i:i + length])
             i += length
@@ -326,7 +308,7 @@ def _deserialize_get_stats_response(data: bytes) -> _GetStatsResponse:
 
 
 def _deserialize_query_stats_response(data: bytes) -> _QueryStatsResponse:
-    """Deserialize QueryStatsResponse (repeated Stat)."""
+
     resp = _QueryStatsResponse()
     i = 0
     while i < len(data):
@@ -338,7 +320,7 @@ def _deserialize_query_stats_response(data: bytes) -> _QueryStatsResponse:
         wire_type = tag & 0x07
 
         if wire_type == 2 and field_num == 1:
-            # Read varint for length
+            pass
             length = 0
             shift = 0
             while i < len(data):
@@ -357,7 +339,7 @@ def _deserialize_query_stats_response(data: bytes) -> _QueryStatsResponse:
 
 
 def _deserialize_sys_stats_response(data: bytes) -> _SysStatsResponse:
-    """Deserialize SysStatsResponse."""
+
     resp = _SysStatsResponse()
     i = 0
     field_map = {
@@ -372,7 +354,7 @@ def _deserialize_sys_stats_response(data: bytes) -> _SysStatsResponse:
         field_num = tag >> 3
         wire_type = tag & 0x07
 
-        if wire_type == 0:  # varint
+        if wire_type == 0:
             value = 0
             shift = 0
             while i < len(data):
@@ -391,7 +373,7 @@ def _deserialize_sys_stats_response(data: bytes) -> _SysStatsResponse:
 
 
 class _StatsServiceStub:
-    """Minimal gRPC stub for Xray StatsService."""
+
 
     SERVICE = "xray.app.stats.command.StatsService"
 

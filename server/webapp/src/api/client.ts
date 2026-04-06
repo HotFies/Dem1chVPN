@@ -1,13 +1,11 @@
 /**
  * Dem1chVPN — API Client
- * Handles communication between Mini App and FastAPI backend.
+ * Обрабатывает запросы от Mini App к бэкенду на FastAPI.
  */
 
-const BASE_URL = '';  // Same origin (served by Caddy)
+const BASE_URL = '';  // Тот же origin (раздает Caddy)
 
-/**
- * Get Telegram WebApp initData for authentication
- */
+
 function getInitData(): string {
   try {
     return (window as any).Telegram?.WebApp?.initData || '';
@@ -16,9 +14,7 @@ function getInitData(): string {
   }
 }
 
-/**
- * Make an authenticated API request
- */
+
 async function apiRequest<T = any>(
   endpoint: string,
   options: RequestInit = {}
@@ -54,7 +50,7 @@ export class ApiError extends Error {
   }
 }
 
-// ── Auth ──
+// ── Авторизация ──
 
 export async function checkAuth() {
   return apiRequest<{
@@ -68,7 +64,7 @@ export async function checkAuth() {
   });
 }
 
-// ── Status ──
+// ── Статус ──
 
 export interface ServerStatus {
   cpu: number;
@@ -88,7 +84,7 @@ export async function getServerStatus(): Promise<ServerStatus> {
   return apiRequest<ServerStatus>('/status');
 }
 
-// ── Users ──
+// ── Пользователи ──
 
 export interface User {
   id: number;
@@ -119,7 +115,7 @@ export async function getUserLink(userId: number) {
   );
 }
 
-// ── Routes ──
+// ── Маршруты ──
 
 export interface RouteRule {
   id: number;
@@ -148,7 +144,7 @@ export async function deleteRoute(domain: string) {
   });
 }
 
-// ── Settings ──
+// ── Настройки ──
 
 export interface Settings {
   warp_enabled: boolean;
@@ -168,7 +164,7 @@ export async function toggleFeature(feature: 'warp' | 'adguard' | 'mtproto') {
   });
 }
 
-// ── Actions ──
+// ── Действия ──
 
 export async function restartXray() {
   return apiRequest<{ success: boolean }>('/xray/restart', { method: 'POST' });
@@ -184,11 +180,9 @@ export async function createBackup() {
   });
 }
 
-// ── Helpers ──
+// ── Хелперы ──
 
-/**
- * Format bytes to human-readable string
- */
+
 export function formatBytes(bytes: number): string {
   if (bytes === 0) return '0 B';
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -196,15 +190,13 @@ export function formatBytes(bytes: number): string {
   return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`;
 }
 
-/**
- * Format percentage
- */
+
 export function formatPercent(used: number, total: number): number {
   if (total === 0) return 0;
   return Math.round((used / total) * 100);
 }
 
-// ── Tickets ──
+// ── Тикеты ──
 
 export interface Ticket {
   id: number;
@@ -245,7 +237,7 @@ export async function closeTicket(ticketId: number) {
   });
 }
 
-// ── User Links ──
+// ── Ссылки пользователя ──
 
 export interface MyLinks {
   has_account: boolean;
@@ -254,13 +246,19 @@ export interface MyLinks {
   vless_url: string | null;
   sub_deeplink: string | null;
   route_deeplink: string | null;
+  sub_redirect_url: string | null;
+  route_redirect_url: string | null;
+  win_sub_deeplink: string | null;
+  win_route_deeplink: string | null;
+  win_sub_redirect_url: string | null;
+  win_route_redirect_url: string | null;
 }
 
 export async function getMyLinks(): Promise<MyLinks> {
   return apiRequest<MyLinks>('/my/links');
 }
 
-// ── My Account (Personal Cabinet) ──
+// ── Личный кабинет (My Account) ──
 
 export interface MyAccount {
   has_account: boolean;
@@ -279,6 +277,12 @@ export interface MyAccount {
   vless_url?: string | null;
   sub_deeplink?: string | null;
   route_deeplink?: string | null;
+  sub_redirect_url?: string | null;
+  route_redirect_url?: string | null;
+  win_sub_deeplink?: string | null;
+  win_route_deeplink?: string | null;
+  win_sub_redirect_url?: string | null;
+  win_route_redirect_url?: string | null;
 }
 
 export async function getMyAccount(): Promise<MyAccount> {

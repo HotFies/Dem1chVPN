@@ -1,6 +1,5 @@
 """
 Dem1chVPN Bot — Connection Wizard Handler
-Step-by-step setup guide for new users.
 """
 from aiogram import Router, F
 from aiogram.types import CallbackQuery
@@ -16,7 +15,6 @@ router = Router()
 
 @router.callback_query(F.data == "self:link")
 async def self_link(callback: CallbackQuery):
-    """User gets their own VLESS link and subscription."""
     mgr = UserManager()
     user = await mgr.get_user_by_telegram_id(callback.from_user.id)
     if not user:
@@ -27,13 +25,15 @@ async def self_link(callback: CallbackQuery):
     vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
     sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
     sub_deeplink = f"v2raytun://import/{sub_url}"
+    win_sub_deeplink = f"dem1chvpn://import/{sub_url}"
 
-    # Remove old keyboard, send new message
     await remove_keyboard(callback.message)
     await callback.message.answer(
         f"🔗 <b>Ваши ссылки подключения:</b>\n\n"
         f"📱 <b>v2RayTun (iOS) — автоимпорт:</b>\n"
         f"<code>{sub_deeplink}</code>\n\n"
+        f"🖥️ <b>Dem1chVPN (Windows) — автоимпорт:</b>\n"
+        f"<code>{win_sub_deeplink}</code>\n\n"
         f"📡 <b>Подписка</b> (v2rayN / v2rayNG / Streisand):\n"
         f"<code>{sub_url}</code>\n\n"
         f"🔗 <b>Прямая ссылка</b> (роутеры):\n"
@@ -45,7 +45,6 @@ async def self_link(callback: CallbackQuery):
 
 @router.callback_query(F.data == "self:traffic")
 async def self_traffic(callback: CallbackQuery):
-    """User checks their own traffic."""
     mgr = UserManager()
     user = await mgr.get_user_by_telegram_id(callback.from_user.id)
     if not user:
@@ -61,11 +60,10 @@ async def self_traffic(callback: CallbackQuery):
     await callback.answer()
 
 
-# ── Wizard ──
+
 
 @router.callback_query(F.data.startswith("wiz:"))
 async def wizard_step(callback: CallbackQuery):
-    """Connection wizard steps."""
     step = callback.data.split(":")[1]
 
     platform_apps = {
@@ -100,7 +98,6 @@ async def wizard_step(callback: CallbackQuery):
         xray_mgr = XrayConfigManager()
         vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
 
-        # Remove old keyboard for all methods (send new message)
         await remove_keyboard(callback.message)
 
         if method == "link":
@@ -115,11 +112,15 @@ async def wizard_step(callback: CallbackQuery):
         elif method == "sub":
             sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
             sub_deeplink = f"v2raytun://import/{sub_url}"
+            win_sub_deeplink = f"dem1chvpn://import/{sub_url}"
             await callback.message.answer(
                 f"📡 <b>Шаг 3: Подписка (рекомендуется)</b>\n\n"
                 f"📱 <b>iOS (v2RayTun):</b>\n"
                 f"Скопируйте и откройте в Safari:\n"
                 f"<code>{sub_deeplink}</code>\n\n"
+                f"🖥️ <b>Windows (Dem1chVPN):</b>\n"
+                f"Скопируйте и откройте в браузере:\n"
+                f"<code>{win_sub_deeplink}</code>\n\n"
                 f"📋 <b>Другие клиенты:</b>\n"
                 f"1. Скопируйте URL подписки:\n"
                 f"<code>{sub_url}</code>\n\n"

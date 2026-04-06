@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 
-/* ── Copy helper ── */
+/* ── Хелпер для копирования ── */
 function CopyBtn({ text, label }: { text: string; label?: string }) {
   const [copied, setCopied] = useState(false);
   const copy = async () => {
@@ -28,7 +28,7 @@ function CopyBtn({ text, label }: { text: string; label?: string }) {
   );
 }
 
-/* ── Lightbox with pinch-to-zoom ── */
+/* ── Лайтбокс с поддержкой зума ── */
 function Lightbox({ src, alt, onClose }: { src: string; alt: string; onClose: () => void }) {
   const imgRef = useRef<HTMLImageElement>(null);
   const [scale, setScale] = useState(1);
@@ -50,7 +50,7 @@ function Lightbox({ src, alt, onClose }: { src: string; alt: string; onClose: ()
     }
   };
 
-  /* Double-tap to zoom */
+  /* Зум по двойному тапу */
   const lastTap = useRef(0);
   const handleTap = () => {
     const now = Date.now();
@@ -64,7 +64,7 @@ function Lightbox({ src, alt, onClose }: { src: string; alt: string; onClose: ()
     lastTap.current = now;
   };
 
-  /* Pinch-to-zoom */
+  /* Зум щипком (pinch) */
   const handleTouchStart = (e: React.TouchEvent) => {
     if (e.touches.length === 2) {
       const dx = e.touches[0].clientX - e.touches[1].clientX;
@@ -109,7 +109,7 @@ function Lightbox({ src, alt, onClose }: { src: string; alt: string; onClose: ()
     }
   };
 
-  /* Prevent body scroll when lightbox is open */
+  /* Блокируем скролл страницы при открытом лайтбоксе */
   useEffect(() => {
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = ''; };
@@ -141,7 +141,7 @@ function Lightbox({ src, alt, onClose }: { src: string; alt: string; onClose: ()
   );
 }
 
-/* ── Screenshot thumbnail ── */
+/* ── Миниатюра скриншота ── */
 function Screenshot({ src, alt, onClick }: { src: string; alt: string; onClick: () => void }) {
   return (
     <div className="guide-screenshot" onClick={onClick}>
@@ -158,11 +158,11 @@ function Screenshot({ src, alt, onClick }: { src: string; alt: string; onClick: 
   );
 }
 
-/* ── Asset base path (works with Vite base: '/webapp/') ── */
+/* ── Базовый путь для ассетов (для поддержки Vite base) ── */
 const BASE = import.meta.env.BASE_URL || '/webapp/';
 const img = (name: string) => `${BASE}img/appstore-guide/${name}`;
 
-/* ── Step data ── */
+/* ── Данные шагов ── */
 const steps = [
   {
     num: 1,
@@ -238,13 +238,12 @@ const steps = [
   },
 ];
 
-/* ── Main Guide Component ── */
+/* ── Главный компонент гайда ── */
 export default function AppStoreGuide({ onBack }: { onBack: () => void }) {
   const [lightboxSrc, setLightboxSrc] = useState<{ src: string; alt: string } | null>(null);
 
   return (
     <div className="guide-page">
-      {/* Back button */}
       <button className="guide-back-btn" onClick={onBack}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           <polyline points="15 18 9 12 15 6" />
@@ -252,7 +251,6 @@ export default function AppStoreGuide({ onBack }: { onBack: () => void }) {
         Назад
       </button>
 
-      {/* Hero */}
       <div className="guide-hero">
         <div className="guide-hero-icon">🍎</div>
         <h2 className="guide-hero-title">Смена региона App Store</h2>
@@ -262,7 +260,6 @@ export default function AppStoreGuide({ onBack }: { onBack: () => void }) {
         </p>
       </div>
 
-      {/* Warning */}
       <div className="guide-warning">
         <div className="guide-warning-icon">⚠️</div>
         <div className="guide-warning-text">
@@ -272,7 +269,6 @@ export default function AppStoreGuide({ onBack }: { onBack: () => void }) {
         </div>
       </div>
 
-      {/* Steps */}
       <div className="guide-steps">
         {steps.map((step) => (
           <div className="guide-step" key={step.num} style={{ animationDelay: `${step.num * 0.08}s` }}>
@@ -282,7 +278,6 @@ export default function AppStoreGuide({ onBack }: { onBack: () => void }) {
             </div>
             <p className="guide-step-desc">{step.desc}</p>
 
-            {/* Screenshots */}
             <div className={`guide-screenshots ${step.images.length === 1 ? 'single' : ''}`}>
               {step.images.map((img, i) => (
                 <Screenshot
@@ -294,7 +289,6 @@ export default function AppStoreGuide({ onBack }: { onBack: () => void }) {
               ))}
             </div>
 
-            {/* Copy data for step 4 */}
             {step.copyData && (
               <div className="guide-copy-block">
                 {step.copyData.map((d, i) => (
@@ -306,7 +300,6 @@ export default function AppStoreGuide({ onBack }: { onBack: () => void }) {
         ))}
       </div>
 
-      {/* Final note */}
       <div className="guide-final">
         <div className="guide-final-icon">🔄</div>
         <div className="guide-final-text">
@@ -314,7 +307,6 @@ export default function AppStoreGuide({ onBack }: { onBack: () => void }) {
         </div>
       </div>
 
-      {/* Lightbox */}
       {lightboxSrc && (
         <Lightbox
           src={lightboxSrc.src}

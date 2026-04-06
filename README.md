@@ -44,6 +44,8 @@ Dem1chVPN — это готовое решение для разворачива
 | 🏠 | **Личный кабинет** | Статус, трафик, ссылки, инструкции — в одном месте |
 | 📡 | **Авто-подписки** | Конфиги обновляются на клиентах автоматически |
 | 📲 | **iOS Deeplinks** | Импорт подписки и маршрутов одним нажатием (V2RayTun) |
+| 🖥️ | **Windows Deeplinks** | Импорт подписки одним нажатием (Dem1chVPN) |
+| 💻 | **Windows Desktop Client** | Нативный клиент Dem1chVPN с автоимпортом подписки |
 | 🎫 | **Тикет-система** | Поддержка пользователей через Mini App |
 | 👥 | **Инвайт-система** | Удобное подключение друзей и семьи |
 | 📊 | **Мониторинг** | Трафик, нагрузка, проверка доступности IP |
@@ -318,6 +320,27 @@ Mini App использует **Dark Cyber-Glass Design System**:
 - Мобильная оптимизация для Telegram WebApp
 - Типографика: DM Sans + JetBrains Mono
 
+## 💻 Windows — Desktop Client
+
+Для пользователей Windows доступен **нативный клиент Dem1chVPN** — Electron-приложение с встроенным Xray-core и автоматической настройкой:
+
+### Установка
+
+1. Скачайте инсталлятор: [📥 Dem1chVPN-Setup.exe](https://github.com/HotFies/Dem1chVPN/releases/download/demichvpn-win-v.1.0.0/Dem1chVPN-1.0.0-Setup.exe)
+2. Запустите установщик
+3. Импортируйте подписку через deeplink `dem1chvpn://sub/...` или вставьте URL вручную
+4. Подключитесь одним нажатием
+
+### Windows Deeplinks
+
+```
+📱 Личный кабинет → «Импорт подписки» (Windows) → dem1chvpn://sub/...
+```
+
+Подписка автоматически импортируется в приложение.
+
+> Также поддерживается подключение через **v2rayN** (альтернативный клиент).
+
 ## 📲 iOS — Быстрый импорт
 
 Для пользователей iOS реализован **one-tap import** через deeplinks V2RayTun:
@@ -337,6 +360,7 @@ Mini App использует **Dark Cyber-Glass Design System**:
 | iOS | Streisand | [App Store](https://apps.apple.com/app/streisand/id6450534064) |
 | iOS | V2Box | [App Store](https://apps.apple.com/app/v2box-v2ray-client/id6446814690) |
 | Android | v2rayNG | [Google Play](https://play.google.com/store/apps/details?id=com.v2ray.ang) |
+| Windows | Dem1chVPN ⭐ | [GitHub Releases](https://github.com/HotFies/Dem1chVPN/releases/download/demichvpn-win-v.1.0.0/Dem1chVPN-1.0.0-Setup.exe) |
 | Windows | v2rayN | [GitHub](https://github.com/2dust/v2rayN/releases) |
 | macOS | V2RayTun / V2Box | [App Store](https://apps.apple.com/app/v2raytun/id6476628951) |
 | Роутер | Passwall2 / XKEEN | OpenWRT / Keenetic |

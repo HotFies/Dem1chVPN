@@ -1,13 +1,12 @@
 """
 Dem1chVPN — Formatters
-Human-readable formatting utilities.
 """
 from datetime import datetime, timezone
 from typing import Optional
 
 
 def format_traffic(bytes_val: Optional[int]) -> str:
-    """Format bytes to human-readable string."""
+
     if bytes_val is None:
         return "♾️"
     if bytes_val == 0:
@@ -23,14 +22,14 @@ def format_traffic(bytes_val: Optional[int]) -> str:
 
 
 def format_user_info(user) -> str:
-    """Format user info for display."""
+
     status = "🟢 Активен" if user.is_active else "🔴 Заблокирован"
     if user.is_expired:
         status = "⏰ Истёк"
     if user.is_traffic_exceeded:
         status = "📊 Лимит трафика"
 
-    # Online detection
+
     online = "⚪ Офлайн"
     if user.is_active and user.last_seen_at:
         from datetime import timedelta
@@ -68,7 +67,7 @@ def format_user_info(user) -> str:
 
 
 def format_uptime(seconds: float) -> str:
-    """Format uptime in seconds to human-readable string."""
+
     days = int(seconds // 86400)
     hours = int((seconds % 86400) // 3600)
     minutes = int((seconds % 3600) // 60)
@@ -84,7 +83,7 @@ def format_uptime(seconds: float) -> str:
 
 
 def progress_bar(current: float, total: float, length: int = 8) -> str:
-    """Generate a text progress bar."""
+
     if total == 0:
         return "░" * length
     ratio = min(current / total, 1.0)
@@ -93,7 +92,7 @@ def progress_bar(current: float, total: float, length: int = 8) -> str:
 
 
 def format_bytes_speed(bps: float) -> str:
-    """Format bytes per second to human-readable speed."""
+
     if bps < 1024:
         return f"{bps:.0f} B/s"
     elif bps < 1024 * 1024:

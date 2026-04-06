@@ -1,6 +1,5 @@
 """
 Dem1chVPN — Subscription Server
-Provides auto-updating VPN configs for clients via HTTPS.
 """
 import base64
 import json
@@ -10,13 +9,14 @@ from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
-# Ensure project root is in path for imports
+
 PROJECT_ROOT = str(Path(__file__).resolve().parent.parent.parent)
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
@@ -30,9 +30,9 @@ from server.bot.database import init_db
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Startup/shutdown lifecycle handler."""
+
     await init_db()
-    # Auto-sync default proxy domains so routing rules exist immediately
+    
     route_mgr = RouteManager()
     synced = await route_mgr.sync_default_domains()
     if synced:
@@ -54,7 +54,7 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# CORS for Mini App — restrict to configured domain
+
 _cors_origins = []
 if config.SUB_DOMAIN:
     _cors_origins.append(f"https://{config.SUB_DOMAIN}:{config.SUB_EXTERNAL_PORT}")
@@ -67,22 +67,16 @@ app.add_middleware(
 )
 
 
-# ── Health Check ──
 
 @app.get("/health")
 async def health():
     return {"status": "ok"}
 
 
-# ── Subscription Endpoint ──
 
 @app.get("/sub/{token}")
 @limiter.limit("30/minute")
 async def get_subscription(request: Request, token: str):
-    """
-    Subscription endpoint for V2Ray/Xray clients.
-    Returns Base64-encoded VLESS link(s) with appropriate headers.
-    """
     mgr = UserManager()
     user = await mgr.get_user_by_subscription_token(token)
 
@@ -98,17 +92,13 @@ async def get_subscription(request: Request, token: str):
     if user.is_traffic_exceeded:
         raise HTTPException(status_code=403, detail="Traffic limit exceeded")
 
-    # Generate VLESS link
     xray_mgr = XrayConfigManager()
     vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
 
-    # Base64 encode (standard for V2Ray subscription format)
     encoded = base64.b64encode(vless_url.encode()).decode()
 
-    # Build V2RayTun routing header (base64-encoded routing rules)
     routing_header = await _build_routing_header()
 
-    # Build subscription response with proper headers
     headers = {
         "Subscription-Userinfo": _build_userinfo(user),
         "Content-Disposition": f'attachment; filename="{user.name}.txt"',
@@ -117,23 +107,6 @@ async def get_subscription(request: Request, token: str):
     }
     if routing_header:
         headers["routing"] = routing_header
-
-
-    # Fragment header removed — it was breaking connections to Russian sites
-    # that go through the `direct` outbound on the server.
-    # DPI bypass is handled by Reality protocol itself.
-
-    # DNS header — override client DNS to DoH (bypass TSPU DNS interception)
-    dns_config = {
-        "servers": [
-            {"address": "https://1.1.1.1/dns-query", "domains": []},
-            {"address": "https://8.8.8.8/dns-query", "domains": []},
-        ],
-        "queryStrategy": "UseIPv4",
-    }
-    headers["dns"] = base64.b64encode(
-        json.dumps(dns_config).encode()
-    ).decode()
 
     return Response(
         content=encoded,
@@ -144,13 +117,6 @@ async def get_subscription(request: Request, token: str):
 
 @app.get("/sub/{token}/routing")
 async def get_routing_config(request: Request, token: str):
-    """Return client-side routing rules for split tunneling.
-
-    Supports two formats:
-    - JSON (default): /sub/{token}/routing
-    - Base64 text: /sub/{token}/routing?format=b64
-      (for iOS clients like V2RayTun/Streisand that import routing by URL)
-    """
     mgr = UserManager()
     user = await mgr.get_user_by_subscription_token(token)
 
@@ -160,7 +126,6 @@ async def get_routing_config(request: Request, token: str):
     route_mgr = RouteManager()
     routing = await route_mgr.generate_client_routing_config()
 
-    # Return base64 for clients that request it (V2RayTun URL import)
     fmt = request.query_params.get("format", "")
     accept = request.headers.get("accept", "")
 
@@ -178,10 +143,6 @@ async def get_routing_config(request: Request, token: str):
 
 @app.get("/sub/{token}/direct")
 async def get_direct_domains(token: str):
-    """Plain-text list of direct domains (one per line).
-
-    For v2rayNG: Settings → Routing → Custom rules → Direct URL.
-    """
     mgr = UserManager()
     user = await mgr.get_user_by_subscription_token(token)
     if not user:
@@ -190,7 +151,7 @@ async def get_direct_domains(token: str):
     route_mgr = RouteManager()
     direct = await route_mgr.get_direct_domains()
 
-    # Always include Russian geosite for split tunneling
+
     lines = ["geosite:category-ru"]
     lines.extend(f"domain:{d}" for d in direct)
 
@@ -202,10 +163,6 @@ async def get_direct_domains(token: str):
 
 @app.get("/sub/{token}/proxy")
 async def get_proxy_domains(token: str):
-    """Plain-text list of proxy domains (one per line).
-
-    For v2rayNG: Settings → Routing → Custom rules → Proxy URL.
-    """
     mgr = UserManager()
     user = await mgr.get_user_by_subscription_token(token)
     if not user:
@@ -214,7 +171,6 @@ async def get_proxy_domains(token: str):
     route_mgr = RouteManager()
     proxy = await route_mgr.get_proxy_domains()
 
-    # Fallback to defaults
     if not proxy:
         proxy = config.DEFAULT_PROXY_DOMAINS
 
@@ -227,12 +183,6 @@ async def get_proxy_domains(token: str):
 
 @app.get("/sub/{token}/v2raytun")
 async def get_v2raytun_deeplinks(request: Request, token: str):
-    """Return v2RayTun deeplinks for one-tap subscription + routing import.
-
-    URL Schemes:
-    - v2raytun://import/{subscription_url} — add subscription
-    - v2raytun://import_route/{base64} — import routing preset
-    """
     mgr = UserManager()
     user = await mgr.get_user_by_subscription_token(token)
 
@@ -241,20 +191,22 @@ async def get_v2raytun_deeplinks(request: Request, token: str):
 
     sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
     sub_deeplink = f"v2raytun://import/{sub_url}"
+    win_sub_deeplink = f"dem1chvpn://import/{sub_url}"
 
-    # Build routing deeplink
     routing_header = await _build_routing_header()
     route_deeplink = f"v2raytun://import_route/{routing_header}" if routing_header else None
+    win_route_deeplink = f"dem1chvpn://import_route/{routing_header}" if routing_header else None
 
     return {
         "subscription": sub_deeplink,
         "routing": route_deeplink,
-        "instructions": "Откройте ссылки в Safari на iPhone для автоимпорта в v2RayTun",
+        "win_subscription": win_sub_deeplink,
+        "win_routing": win_route_deeplink,
+        "instructions": "iOS: откройте ссылки в Safari для автоимпорта в v2RayTun. Windows: используйте win_ ссылки для импорта в Dem1chVPN.",
     }
 
 
 def _build_userinfo(user) -> str:
-    """Build Subscription-Userinfo header value."""
     parts = [
         f"upload={user.traffic_used_up}",
         f"download={user.traffic_used_down}",
@@ -268,14 +220,14 @@ def _build_userinfo(user) -> str:
 
 
 async def _build_routing_header() -> str | None:
-    """Build base64-encoded routing JSON for V2RayTun header.
+    """Собирает JSON маршрутов в Base64 для заголовка.
 
-    V2RayTun reads the 'routing' HTTP header from the subscription response
-    and auto-applies the routing rules on the client.
-    Format must match v2RayTun's internal preset structure exactly:
+    V2RayTun читает заголовок 'routing' из ответа подписки и 
+    автоматом применяет правила на клиенте.
+    Формат должен один в один совпадать с их структурой пресетов:
     - Root: id, name, balancers, domainStrategy, domainMatcher, rules
-    - Each rule: id, __name__, type, outboundTag, domain/ip
-    Docs: https://v2raytun.gitbook.io/overview/supported-headers#routing
+    - В каждом rule: id, __name__, type, outboundTag, domain/ip
+    Документация: https://v2raytun.gitbook.io/overview/supported-headers#routing
     """
     try:
         import uuid
@@ -284,16 +236,14 @@ async def _build_routing_header() -> str | None:
         direct_domains = await route_mgr.get_direct_domains()
         proxy_domains = await route_mgr.get_proxy_domains()
 
-        # Fallback to config defaults if DB has no proxy domains yet
         if not proxy_domains:
             proxy_domains = config.DEFAULT_PROXY_DOMAINS
 
         if not direct_domains and not proxy_domains:
             return None
 
-        # v2RayTun preset format — must include id, name, balancers
         routing = {
-            "domainStrategy": "IPIfNonMatch",
+            "domainStrategy": "AsIs",
             "id": str(uuid.uuid5(uuid.NAMESPACE_DNS, "dem1chvpn.routing")).upper(),
             "balancers": [],
             "domainMatcher": "hybrid",
@@ -301,14 +251,10 @@ async def _build_routing_header() -> str | None:
             "rules": [],
         }
 
-        # ── Rule 1: All Russian domains → DIRECT ──
-        # Comprehensive coverage of Russian TLDs, geosite, CDNs, and services
         direct_domain_list = [
-            # Geosite database (includes Yandex, Mail.ru, VK, banks, telecom, etc.)
             "geosite:category-ru",
-            # All Russian TLD zones via regexp
-            "regexp:.*\\.ru$",          # .ru
-            "regexp:.*\\.su$",          # .su (Soviet legacy, still active)
+            "regexp:.*\\.ru$",
+            "regexp:.*\\.su$",
             "regexp:.*\\.xn--p1ai$",    # .рф (Cyrillic)
             "regexp:.*\\.xn--p1acf$",   # .рус
             "regexp:.*\\.xn--80adxhks$",  # .москва
@@ -317,55 +263,145 @@ async def _build_routing_header() -> str | None:
             "regexp:.*\\.xn--c1avg$",     # .орг
             "regexp:.*\\.xn--d1acj3b$",   # .дети
             "regexp:.*\\.moscow$",        # .moscow
-            "regexp:.*\\.tatar$",         # .tatar
-            # Russian CDNs & infrastructure (non-.ru domains)
-            "domain:userapi.com",       # VK CDN
+            "regexp:.*\\.tatar$",
+
+            "domain:userapi.com",
             "domain:vk.com",            # VK main
             "domain:vk.me",             # VK messenger
             "domain:vkuseraudio.net",   # VK audio CDN
             "domain:vkuservideo.net",   # VK video CDN
             "domain:vk-cdn.net",        # VK CDN
+            "domain:vk-cdn.me",         # VK CDN alt
             "domain:vkontakte.com",     # VK alt
-            "domain:yastatic.net",      # Yandex static CDN
+            "domain:vkmessenger.com",   # VK Messenger
+            "domain:vkmessenger.app",   # VK Messenger app
+            "domain:vkteams.com",       # VK Teams
+            "domain:vkcache.com",
+
+            "domain:mail.ru",
+            "domain:imgsmail.ru",       # Mail.ru images CDN
+            "domain:mrgcdn.ru",         # Mail.ru CDN
+            "domain:mycdn.me",          # OK.ru/Mail CDN
+            "domain:ok.ru",             # Одноклассники
+            "domain:okcdn.ru",          # OK CDN
+            "domain:tamtam.chat",       # TamTam
+            "domain:icq.com",
+
+            "domain:yastatic.net",
             "domain:yastat.net",        # Yandex stats
             "domain:yandex.net",        # Yandex infra
             "domain:yandex.com",        # Yandex global
-            "domain:yandexcloud.net",   # Yandex Cloud
+            "domain:yandex.cloud",      # Yandex Cloud
+            "domain:yandexcloud.net",   # Yandex Cloud CDN
             "domain:ya.ru",             # Yandex short
-            "domain:avito.st",          # Avito CDN
-            "domain:sberbank.com",      # Sber global
-            "domain:tbank-online.com",  # T-Bank
-            "domain:tochka.com",        # Tochka Bank
-            "domain:tochka-tech.com",   # Tochka tech
+            "domain:turbopages.org",    # Yandex Turbo
+            "domain:webvisor.com",      # Yandex Webvisor
+            "domain:naydex.net",
+
+            "domain:avito.st",
+            "domain:wbstatic.net",      # Wildberries CDN
+            "domain:okko.tv",           # Okko стриминг
             "domain:boosty.to",         # VK Boosty
-            "domain:donationalerts.com",  # Donation Alerts
-            "domain:ngenix.net",        # NGENIX CDN (Russian CDN provider)
-            "domain:yclients.com",      # yCients SaaS
+            "domain:donationalerts.com",
+
+            "domain:ngenix.net",
+            "domain:cdnvideo.net",      # CDNvideo
+            "domain:selcdn.net",        # Selectel CDN
+            "domain:selectel.cloud",
+
+            "domain:sberbank.com",
+            "domain:sber.me",           # Сбер короткие ссылки
+            "domain:sberbank.ru",       # Сбер
+            "domain:sber.ru",           # Сбер
+            "domain:online.sberbank.ru",  # Сбер Онлайн
+            "domain:tinkoff.ru",        # Тинькофф/Т-Банк
+            "domain:tbank.ru",          # Т-Банк
+            "domain:cdn-tinkoff.ru",    # Тинькофф CDN
+            "domain:tbank-online.com",  # T-Bank CDN
+            "domain:tochka.com",        # Точка Банк
+            "domain:tochka-tech.com",   # Точка tech
+            "domain:vtb.ru",            # ВТБ
+            "domain:alfabank.ru",       # Альфа-Банк
+            "domain:alfa.me",           # Альфа короткие ссылки
+            "domain:alfaclick.ru",      # Альфа-Клик
+            "domain:gazprombank.ru",    # Газпромбанк
+            "domain:gpb.ru",            # Газпромбанк short
+            "domain:raiffeisen.ru",     # Райффайзен
+            "domain:rshb.ru",           # Россельхозбанк
+            "domain:rosbank.ru",        # Росбанк
+            "domain:psbank.ru",         # ПСБ
+            "domain:open.ru",           # Открытие
+            "domain:mkb.ru",            # МКБ
+            "domain:sovcombank.ru",     # Совкомбанк
+            "domain:pochtabank.ru",     # Почта Банк
+            "domain:homecredit.ru",     # Хоум Кредит
+            "domain:uralsib.ru",        # Уралсиб
+            "domain:akbars.ru",         # Ак Барс
+            "domain:bnkv.ru",
+
+            "domain:nalog.ru",
+            "domain:nalog.gov.ru",      # ФНС gov
+            "domain:lkfl.nalog.ru",     # ЛК физлица
+            "domain:lkfl2.nalog.ru",    # ЛК физлица v2
+            "domain:lknpd.nalog.ru",    # Мой налог (самозанятые)
+            "domain:api.nalog.ru",      # ФНС API
+            "domain:service.nalog.ru",  # ФНС сервис
+            "domain:auth.nalog.ru",     # ФНС авторизация
+            "domain:gosuslugi.ru",      # Госуслуги
+            "domain:esia.gosuslugi.ru", # ЕСИА авторизация
+            "domain:gu-st.ru",          # Госуслуги статика
+            "domain:gov.ru",            # Правительство
+            "domain:government.ru",     # Правительство
+            "domain:mos.ru",            # Мэрия Москвы
+            "domain:emias.info",        # ЕМИАС здравоохранение
+            "domain:cbr.ru",            # Центробанк
+            "domain:goskey.ru",         # Госключ
+            "domain:pfr.gov.ru",        # ПФР/СФР
+            "domain:sfr.gov.ru",        # Социальный фонд
+            "domain:fss.ru",            # ФСС
+            "domain:rosreestr.ru",      # Росреестр
+            "domain:rosreestr.gov.ru",  # Росреестр gov
+            "domain:mvd.ru",            # МВД
+            "domain:mvd.gov.ru",        # МВД gov
+            "domain:fssp.gov.ru",       # ФССП (приставы)
+            "domain:zakupki.gov.ru",    # Госзакупки
+            "domain:bus.gov.ru",        # Бюджет
+            "domain:rpn.gov.ru",        # Росприроднадзор
+            "domain:fas.gov.ru",        # ФАС
+            "domain:rostrud.gov.ru",    # Роструд
+            "domain:fns.su",
+
+            "domain:nspk.ru",
+            "domain:mir.ru",            # МИР
+            "domain:qiwi.com",          # QIWI
+            "domain:yoomoney.ru",
+
+            "domain:mts.ru",
+            "domain:mymts.ru",          # МТС ЛК
+            "domain:megafon.ru",        # Мегафон
+            "domain:beeline.ru",        # Билайн
+            "domain:tele2.ru",          # Tele2
+            "domain:t2.ru",             # Tele2 alt
+            "domain:yota.ru",           # Yota
+            "domain:rt.ru",             # Ростелеком
+            "domain:rostelecom.ru",     # Ростелеком
+            "domain:ttk.ru",            # ТТК
+            "domain:dom.ru",
+
+            "domain:rzd.ru",
+            "domain:aeroflot.ru",       # Аэрофлот
+            "domain:s7.ru",             # S7 Airlines
+            "domain:utair.ru",          # Utair
+            "domain:pochta.ru",         # Почта России
+            "domain:cdek.ru",
+
+            "domain:yclients.com",
             "domain:taxsee.com",        # Taxsee
             "domain:t1.cloud",          # T1 Cloud
             "domain:dbo-dengi.online",  # MTS Dengi
-            "domain:moex.com",          # Moscow Exchange
-            "domain:turbopages.org",    # Yandex Turbo
-            "domain:webvisor.com",      # Yandex Webvisor
-            "domain:naydex.net",        # Yandex Ads
-            # Государство + налоги (критичные API-домены)
-            "domain:nalog.ru",
-            "domain:nalog.gov.ru",
-            "domain:gosuslugi.ru",
-            "domain:esia.gosuslugi.ru",
-            "domain:gu-st.ru",
-            "domain:gov.ru",
-            "domain:government.ru",
-            "domain:mos.ru",
-            "domain:emias.info",
-            "domain:cbr.ru",
-            "domain:goskey.ru",
-            "domain:pfr.gov.ru",
-            # Платёжные системы
-            "domain:nspk.ru",
-            "domain:mir.ru",
+            "domain:moex.com",          # Мосбиржа
+            "domain:2gis.com",          # 2ГИС
         ]
-        # Add admin-configured direct domains from DB
         if direct_domains:
             direct_domain_list.extend(f"domain:{d}" for d in direct_domains)
 
@@ -375,18 +411,10 @@ async def _build_routing_header() -> str | None:
             "__name__": "🇷🇺 Россия — напрямую",
             "outboundTag": "direct",
             "domain": direct_domain_list,
-        })
-
-        # ── Rule 2: Russian IPs → DIRECT ──
-        routing["rules"].append({
-            "type": "field",
-            "id": str(uuid.uuid5(uuid.NAMESPACE_DNS, "dem1chvpn.direct.ip")).upper(),
-            "__name__": "🇷🇺 RU IP — напрямую",
-            "outboundTag": "direct",
             "ip": ["geoip:ru", "geoip:private"],
         })
 
-        # ── Rule 3: Blocked/throttled services → PROXY ──
+        # ── Rule 3: Заблокированные сервисы → PROXY ──
         if proxy_domains:
             routing["rules"].append({
                 "type": "field",
@@ -396,29 +424,213 @@ async def _build_routing_header() -> str | None:
                 "domain": [f"domain:{d}" for d in proxy_domains],
             })
 
-        # Split-tunnel: no catch-all. Unknown domains go through proxy by
-        # default outbound (first outbound in client config = proxy).
-        # Russian domains matched by rules above go direct.
+        # Сплит-туннелинг: дефолтного правила "всё подряд" здесь нет.
+        # Все домены, не попавшие в direct-правила из списка выше,
+        # пойдут через дефолтный outbound клиента (обычно это proxy).
 
         return base64.b64encode(json.dumps(routing).encode()).decode()
     except Exception:
         return None
 
 
-# ── WebApp API ──
+# WebView в Телеге жестко режет кастомные схемы (типа v2raytun://).
+# Поэтому отдаем простую HTML, которая редиректит на диплинк (обрабатывается внешним Safari/Chrome).
+
+def _build_redirect_html(deeplink: str, action_label: str) -> str:
+    return f"""<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="refresh" content="1;url={deeplink}">
+    <title>Dem1chVPN — {action_label}</title>
+    <style>
+        * {{ margin: 0; padding: 0; box-sizing: border-box; }}
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro', 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #0a0a1a 0%, #0d1b2a 50%, #1a0a2e 100%);
+            color: #e0e0e0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }}
+        .container {{
+            text-align: center;
+            max-width: 400px;
+            width: 100%;
+        }}
+        .shield {{
+            width: 64px; height: 64px;
+            margin: 0 auto 20px;
+            animation: pulse 2s ease-in-out infinite;
+        }}
+        .shield svg {{
+            width: 100%; height: 100%;
+            filter: drop-shadow(0 0 20px rgba(0, 212, 255, 0.4));
+        }}
+        @keyframes pulse {{
+            0%, 100% {{ transform: scale(1); opacity: 1; }}
+            50% {{ transform: scale(1.05); opacity: 0.8; }}
+        }}
+        h1 {{
+            font-size: 20px;
+            font-weight: 700;
+            color: #ffffff;
+            margin-bottom: 8px;
+        }}
+        .subtitle {{
+            font-size: 14px;
+            color: #8899aa;
+            margin-bottom: 32px;
+        }}
+        .spinner {{
+            width: 40px; height: 40px;
+            margin: 0 auto 20px;
+            border: 3px solid rgba(0, 212, 255, 0.15);
+            border-top-color: #00d4ff;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }}
+        @keyframes spin {{
+            to {{ transform: rotate(360deg); }}
+        }}
+        .status {{
+            font-size: 15px;
+            color: #ccddee;
+            margin-bottom: 24px;
+        }}
+        .manual-link {{
+            display: inline-block;
+            padding: 14px 28px;
+            background: linear-gradient(135deg, #00d4ff, #0066ff);
+            color: #ffffff;
+            text-decoration: none;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 15px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 20px rgba(0, 212, 255, 0.3);
+        }}
+        .manual-link:active {{
+            transform: scale(0.97);
+        }}
+        .hint {{
+            margin-top: 20px;
+            font-size: 12px;
+            color: #667788;
+            line-height: 1.5;
+        }}
+        .hint code {{
+            background: rgba(0, 212, 255, 0.1);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="shield">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#00d4ff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
+                <path d="M9 12l2 2 4-4" stroke="#00d4ff"/>
+            </svg>
+        </div>
+        <h1>Dem1chVPN</h1>
+        <p class="subtitle">{action_label}</p>
+        <div class="spinner"></div>
+        <p class="status">Открываю V2RayTun...</p>
+        <a href="{deeplink}" class="manual-link">
+            Открыть вручную
+        </a>
+        <p class="hint">
+            Если приложение не открылось автоматически,<br>
+            нажмите кнопку выше или установите
+            <a href="https://apps.apple.com/app/v2raytun/id6476628951" style="color: #00d4ff;">V2RayTun</a>
+        </p>
+    </div>
+    <script>
+        // JavaScript fallback redirect
+        setTimeout(function() {{
+            window.location.href = "{deeplink}";
+        }}, 800);
+    </script>
+</body>
+</html>"""
+
+
+@app.get("/redirect/sub/{token}")
+async def redirect_subscription(token: str):
+    mgr = UserManager()
+    user = await mgr.get_user_by_subscription_token(token)
+    if not user:
+        raise HTTPException(status_code=404, detail="Invalid subscription")
+
+    sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
+    deeplink = f"v2raytun://import/{sub_url}"
+
+    html = _build_redirect_html(deeplink, "Импорт подписки")
+    return HTMLResponse(content=html)
+
+
+@app.get("/redirect/route/{token}")
+async def redirect_routing(token: str):
+    mgr = UserManager()
+    user = await mgr.get_user_by_subscription_token(token)
+    if not user:
+        raise HTTPException(status_code=404, detail="Invalid subscription")
+
+    routing_header = await _build_routing_header()
+    if not routing_header:
+        raise HTTPException(status_code=404, detail="No routing rules configured")
+
+    deeplink = f"v2raytun://import_route/{routing_header}"
+
+    html = _build_redirect_html(deeplink, "Импорт маршрутов")
+    return HTMLResponse(content=html)
+
+
+@app.get("/redirect/win/sub/{token}")
+async def redirect_win_subscription(token: str):
+    mgr = UserManager()
+    user = await mgr.get_user_by_subscription_token(token)
+    if not user:
+        raise HTTPException(status_code=404, detail="Invalid subscription")
+
+    sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
+    deeplink = f"dem1chvpn://import/{sub_url}"
+
+    html = _build_redirect_html(deeplink, "Импорт подписки — Windows")
+    return HTMLResponse(content=html)
+
+
+@app.get("/redirect/win/route/{token}")
+async def redirect_win_routing(token: str):
+    mgr = UserManager()
+    user = await mgr.get_user_by_subscription_token(token)
+    if not user:
+        raise HTTPException(status_code=404, detail="Invalid subscription")
+
+    routing_header = await _build_routing_header()
+    if not routing_header:
+        raise HTTPException(status_code=404, detail="No routing rules configured")
+
+    deeplink = f"dem1chvpn://import_route/{routing_header}"
+
+    html = _build_redirect_html(deeplink, "Импорт маршрутов — Windows")
+    return HTMLResponse(content=html)
+
 
 from server.subscription.webapp_api import api as webapp_api
 app.include_router(webapp_api)
 
 
-# ── Static files (Mini App) ──
-
 WEBAPP_DIR = Path(__file__).resolve().parent.parent / "webapp" / "dist"
 if WEBAPP_DIR.exists():
     app.mount("/webapp", StaticFiles(directory=str(WEBAPP_DIR), html=True), name="webapp")
 
-
-# ── Entry Point ──
 
 def main():
     uvicorn.run(

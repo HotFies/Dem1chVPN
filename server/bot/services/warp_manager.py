@@ -1,8 +1,7 @@
 """
-Dem1chVPN — WARP Manager Service
-Toggle Cloudflare WARP on/off.
-Uses warp-svc in SOCKS5 proxy mode (127.0.0.1:40000).
-Routing strategy: RU sites → direct, ALL foreign traffic → WARP.
+Dem1chVPN — Сервис управления WARP
+Использует warp-svc в режиме SOCKS5 (127.0.0.1:40000).
+Роутинг: сайты РФ → direct, зарубежный трафик → WARP.
 """
 import json
 import asyncio
@@ -10,18 +9,18 @@ from pathlib import Path
 from ..config import config
 
 
-# Default SOCKS5 port for warp-svc proxy mode
+# Дефолтный порт SOCKS5 для warp-svc
 WARP_SOCKS_PORT = 40000
 
 
 class WarpManager:
-    """Manages Cloudflare WARP outbound in Xray (SOCKS5 proxy)."""
+
 
     def __init__(self):
         self.xray_config_path = Path(config.XRAY_CONFIG_PATH)
 
     def is_enabled(self) -> bool:
-        """Check if WARP outbound exists in Xray config."""
+
         try:
             cfg = self._read_config()
             return any(o.get("tag") == "warp" for o in cfg.get("outbounds", []))
@@ -29,22 +28,22 @@ class WarpManager:
             return False
 
     def is_installed(self) -> bool:
-        """Check if warp-cli is installed."""
+
         import shutil
         return shutil.which("warp-cli") is not None
 
     async def enable(self) -> bool:
-        """Add WARP SOCKS5 outbound to Xray config and set catch-all routing."""
+
         if not self.is_installed():
             return False
 
         try:
             cfg = self._read_config()
 
-            # Remove existing WARP outbound
+            # Сносим старый WARP аутбаунд
             cfg["outbounds"] = [o for o in cfg["outbounds"] if o.get("tag") != "warp"]
 
-            # Add SOCKS5 outbound (connects to local warp-svc)
+            # Добавляем SOCKS5, который смотрит на локальный warp-svc
             warp_outbound = {
                 "tag": "warp",
                 "protocol": "socks",
@@ -59,13 +58,12 @@ class WarpManager:
             }
             cfg["outbounds"].append(warp_outbound)
 
-            # Ensure WARP catch-all routing rule exists at the end
-            # Strategy: RU sites → direct (already in config), everything else → WARP
+            # Прокидываем все неопознанное в WARP, кроме сайтов РФ (direct)
             rules = cfg.get("routing", {}).get("rules", [])
-            # Remove old WARP rules
+            # Сносим старые правила WARP
             rules = [r for r in rules if r.get("outboundTag") != "warp"]
 
-            # DNS must go direct (SOCKS5 can't proxy UDP)
+            # DNS летит direct (SOCKS5 не проксирует UDP)
             has_dns_direct = any(
                 r.get("port") == "53" and r.get("outboundTag") == "direct"
                 for r in rules
@@ -77,7 +75,7 @@ class WarpManager:
                     "port": "53",
                 })
 
-            # Add catch-all TCP at the end (UDP handled by DNS-direct + QUIC-block)
+            # Замыкающее правило: весь TCP летит в WARP
             rules.append({
                 "type": "field",
                 "outboundTag": "warp",
@@ -87,7 +85,7 @@ class WarpManager:
 
             self._write_config(cfg)
 
-            # Ensure warp-svc is connected
+            # Пинаем warp-svc, чтобы точно был подключен
             await self._ensure_warp_connected()
 
             await self._restart_xray()
@@ -96,12 +94,12 @@ class WarpManager:
             return False
 
     async def disable(self) -> bool:
-        """Remove WARP outbound from Xray config."""
+
         try:
             cfg = self._read_config()
             cfg["outbounds"] = [o for o in cfg["outbounds"] if o.get("tag") != "warp"]
 
-            # Also remove routing rules pointing to WARP
+            # Вычищаем роуты, которые ссылаются на WARP
             if "routing" in cfg:
                 cfg["routing"]["rules"] = [
                     r for r in cfg["routing"]["rules"]
@@ -115,7 +113,7 @@ class WarpManager:
             return False
 
     async def toggle(self) -> bool:
-        """Toggle WARP status. Returns new state (True=enabled)."""
+
         if self.is_enabled():
             await self.disable()
             return False
@@ -124,7 +122,7 @@ class WarpManager:
             return True
 
     async def get_warp_ip(self) -> str:
-        """Get current WARP exit IP."""
+
         try:
             proc = await asyncio.create_subprocess_exec(
                 "warp-cli", "status",
@@ -144,7 +142,7 @@ class WarpManager:
         return "unknown"
 
     async def _ensure_warp_connected(self):
-        """Make sure warp-svc is running and connected."""
+
         try:
             proc = await asyncio.create_subprocess_exec(
                 "warp-cli", "connect",

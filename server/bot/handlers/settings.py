@@ -1,6 +1,5 @@
 """
 Dem1chVPN Bot — Settings Handler
-Server settings management.
 """
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, BufferedInputFile
@@ -171,7 +170,7 @@ async def set_restore(callback: CallbackQuery):
     await callback.answer()
 
 
-# ── WARP Manager (#5) ──
+
 
 @router.callback_query(F.data == "set:warp_status")
 async def set_warp_status(callback: CallbackQuery):
@@ -240,7 +239,7 @@ async def set_warp_toggle(callback: CallbackQuery):
     await callback.answer()
 
 
-# ── Broadcast (#7) ──
+
 
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
