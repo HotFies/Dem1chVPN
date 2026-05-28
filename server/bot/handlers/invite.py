@@ -1,0 +1,297 @@
+"""
+Dem1chVPN Bot — Invite Handler
+"""
+from datetime import datetime, timedelta, timezone
+
+from aiogram import Router, F
+from aiogram.types import CallbackQuery, Message
+from aiogram.filters import CommandStart
+from aiogram.filters.command import CommandObject
+from aiogram.fsm.context import FSMContext
+from aiogram.fsm.state import State, StatesGroup
+
+from ..config import config
+from ..keyboards.menus import back_button, cancel_button, main_menu
+from ..services.user_manager import UserManager
+from ..services.xray_config import XrayConfigManager
+from ..services.hysteria_config import HysteriaConfigManager
+from ..services.invite_manager import InviteManager
+
+from ..utils.formatters import format_user_info
+from ..utils.telegram_helpers import get_text
+
+router = Router()
+
+
+class InviteStates(StatesGroup):
+    waiting_name = State()
+    waiting_limit = State()
+    waiting_days = State()
+
+
+@router.callback_query(F.data == "users:invite")
+async def invite_start(callback: CallbackQuery, state: FSMContext):
+    from ..utils.telegram_helpers import safe_edit_text
+    await safe_edit_text(
+        callback.message,
+        "🎟️ <b>Создание приглашения</b>\n\n"
+        "Введите имя для нового пользователя:",
+        reply_markup=cancel_button("menu:users"),
+    )
+    await state.set_state(InviteStates.waiting_name)
+    await callback.answer()
+
+
+
+
+@router.callback_query(F.data == "menu:users", InviteStates.waiting_name)
+@router.callback_query(F.data == "menu:users", InviteStates.waiting_limit)
+@router.callback_query(F.data == "menu:users", InviteStates.waiting_days)
+async def invite_cancel(callback: CallbackQuery, state: FSMContext):
+    """Cancel invite creation."""
+    from ..utils.telegram_helpers import safe_edit_text
+    from ..keyboards.menus import users_menu
+    await state.clear()
+    await safe_edit_text(
+        callback.message,
+        "👥 <b>Пользователи</b>\n\n❌ Создание приглашения отменено.",
+        reply_markup=users_menu(),
+    )
+    await callback.answer()
+
+
+@router.message(InviteStates.waiting_name)
+async def invite_name(message: Message, state: FSMContext):
+    name = get_text(message)
+    if not name or len(name) > 50:
+        await message.answer(
+            "❌ Имя от 1 до 50 символов:",
+            reply_markup=cancel_button("menu:users"),
+        )
+        return
+    await state.update_data(name=name)
+    await message.answer(
+        f"👤 Имя: <b>{name}</b>\n\n"
+        "📊 Лимит трафика в ГБ (0 = безлимит):",
+        reply_markup=cancel_button("menu:users"),
+    )
+    await state.set_state(InviteStates.waiting_limit)
+
+
+@router.message(InviteStates.waiting_limit)
+async def invite_limit(message: Message, state: FSMContext):
+    try:
+        gb = float(get_text(message))
+        if gb < 0:
+            raise ValueError
+    except ValueError:
+        await message.answer(
+            "❌ Введите число:",
+            reply_markup=cancel_button("menu:users"),
+        )
+        return
+
+    traffic_limit = int(gb * 1024 ** 3) if gb > 0 else None
+    await state.update_data(traffic_limit=traffic_limit, traffic_gb=gb)
+    await message.answer(
+        f"📊 Лимит: <b>{'♾️' if not traffic_limit else f'{gb} GB'}</b>\n\n"
+        "⏰ Срок действия аккаунта в днях (0 = бессрочно):",
+        reply_markup=cancel_button("menu:users"),
+    )
+    await state.set_state(InviteStates.waiting_days)
+
+
+@router.message(InviteStates.waiting_days)
+async def invite_days(message: Message, state: FSMContext):
+    try:
+        days = int(get_text(message))
+        if days < 0:
+            raise ValueError
+    except ValueError:
+        await message.answer(
+            "❌ Введите целое число:",
+            reply_markup=cancel_button("menu:users"),
+        )
+        return
+
+    data = await state.get_data()
+    await state.clear()
+
+    mgr = InviteManager()
+    invite = await mgr.create_invite(
+        name=data["name"],
+        traffic_limit=data.get("traffic_limit"),
+        days_valid=days if days > 0 else None,
+        created_by=message.from_user.id,
+    )
+
+    user_mgr = UserManager()
+    await user_mgr.log_action(
+        "invite_created",
+        admin_id=message.from_user.id,
+        details=f"Name: {data['name']}, code: {invite.code}",
+    )
+
+    bot_info = await message.bot.get_me()
+    link = f"https://t.me/{bot_info.username}?start=inv_{invite.code}"
+
+    limit_str = f"{data.get('traffic_gb', 0)} GB" if data.get("traffic_limit") else "♾️"
+    days_str = f"{days} дней" if days > 0 else "♾️ Бессрочно"
+
+    await message.answer(
+        f"🎟️ <b>Приглашение создано!</b>\n\n"
+        f"🔗 Ссылка:\n<code>{link}</code>\n\n"
+        f"👤 Имя: <b>{data['name']}</b>\n"
+        f"📊 Лимит: <b>{limit_str}</b>\n"
+        f"⏰ Срок: <b>{days_str}</b>\n\n"
+        "Отправьте эту ссылку получателю.\n"
+        "При переходе бот автоматически:\n"
+        "• Создаст аккаунт\n"
+        "• Выдаст подписку с VLESS и Hysteria2\n"
+        "• Отправит инструкцию по подключению",
+        reply_markup=back_button("menu:users"),
+    )
+
+
+
+
+@router.message(CommandStart(deep_link=True, magic=F.args.startswith(("inv_", "link_"))))
+async def invite_activate(message: Message, command: CommandObject):
+    args = command.args or ""
+
+    if args.startswith("link_"):
+        try:
+            vpn_user_id = int(args.replace("link_", ""))
+        except ValueError:
+            await message.answer("❌ Неверная ссылка привязки.")
+            return
+
+        user_mgr = UserManager()
+
+        existing = await user_mgr.get_user_by_telegram_id(message.from_user.id)
+        if existing:
+            await message.answer(
+                f"✅ Ваш Telegram уже привязан к аккаунту <b>{existing.name}</b>.\n"
+                "Нажмите /start для доступа к меню."
+            )
+            return
+
+        user = await user_mgr.get_user(vpn_user_id)
+        if not user:
+            await message.answer("❌ Аккаунт не найден. Обратитесь к администратору.")
+            return
+
+        if user.telegram_id:
+            await message.answer("❌ Этот аккаунт уже привязан к другому Telegram.")
+            return
+
+        await user_mgr.link_telegram(vpn_user_id, message.from_user.id)
+
+        xray_mgr = XrayConfigManager()
+        vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
+        sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
+
+        await message.answer(
+            f"🔗 <b>Telegram привязан!</b>\n\n"
+            f"Аккаунт: <b>{user.name}</b>\n\n"
+            f"📡 <b>Подписка:</b>\n<code>{sub_url}</code>\n\n"
+            "Теперь вы можете:\n"
+            "• Просматривать трафик\n"
+            "• Создавать тикеты\n"
+            "• Получать уведомления\n\n"
+            "Нажмите /start для доступа к меню."
+        )
+
+        for admin_id in config.ADMIN_IDS:
+            try:
+                await message.bot.send_message(
+                    admin_id,
+                    f"🔗 Telegram привязан!\n"
+                    f"👤 {user.name} → @{message.from_user.username or '—'}",
+                )
+            except Exception:
+                pass
+        return
+
+    code = args.replace("inv_", "")
+
+    inv_mgr = InviteManager()
+    invite = await inv_mgr.get_invite(code)
+
+    if not invite or not invite.is_active or invite.is_exhausted:
+        await message.answer(
+            "❌ <b>Приглашение недействительно</b>\n\n"
+            "Ссылка истекла или уже использована. Обратитесь к администратору."
+        )
+        return
+
+    user_mgr = UserManager()
+    existing = await user_mgr.get_user_by_telegram_id(message.from_user.id)
+    if existing:
+        await message.answer(
+            f"✅ У вас уже есть аккаунт: <b>{existing.name}</b>\n"
+            "Используйте /start для доступа к меню."
+        )
+        return
+
+    user = await user_mgr.create_user(
+        name=invite.name,
+        traffic_limit=invite.traffic_limit,
+        expiry_days=invite.days_valid,
+        telegram_id=message.from_user.id,
+    )
+
+    xray_mgr = XrayConfigManager()
+    await xray_mgr.add_client(user.uuid, user.email)
+    hysteria_mgr = HysteriaConfigManager()
+    await hysteria_mgr.add_client(user.email, user.hysteria_password)
+
+    await inv_mgr.use_invite(code)
+
+    await user_mgr.log_action(
+        "user_created_via_invite",
+        target_user_id=user.id,
+        details=f"Name: {user.name}, invite: {code}, tg: @{message.from_user.username or '—'}",
+    )
+
+    vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
+    sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
+    sub_deeplink = f"v2raytun://import/{sub_url}"
+    win_sub_deeplink = f"dem1chvpn://import/{sub_url}"
+
+    welcome = (
+        f"🎉 <b>Добро пожаловать в Dem1chVPN!</b>\n\n"
+        f"Аккаунт <b>{user.name}</b> создан.\n\n"
+        f"{format_user_info(user)}\n\n"
+        f"━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"📱 <b>v2RayTun (iOS) — автоимпорт:</b>\n"
+        f"<code>{sub_deeplink}</code>\n\n"
+        f"🖥️ <b>Dem1chVPN (Windows) — автоимпорт:</b>\n"
+        f"<code>{win_sub_deeplink}</code>\n\n"
+        f"📡 <b>Подписка</b> (для других клиентов):\n"
+        f"<code>{sub_url}</code>\n"
+        f"<i>↳ внутри две ссылки — VLESS и Hysteria2</i>\n\n"
+        f"🛡 <b>VLESS + Reality</b> (роутеры, ручной импорт):\n"
+        f"<code>{vless_url}</code>"
+    )
+
+    if config.HYSTERIA_ENABLED and getattr(user, "hysteria_password", None):
+        h_url = hysteria_mgr.generate_hysteria_url(
+            user.email, user.hysteria_password, user.name
+        )
+        welcome += f"\n\n⚡ <b>Hysteria2 / QUIC</b>:\n<code>{h_url}</code>"
+
+    welcome += "\n\nНажмите /start для доступа к меню."
+
+    await message.answer(welcome)
+
+    for admin_id in config.ADMIN_IDS:
+        try:
+            await message.bot.send_message(
+                admin_id,
+                f"🆕 Новый пользователь по приглашению!\n"
+                f"👤 {user.name} (@{message.from_user.username or '—'})\n"
+                f"🎟️ Код: {code}",
+            )
+        except Exception:
+            pass

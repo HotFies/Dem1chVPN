@@ -1,0 +1,264 @@
+{
+  "log": {
+    "loglevel": "warning",
+    "access": "/var/log/xray/access.log",
+    "error": "/var/log/xray/error.log"
+  },
+  "api": {
+    "tag": "api",
+    "services": ["HandlerService", "StatsService", "RoutingService"]
+  },
+  "stats": {},
+  "policy": {
+    "levels": {
+      "0": {
+        "statsUserUplink": true,
+        "statsUserDownlink": true
+      }
+    },
+    "system": {
+      "statsInboundUplink": true,
+      "statsInboundDownlink": true,
+      "statsOutboundUplink": true,
+      "statsOutboundDownlink": true
+    }
+  },
+  "dns": {
+    "servers": [
+      {
+        "address": "https://1.1.1.1/dns-query",
+        "skipFallback": false
+      },
+      {
+        "address": "https://8.8.8.8/dns-query",
+        "skipFallback": true
+      },
+      {
+        "address": "77.88.8.8",
+        "domains": ["geosite:category-ru"],
+        "skipFallback": true
+      }
+    ],
+    "queryStrategy": "UseIPv4",
+    "disableCache": false,
+    "disableFallbackIfMatch": true,
+    "tag": "dns-internal"
+  },
+  "inbounds": [
+    {
+      "tag": "api",
+      "port": 10085,
+      "listen": "127.0.0.1",
+      "protocol": "dokodemo-door",
+      "settings": {
+        "address": "127.0.0.1"
+      }
+    },
+    {
+      "tag": "vless-reality",
+      "port": 443,
+      "protocol": "vless",
+      "settings": {
+        "clients": [],
+        "decryption": "none"
+      },
+      "streamSettings": {
+        "network": "tcp",
+        "security": "reality",
+        "realitySettings": {
+          "dest": "REALITY_DEST_PLACEHOLDER",
+          "serverNames": ["REALITY_SNI_PLACEHOLDER"],
+          "privateKey": "REALITY_PRIVATE_KEY_PLACEHOLDER",
+          "shortIds": ["REALITY_SHORT_ID_PLACEHOLDER"]
+        }
+      },
+      "sniffing": {
+        "enabled": true,
+        "destOverride": ["http", "tls", "quic"],
+        "routeOnly": true
+      }
+    }
+  ],
+  "outbounds": [
+    {
+      "tag": "direct",
+      "protocol": "freedom",
+      "settings": {
+        "domainStrategy": "AsIs"
+      },
+      "streamSettings": {
+        "sockopt": {
+          "mark": 255,
+          "tcpMptcp": true,
+          "tcpNoDelay": true,
+          "tcpFastOpen": true
+        }
+      }
+    },
+    {
+      "tag": "blocked",
+      "protocol": "blackhole"
+    }
+  ],
+  "routing": {
+    "domainStrategy": "IPIfNonMatch",
+    "rules": [
+      {
+        "type": "field",
+        "inboundTag": ["api"],
+        "outboundTag": "api"
+      },
+      {
+        "type": "field",
+        "outboundTag": "direct",
+        "domain": [
+          "geosite:category-ru",
+          "domain:sberbank.ru",
+          "domain:sber.ru",
+          "domain:sberbank.com",
+          "domain:tinkoff.ru",
+          "domain:tbank.ru",
+          "domain:cdn-tinkoff.ru",
+          "domain:tbank-online.com",
+          "domain:vtb.ru",
+          "domain:alfabank.ru",
+          "domain:gazprombank.ru",
+          "domain:gpb.ru",
+          "domain:raiffeisen.ru",
+          "domain:sovcombank.ru",
+          "domain:rosbank.ru",
+          "domain:bankline.ru",
+          "domain:psbank.ru",
+          "domain:uralsib.ru",
+          "domain:mtsbank.ru",
+          "domain:mkb.ru",
+          "domain:pochtabank.ru",
+          "domain:open.ru",
+          "domain:tochka.com",
+          "domain:tochka-tech.com",
+          "domain:ozon.bank",
+          "domain:rshb.ru",
+          "domain:abr.ru",
+          "domain:homecredit.ru",
+          "domain:mtsdengi.ru",
+          "domain:dbo-dengi.online",
+          "domain:nspk.ru",
+          "domain:vk.com",
+          "domain:vk.ru",
+          "domain:vkmessenger.com",
+          "domain:vkmessenger.app",
+          "domain:userapi.com",
+          "domain:vk-cdn.net",
+          "domain:vk-cdn.me",
+          "domain:cdn-vk.ru",
+          "domain:vkuservideo.net",
+          "domain:vkvideo.ru",
+          "domain:vkuseraudio.net",
+          "domain:vkuserphoto.ru",
+          "domain:vkuser.net",
+          "domain:vkusercdn.ru",
+          "domain:vkcache.com",
+          "domain:vk-apps.com",
+          "domain:vkontakte.ru",
+          "domain:mvk.com",
+          "domain:max.ru",
+          "domain:tamtam.chat",
+          "domain:icq.com",
+          "domain:vkteams.com",
+          "domain:mail.ru",
+          "domain:imgsmail.ru",
+          "domain:mrgcdn.ru",
+          "domain:ok.ru",
+          "domain:okcdn.ru",
+          "domain:mycdn.me",
+          "domain:boosty.to",
+          "domain:dzen.ru",
+          "domain:yandex.ru",
+          "domain:yandex.com",
+          "domain:yandex.net",
+          "domain:ya.ru",
+          "domain:yastatic.net",
+          "domain:yandexcloud.net",
+          "domain:yastat.net",
+          "domain:admetrica.ru",
+          "domain:yandex.cloud",
+          "domain:kinopoisk.ru",
+          "domain:gosuslugi.ru",
+          "domain:gu-st.ru",
+          "domain:nalog.ru",
+          "domain:nalog.gov.ru",
+          "domain:gov.ru",
+          "domain:government.ru",
+          "domain:mos.ru",
+          "domain:emias.info",
+          "domain:cbr.ru",
+          "domain:goskey.ru",
+          "domain:mts.ru",
+          "domain:mymts.ru",
+          "domain:megafon.ru",
+          "domain:beeline.ru",
+          "domain:tele2.ru",
+          "domain:t2.ru",
+          "domain:yota.ru",
+          "domain:rostelecom.ru",
+          "domain:rt.ru",
+          "domain:dom.ru",
+          "domain:ozon.ru",
+          "domain:wildberries.ru",
+          "domain:wb.ru",
+          "domain:wbstatic.net",
+          "domain:avito.ru",
+          "domain:1c.ru",
+          "domain:sbermegamarket.ru",
+          "domain:dns-shop.ru",
+          "domain:mvideo.ru",
+          "domain:lamoda.ru",
+          "domain:detmir.ru",
+          "domain:ivi.ru",
+          "domain:okko.tv",
+          "domain:rutube.ru",
+          "domain:premier.one",
+          "domain:wink.ru",
+          "domain:2gis.ru",
+          "domain:2gis.com",
+          "domain:rzd.ru",
+          "domain:pochta.ru",
+          "domain:cdek.ru",
+          "domain:hh.ru",
+          "domain:cian.ru",
+          "domain:domclick.ru",
+          "domain:auto.ru",
+          "domain:rustore.ru",
+          "domain:ngenix.net",
+          "domain:banki.ru",
+          "domain:finuslugi.ru",
+          "domain:moex.com",
+          "domain:rbc.ru",
+          "domain:samokat.ru",
+          "domain:sbermarket.ru",
+          "domain:magnit.ru",
+          "domain:twitch.tv",
+          "domain:ttvnw.net",
+          "domain:jtvnw.net",
+          "domain:ext-twitch.tv"
+        ]
+      },
+      {
+        "type": "field",
+        "outboundTag": "direct",
+        "ip": ["geoip:ru", "geoip:private"]
+      },
+      {
+        "type": "field",
+        "outboundTag": "direct",
+        "port": "53"
+      },
+      {
+        "type": "field",
+        "outboundTag": "blocked",
+        "network": "udp",
+        "port": "443"
+      }
+    ]
+  }
+}

@@ -1,0 +1,28 @@
+listen: :HYSTERIA_PORT_PLACEHOLDER
+
+# Сертификат выпускает Caddy через ACME, мы переиспользуем тот же файл.
+# Hysteria сама перечитывает cert/key при изменении на диске.
+tls:
+  cert: HYSTERIA_CERT_PATH_PLACEHOLDER
+  key: HYSTERIA_KEY_PATH_PLACEHOLDER
+
+auth:
+  type: userpass
+  userpass: {}
+
+obfs:
+  type: salamander
+  salamander:
+    password: HYSTERIA_OBFS_PASSWORD_PLACEHOLDER
+
+masquerade:
+  type: proxy
+  proxy:
+    url: https://news.ycombinator.com/
+    rewriteHost: true
+
+quic:
+  initStreamReceiveWindow: 16777216
+  maxStreamReceiveWindow: 16777216
+  initConnReceiveWindow: 41943040
+  maxConnReceiveWindow: 41943040

@@ -1,0 +1,191 @@
+"""
+Dem1chVPN — Конфигуратор Xray
+"""
+import json
+import logging
+import subprocess
+import urllib.parse
+from pathlib import Path
+from typing import Optional
+
+from ..config import config
+
+logger = logging.getLogger("dem1chvpn.xray_config")
+
+
+class XrayConfigManager:
+
+    _instance = None
+
+    def __new__(cls):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+            cls._instance.config_path = Path(config.XRAY_CONFIG_PATH)
+        return cls._instance
+
+    def __init__(self):
+        pass
+
+    def _read_config(self) -> dict:
+
+        with open(self.config_path, "r") as f:
+            return json.load(f)
+
+    def _write_config(self, cfg: dict):
+
+        with open(self.config_path, "w") as f:
+            json.dump(cfg, f, indent=2, ensure_ascii=False)
+
+    async def _aread_config(self) -> dict:
+
+        import asyncio
+        return await asyncio.to_thread(self._read_config)
+
+    async def _awrite_config(self, cfg: dict):
+
+        import asyncio
+        await asyncio.to_thread(self._write_config, cfg)
+
+    async def add_client(self, uuid: str, email: str) -> bool:
+
+        try:
+            cfg = await self._aread_config()
+            for inbound in cfg.get("inbounds", []):
+                if inbound.get("tag") == config.XRAY_INBOUND_TAG:
+                    clients = inbound.get("settings", {}).get("clients", [])
+                    if any(c.get("email") == email for c in clients):
+                        return True
+                    clients.append({
+                        "id": uuid,
+                        "email": email,
+                        "flow": "xtls-rprx-vision",
+                    })
+                    inbound["settings"]["clients"] = clients
+                    break
+
+            await self._awrite_config(cfg)
+            await self.reload_xray()
+            return True
+        except Exception as e:
+            logger.error(f"Error adding client: {e}")
+            return False
+
+    async def remove_client(self, email: str) -> bool:
+
+        try:
+            cfg = await self._aread_config()
+            for inbound in cfg.get("inbounds", []):
+                if inbound.get("tag") == config.XRAY_INBOUND_TAG:
+                    clients = inbound.get("settings", {}).get("clients", [])
+                    inbound["settings"]["clients"] = [
+                        c for c in clients if c.get("email") != email
+                    ]
+                    break
+
+            await self._awrite_config(cfg)
+            await self.reload_xray()
+            return True
+        except Exception as e:
+            logger.error(f"Error removing client: {e}")
+            return False
+
+    async def get_clients(self) -> list[dict]:
+
+        try:
+            cfg = await self._aread_config()
+            for inbound in cfg.get("inbounds", []):
+                if inbound.get("tag") == config.XRAY_INBOUND_TAG:
+                    return inbound.get("settings", {}).get("clients", [])
+            return []
+        except Exception:
+            return []
+
+    def generate_vless_url(self, uuid: str, remark: str = "Dem1chVPN") -> str:
+
+        params = {
+            "encryption": "none",
+            "security": "reality",
+            "sni": config.REALITY_SNI,
+            "fp": "chrome",
+            "pbk": config.REALITY_PUBLIC_KEY,
+            "sid": config.REALITY_SHORT_ID,
+            "type": "tcp",
+            "flow": "xtls-rprx-vision",
+        }
+
+        query = urllib.parse.urlencode(params)
+        encoded_remark = urllib.parse.quote(f"🛡️ {remark}")
+
+        return (
+            f"vless://{uuid}@{config.SERVER_IP}:{config.SERVER_PORT}"
+            f"?{query}#{encoded_remark}"
+        )
+
+    async def reload_xray(self):
+
+        import asyncio
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "sudo", "systemctl", "restart", "xray",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            _, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
+            if proc.returncode != 0:
+                logger.error(f"Error restarting Xray: {stderr.decode()}")
+        except asyncio.TimeoutError:
+            logger.error("Error restarting Xray: timeout")
+        except Exception as e:
+            logger.error(f"Error restarting Xray: {e}")
+
+    async def get_xray_version(self) -> str:
+
+        import asyncio
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                config.XRAY_BINARY, "version",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
+            first_line = stdout.decode().strip().split("\n")[0]
+            return first_line.split(" ")[1] if " " in first_line else "unknown"
+        except Exception:
+            return "unknown"
+
+    async def is_xray_running(self) -> bool:
+
+        import asyncio
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "systemctl", "is-active", "xray",
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
+            return stdout.decode().strip() == "active"
+        except Exception:
+            return False
+
+    async def update_reality_settings(
+        self,
+        dest: Optional[str] = None,
+        sni: Optional[str] = None,
+        private_key: Optional[str] = None,
+        short_id: Optional[str] = None,
+    ):
+
+        cfg = await self._aread_config()
+        for inbound in cfg.get("inbounds", []):
+            if inbound.get("tag") == config.XRAY_INBOUND_TAG:
+                reality = inbound.get("streamSettings", {}).get("realitySettings", {})
+                if dest:
+                    reality["dest"] = dest
+                if sni:
+                    reality["serverNames"] = [sni]
+                if private_key:
+                    reality["privateKey"] = private_key
+                if short_id:
+                    reality["shortIds"] = [short_id]
+                break
+        await self._awrite_config(cfg)

@@ -1,0 +1,120 @@
+/* Design tokens. Telegram theme через --tg-*, fallback на бренд. */
+
+:root {
+  /* фон */
+  --bg-deepest: #0B0F1A;
+  --surface-1: #131826;
+  --surface-2: #1A2233;
+  --surface-3: #232D44;
+
+  /* glass */
+  --glass-bg: rgba(19, 24, 38, 0.7);
+  --glass-bg-strong: rgba(26, 34, 51, 0.85);
+  --glass-border: rgba(255, 255, 255, 0.06);
+  --glass-border-strong: rgba(255, 255, 255, 0.12);
+
+  /* один accent */
+  --accent: #38BDF8;
+  --accent-dim: rgba(56, 189, 248, 0.14);
+  --accent-strong: rgba(56, 189, 248, 0.32);
+  --accent-light: #7DD3FC;
+
+  /* semantic */
+  --success: #34D399;
+  --success-dim: rgba(52, 211, 153, 0.14);
+  --success-light: #6EE7B7;
+  --warning: #FBBF24;
+  --warning-dim: rgba(251, 191, 36, 0.14);
+  --danger: #F87171;
+  --danger-dim: rgba(248, 113, 113, 0.14);
+  --danger-light: #FCA5A5;
+
+  /* tonal */
+  --violet: #A78BFA;
+  --violet-light: #C4B5FD;
+  --violet-dim: rgba(167, 139, 250, 0.14);
+
+  /* text */
+  --text-primary: #E8EDF5;
+  --text-secondary: #A3B0C7;
+  --text-tertiary: #8090AB;
+  --text-inverse: #0B0F1A;
+
+  /* шрифты */
+  --font-heading: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --font-body: 'DM Sans', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+  /* радиусы */
+  --radius-xs: 6px;
+  --radius-sm: 10px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-xl: 24px;
+  --radius-full: 9999px;
+
+  /* отступы */
+  --gap-xs: 4px;
+  --gap-sm: 8px;
+  --gap: 12px;
+  --gap-md: 16px;
+  --gap-lg: 20px;
+  --gap-xl: 28px;
+
+  /* easings */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* длительности */
+  --dur-fast: 0.15s;
+  --dur-normal: 0.24s;
+  --dur-slow: 0.4s;
+
+  /* тени без неона. Tinted в фон + внутренний свет. */
+  --shadow-elev-1: 0 2px 8px -2px rgba(0, 0, 0, 0.45);
+  --shadow-elev-2: 0 8px 24px -10px rgba(0, 0, 0, 0.6);
+  --shadow-elev-3: 0 20px 40px -20px rgba(0, 0, 0, 0.75);
+  --shadow-inset-edge: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+
+  /* z-index */
+  --z-base: 1;
+  --z-sticky: 100;
+  --z-overlay: 1000;
+  --z-modal: 1100;
+  --z-toast: 1200;
+
+  /* legacy переменные перебиваем — больше никаких неоновых glow */
+  --cyan: var(--accent);
+  --cyan-dim: var(--accent-dim);
+  --cyan-glow: transparent;
+  --emerald: var(--success);
+  --emerald-dim: var(--success-dim);
+  --coral: var(--danger);
+  --coral-dim: var(--danger-dim);
+  --amber: var(--warning);
+  --amber-dim: var(--warning-dim);
+  --shadow-glow-cyan: none;
+  --shadow-glow-emerald: none;
+  --shadow-glow-violet: none;
+}
+
+/* Telegram theme bridge. Подставляется в main.tsx, если запущено в Telegram. */
+:root[data-tg-theme] {
+  --bg-deepest: var(--tg-secondary-bg, #0B0F1A);
+  --surface-1: var(--tg-bg, #131826);
+  --text-primary: var(--tg-text, #E5E9F0);
+  --text-secondary: var(--tg-hint, #94A3B8);
+  --accent: var(--tg-button, #38BDF8);
+  --text-inverse: var(--tg-button-text, #0B0F1A);
+}
+
+/* reduced motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
