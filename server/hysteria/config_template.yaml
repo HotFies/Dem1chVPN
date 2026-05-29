@@ -1,10 +1,10 @@
 listen: :HYSTERIA_PORT_PLACEHOLDER
 
-# Сертификат выпускает Caddy через ACME, мы переиспользуем тот же файл.
-# Hysteria сама перечитывает cert/key при изменении на диске.
+# Серт берём от Caddy через симлинк — при смене домена путь сам перенаправится
+# (ExecStartPre юнита вызывает update-cert-symlinks.sh)
 tls:
-  cert: HYSTERIA_CERT_PATH_PLACEHOLDER
-  key: HYSTERIA_KEY_PATH_PLACEHOLDER
+  cert: /etc/hysteria/cert.crt
+  key: /etc/hysteria/cert.key
 
 auth:
   type: userpass

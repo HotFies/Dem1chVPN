@@ -148,7 +148,8 @@ install_dependencies() {
         cron logrotate \
         ca-certificates gnupg \
         speedtest-cli \
-        fonts-dejavu-core
+        fonts-dejavu-core \
+        dnsutils
 
     # Установка Node.js 20 LTS (для сборки Mini App)
     if ! command -v node &> /dev/null; then
@@ -409,17 +410,66 @@ install_bot() {
     done
     PIN_CODE=${PIN_CODE:-0000}
 
+    # Email для ACME — нужен, чтобы Caddy умел использовать ZeroSSL как fallback к LE
+    echo -e "${CYAN}  Email для cert (LE/ZeroSSL уведомления). Опционально — Enter чтобы пропустить.${NC}"
+    read -rp "$(echo -e "${PURPLE}Email: ${NC}")" ACME_EMAIL
+    ACME_EMAIL=${ACME_EMAIL:-}
+    if [ -n "$ACME_EMAIL" ] && ! echo "$ACME_EMAIL" | grep -qE '^[^@]+@[^@]+\.[^@]+$'; then
+        log_warn "Email '${ACME_EMAIL}' выглядит некорректно — пропускаю (только LE без fallback)"
+        ACME_EMAIL=""
+    fi
+
     # Автодетект хостнейма VPS для подписки
     VPS_HOSTNAME=$(hostname -f 2>/dev/null || hostname 2>/dev/null || echo "")
     if [ -z "$VPS_HOSTNAME" ] || [ "$VPS_HOSTNAME" = "localhost" ]; then
         VPS_HOSTNAME="$SERVER_IP"
     fi
     log_info "Хостнейм VPS: ${VPS_HOSTNAME}"
-    echo -e "${CYAN}  Нажмите Enter чтобы использовать хостнейм VPS.${NC}"
+
+    # Подбираем default-домен: hostname если он реально резолвится в наш IP, иначе nip.io
+    NIP_DOMAIN="${SERVER_IP//./-}.nip.io"
+    DEFAULT_DOMAIN="$VPS_HOSTNAME"
+    if command -v dig &>/dev/null; then
+        HOSTNAME_IP=$(dig +short "${VPS_HOSTNAME}" @8.8.8.8 2>/dev/null | head -1)
+        if [ -z "$HOSTNAME_IP" ] || [ "$HOSTNAME_IP" != "$SERVER_IP" ]; then
+            log_warn "Хостнейм '${VPS_HOSTNAME}' не имеет публичной A-записи на ${SERVER_IP}."
+            log_info "Рекомендую '${NIP_DOMAIN}' — wildcard DNS, резолвится автоматически."
+            DEFAULT_DOMAIN="$NIP_DOMAIN"
+        fi
+    fi
+
+    echo -e "${CYAN}  Нажмите Enter чтобы использовать рекомендуемый домен.${NC}"
     echo -e "${CYAN}  Или введите свой домен (например: vpn.example.com)${NC}"
-    read -rp "$(echo -e "${PURPLE}Домен для подписки [${VPS_HOSTNAME}]: ${NC}")" CUSTOM_DOMAIN
-    SUB_DOMAIN=${CUSTOM_DOMAIN:-$VPS_HOSTNAME}
+    read -rp "$(echo -e "${PURPLE}Домен для подписки [${DEFAULT_DOMAIN}]: ${NC}")" CUSTOM_DOMAIN
+    SUB_DOMAIN=${CUSTOM_DOMAIN:-$DEFAULT_DOMAIN}
     log_info "Домен подписки: ${SUB_DOMAIN}"
+
+    # Проверки домена: резолв в публичном DNS и shared-зоны с rate-limit LE
+    if command -v dig &>/dev/null; then
+        DOMAIN_IP=$(dig +short "${SUB_DOMAIN}" @8.8.8.8 2>/dev/null | head -1)
+        if [ -z "$DOMAIN_IP" ]; then
+            log_warn "Домен ${SUB_DOMAIN} НЕ резолвится в публичном DNS (8.8.8.8)."
+            log_warn "Let's Encrypt не сможет выпустить сертификат — HTTPS работать не будет."
+            log_warn "Continue только если уверен, что DNS пропишется до конца установки."
+        elif echo "$DOMAIN_IP" | grep -qE '^(10\.|127\.|169\.254\.|172\.(1[6-9]|2[0-9]|3[01])\.|192\.168\.)'; then
+            log_warn "Домен ${SUB_DOMAIN} резолвится в приватный IP ${DOMAIN_IP}."
+            log_warn "Это нероутируемый адрес — LE не сможет валидировать домен."
+            log_warn "Проверь A-запись у регистратора/провайдера, должен быть публичный IP."
+        elif [ "$DOMAIN_IP" != "$SERVER_IP" ]; then
+            log_warn "Домен ${SUB_DOMAIN} резолвится в ${DOMAIN_IP}, а IP сервера ${SERVER_IP}."
+            log_warn "Сертификат, скорее всего, выпустить не получится — проверь A-запись."
+        else
+            log_info "DNS OK: ${SUB_DOMAIN} → ${DOMAIN_IP}"
+        fi
+    fi
+
+    # Известные shared-зоны где CA могут отказывать или общий rate-limit высокий
+    # fvds.ru — ZeroSSL/LE отказывают, LE rate-limit постоянно исчерпан
+    if echo "${SUB_DOMAIN}" | grep -qE '\.(fvds\.ru|firstvds\.ru|sslip\.io|duckdns\.org)$'; then
+        log_warn "ВНИМАНИЕ: ${SUB_DOMAIN} — поддомен shared-зоны с известными проблемами выдачи cert."
+        log_warn "Let's Encrypt держит общий лимит 50/7д на корневую зону, ZeroSSL может отказать."
+        log_warn "Если cert не выпустится — установка предложит переключиться на ${NIP_DOMAIN}."
+    fi
 
     # Создание файла .env
     cat > "$ENV_FILE" << ENVFILE 
@@ -496,10 +546,15 @@ install_caddy() {
     source "$ENV_FILE"
     set +a
 
-    # Настройка Caddy — HTTP-01 challenge (автоматически, без DuckDNS)
+    # Настройка Caddy — HTTP-01 challenge, плюс ZeroSSL как fallback к LE если задан email
+    # При наличии email Caddy 2.6+ автоматом добавит ZeroSSL во вторую очередь — спасёт при LE rate-limit
+    CADDY_EMAIL_LINE=""
+    [ -n "${ACME_EMAIL:-}" ] && CADDY_EMAIL_LINE="    email ${ACME_EMAIL}"
+
     cat > /etc/caddy/Caddyfile << CADDYFILE
 {
     http_port 80
+${CADDY_EMAIL_LINE}
 }
 
 ${SUB_DOMAIN}:8443 {
@@ -654,29 +709,130 @@ configure_hysteria() {
         return 0
     fi
 
-    # Триггерим Caddy на выпуск сертификата, чтобы /var/lib/caddy/... уже существовал.
-    # Caddy выпускает cert на первый запрос — делаем curl.
-    log_info "Прогреваю Caddy для выпуска сертификата..."
-    for i in 1 2 3 4 5; do
-        curl -ksS --max-time 5 "https://${SUB_DOMAIN}:8443/health" > /dev/null 2>&1 || true
-        sleep 2
-    done
-
     HYSTERIA_CERT_DIR="/var/lib/caddy/.local/share/caddy/certificates/acme-v02.api.letsencrypt.org-directory/${SUB_DOMAIN}"
     HYSTERIA_CERT_PATH="${HYSTERIA_CERT_DIR}/${SUB_DOMAIN}.crt"
     HYSTERIA_KEY_PATH="${HYSTERIA_CERT_DIR}/${SUB_DOMAIN}.key"
 
+    # Триггерим Caddy на выпуск сертификата. Caddy 2 выпускает по первому запросу.
+    # ~90 сек дальше ждать смысла нет — либо серт уже есть, либо упёрлись в проблему.
+    log_info "Прогреваю Caddy для выпуска сертификата для ${SUB_DOMAIN}..."
+    CADDY_WARMUP_START=$(date +%s)
+    for i in $(seq 1 30); do
+        curl -ksS --max-time 5 "https://${SUB_DOMAIN}:8443/health" > /dev/null 2>&1 || true
+        if [ -f "${HYSTERIA_CERT_PATH}" ]; then
+            log_info "Сертификат для ${SUB_DOMAIN} получен за $(($(date +%s) - CADDY_WARMUP_START)) сек"
+            break
+        fi
+        sleep 3
+    done
+
     if [ ! -f "${HYSTERIA_CERT_PATH}" ]; then
-        log_warn "Сертификат Caddy ещё не выпущен (${HYSTERIA_CERT_PATH})"
-        log_warn "Hysteria2 запустится но не сможет принимать соединения, пока Caddy не получит сертификат"
+        # Анализируем последние ~3 минуты Caddy-лога — что именно сломалось
+        CADDY_LOG=$(journalctl -u caddy --since "3 min ago" --no-pager 2>/dev/null || true)
+
+        echo ""
+        log_warn "════════════════════════════════════════════════════════"
+        log_warn "  Сертификат Let's Encrypt для ${SUB_DOMAIN} НЕ выпущен"
+        log_warn "════════════════════════════════════════════════════════"
+
+        if echo "$CADDY_LOG" | grep -q "rateLimited"; then
+            RETRY_AFTER=$(echo "$CADDY_LOG" | grep -oE 'retry after [0-9-]+ [0-9:]+ UTC' | head -1 | sed 's/retry after //')
+            log_warn ""
+            log_warn "  ПРИЧИНА: Let's Encrypt rate-limit"
+            log_warn "  Лимит 50 сертов/неделю на корневой домен — у shared-зон"
+            log_warn "  типа *.fvds.ru / *.sslip.io общий счётчик с другими клиентами."
+            log_warn ""
+            [ -n "$RETRY_AFTER" ] && log_warn "  Можно повторить после: ${RETRY_AFTER}"
+            log_warn ""
+            log_warn "  Что делать:"
+            log_warn "    1) Подождать до retry-time — Caddy сам ретраит каждые 2 мин."
+            log_warn "    2) Использовать свой домен (не *.fvds.ru/sslip.io)."
+            log_warn "    3) Сменить базу: попробовать XX-XX-XX-XX.nip.io вместо sslip.io."
+        elif echo "$CADDY_LOG" | grep -q "no valid A records\|no valid AAAA records"; then
+            log_warn ""
+            log_warn "  ПРИЧИНА: A-запись для ${SUB_DOMAIN} не видна публично"
+            log_warn ""
+            log_warn "  Проверь сам:"
+            log_warn "    dig +short ${SUB_DOMAIN} @8.8.8.8"
+            log_warn ""
+            log_warn "  Если пусто — DNS-запись нужно реально завести в публичном DNS."
+            log_warn "  Если показывает приватный IP (10.x / 172.16-31.x / 192.168.x) —"
+            log_warn "  провайдер ошибся, надо тикет открыть."
+        elif echo "$CADDY_LOG" | grep -qE "connection refused|connection reset|i/o timeout"; then
+            log_warn ""
+            log_warn "  ПРИЧИНА: LE не может достучаться до сервера по :80 (HTTP-01 challenge)"
+            log_warn ""
+            log_warn "  Проверь файрвол:"
+            log_warn "    ufw status | grep 80"
+            log_warn "    iptables -L INPUT -n | grep -E '80\\b'"
+            log_warn "  Порт 80 ОБЯЗАН быть открыт извне для валидации сертификата."
+        else
+            log_warn ""
+            log_warn "  ПРИЧИНА: не определена — последние ACME-события Caddy:"
+            echo "$CADDY_LOG" | grep -iE 'obtain|certificate|acme|challenge|error' | tail -8 | sed 's/^/    /'
+        fi
+
+        log_warn ""
+        log_warn "  Hysteria2 запустится, но не сможет принимать клиентов до серта."
+        log_warn "  После исправления Caddy получит серт автоматом, потом:"
+        log_warn "    systemctl restart dem1chvpn-hysteria"
+        log_warn "════════════════════════════════════════════════════════"
+        echo ""
+
+        # Auto-fallback: для блокеров, которые лечатся сменой домена — предлагаем nip.io
+        if echo "$CADDY_LOG" | grep -qE "rateLimited|rejectedIdentifier|no valid A records|no valid AAAA"; then
+            NIP_DOMAIN="${SERVER_IP//./-}.nip.io"
+            if [ "$SUB_DOMAIN" != "$NIP_DOMAIN" ]; then
+                echo -e "${YELLOW}Эта проблема обычно лечится сменой домена.${NC}"
+                echo -e "${YELLOW}Переключить на ${NIP_DOMAIN} (nip.io — wildcard DNS, авто-резолв в IP)?${NC}"
+                read -rp "$(echo -e "${PURPLE}  [Y/n]: ${NC}")" SWITCH_TO_NIPIO
+                SWITCH_TO_NIPIO=${SWITCH_TO_NIPIO:-Y}
+                if [[ "$SWITCH_TO_NIPIO" =~ ^[YyДд]$ ]]; then
+                    log_info "Переключаюсь на ${NIP_DOMAIN}..."
+                    sed -i "s/^SUB_DOMAIN=.*/SUB_DOMAIN=${NIP_DOMAIN}/" "$ENV_FILE"
+                    sed -i "s/^HYSTERIA_DOMAIN=.*/HYSTERIA_DOMAIN=${NIP_DOMAIN}/" "$ENV_FILE"
+                    sed -i "s|^[a-zA-Z0-9.-]*:8443 {|${NIP_DOMAIN}:8443 {|" /etc/caddy/Caddyfile
+
+                    systemctl stop caddy
+                    rm -rf /var/lib/caddy/.local/share/caddy/acme/
+                    rm -rf /var/lib/caddy/.local/share/caddy/certificates/
+                    rm -rf /var/lib/caddy/.local/share/caddy/locks/
+                    systemctl start caddy
+
+                    SUB_DOMAIN="$NIP_DOMAIN"
+                    HYSTERIA_CERT_DIR="/var/lib/caddy/.local/share/caddy/certificates/acme-v02.api.letsencrypt.org-directory/${SUB_DOMAIN}"
+                    HYSTERIA_CERT_PATH="${HYSTERIA_CERT_DIR}/${SUB_DOMAIN}.crt"
+                    HYSTERIA_KEY_PATH="${HYSTERIA_CERT_DIR}/${SUB_DOMAIN}.key"
+
+                    log_info "Повторный прогрев Caddy для ${SUB_DOMAIN}..."
+                    for i in $(seq 1 30); do
+                        curl -ksS --max-time 5 "https://${SUB_DOMAIN}:8443/health" > /dev/null 2>&1 || true
+                        if [ -f "${HYSTERIA_CERT_PATH}" ]; then
+                            log_info "Сертификат для ${SUB_DOMAIN} получен"
+                            break
+                        fi
+                        sleep 3
+                    done
+
+                    if [ ! -f "${HYSTERIA_CERT_PATH}" ]; then
+                        log_warn "Серт всё равно не выпустился. Дальше идём без него — Caddy будет ретраить в фоне."
+                    fi
+                fi
+            fi
+        fi
     fi
+
+    # Helper-скрипт обновления симлинков на cert Caddy (вызывается из ExecStartPre Hysteria юнита)
+    install -m 0755 "${DEM1CHVPN_DIR}/server/hysteria/update-cert-symlinks.sh" \
+        /usr/local/bin/dem1chvpn-update-cert-symlinks
 
     mkdir -p /etc/hysteria
     cp "${DEM1CHVPN_DIR}/server/hysteria/config_template.yaml" /etc/hysteria/config.yaml
     sed -i "s|HYSTERIA_PORT_PLACEHOLDER|${HYSTERIA_PORT}|g" /etc/hysteria/config.yaml
-    sed -i "s|HYSTERIA_CERT_PATH_PLACEHOLDER|${HYSTERIA_CERT_PATH}|g" /etc/hysteria/config.yaml
-    sed -i "s|HYSTERIA_KEY_PATH_PLACEHOLDER|${HYSTERIA_KEY_PATH}|g" /etc/hysteria/config.yaml
     sed -i "s|HYSTERIA_OBFS_PASSWORD_PLACEHOLDER|${HYSTERIA_OBFS_PASSWORD}|g" /etc/hysteria/config.yaml
+
+    # Сразу обновляем симлинки если cert уже есть (если нет — это сделает ExecStartPre)
+    /usr/local/bin/dem1chvpn-update-cert-symlinks 2>/dev/null || true
 
     chown -R dem1chvpn:dem1chvpn /etc/hysteria
     chmod 660 /etc/hysteria/config.yaml
@@ -750,6 +906,8 @@ Wants=caddy.service
 Type=simple
 User=root
 Group=root
+# Перед стартом находим актуальный cert Caddy и линкуем — при смене SUB_DOMAIN не нужно править конфиг
+ExecStartPre=/usr/local/bin/dem1chvpn-update-cert-symlinks
 ExecStart=/usr/local/bin/hysteria server --config /etc/hysteria/config.yaml
 Restart=always
 RestartSec=5
