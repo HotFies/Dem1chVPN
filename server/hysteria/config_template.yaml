@@ -8,7 +8,10 @@ tls:
 
 auth:
   type: userpass
-  userpass: {}
+  # Hysteria отказывается стартовать с пустым userpass — placeholder это лечит.
+  # Реальный пароль ему случайный, залогиниться по __bootstrap__ невозможно.
+  userpass:
+    __bootstrap__: HYSTERIA_BOOTSTRAP_PASSWORD_PLACEHOLDER
 
 obfs:
   type: salamander

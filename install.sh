@@ -826,10 +826,15 @@ configure_hysteria() {
     install -m 0755 "${DEM1CHVPN_DIR}/server/hysteria/update-cert-symlinks.sh" \
         /usr/local/bin/dem1chvpn-update-cert-symlinks
 
+    # Случайный пароль для bootstrap-юзера. Hysteria не стартует с пустым userpass — этот placeholder лечит.
+    # Залогиниться по __bootstrap__ невозможно, пароль никому не известен.
+    HYSTERIA_BOOTSTRAP_PWD=$(openssl rand -hex 16)
+
     mkdir -p /etc/hysteria
     cp "${DEM1CHVPN_DIR}/server/hysteria/config_template.yaml" /etc/hysteria/config.yaml
     sed -i "s|HYSTERIA_PORT_PLACEHOLDER|${HYSTERIA_PORT}|g" /etc/hysteria/config.yaml
     sed -i "s|HYSTERIA_OBFS_PASSWORD_PLACEHOLDER|${HYSTERIA_OBFS_PASSWORD}|g" /etc/hysteria/config.yaml
+    sed -i "s|HYSTERIA_BOOTSTRAP_PASSWORD_PLACEHOLDER|${HYSTERIA_BOOTSTRAP_PWD}|g" /etc/hysteria/config.yaml
 
     # Сразу обновляем симлинки если cert уже есть (если нет — это сделает ExecStartPre)
     /usr/local/bin/dem1chvpn-update-cert-symlinks 2>/dev/null || true
