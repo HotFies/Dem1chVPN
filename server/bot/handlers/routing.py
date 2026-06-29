@@ -182,7 +182,7 @@ async def route_delete(callback: CallbackQuery, state: FSMContext):
 
 @router.message(RouteStates.waiting_delete_domain)
 async def route_delete_domain(message: Message, state: FSMContext):
-    domain = get_text(message).lower()
+    domain = sanitize_domain(get_text(message))
     await state.clear()
 
     mgr = RouteManager()

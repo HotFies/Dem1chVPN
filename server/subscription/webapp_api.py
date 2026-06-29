@@ -19,6 +19,7 @@ from server.bot.services.user_manager import UserManager
 from server.bot.services.xray_config import XrayConfigManager
 from server.bot.services.route_manager import RouteManager
 from server.bot.utils.formatters import format_uptime
+from server.bot.utils.deeplinks import win_sub, win_route
 from .auth import require_admin, require_auth, validate_init_data
 
 api = APIRouter(prefix="/api")
@@ -324,16 +325,23 @@ async def _require_vpn_user(request: Request) -> dict:
     return auth
 
 
-async def _send_bot_message(chat_id: int, text: str):
+_bot_session = None
 
-    import aiohttp
+
+def set_bot_session(session) -> None:
+    global _bot_session
+    _bot_session = session
+
+
+async def _send_bot_message(chat_id: int, text: str):
     url = f"https://api.telegram.org/bot{config.BOT_TOKEN}/sendMessage"
+    payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
+    if _bot_session is not None and not _bot_session.closed:
+        await _bot_session.post(url, json=payload)
+        return
+    import aiohttp
     async with aiohttp.ClientSession() as session:
-        await session.post(url, json={
-            "chat_id": chat_id,
-            "text": text,
-            "parse_mode": "HTML",
-        })
+        await session.post(url, json=payload)
 
 
 @api.get("/tickets/my")
@@ -367,12 +375,14 @@ async def create_ticket(request: Request):
 
     if not message or len(message) < 5:
         raise HTTPException(400, "Message must be at least 5 characters")
+    if len(message) > 2000:
+        raise HTTPException(400, "Message must be at most 2000 characters")
 
     ticket_mgr = TicketManager()
     ticket = await ticket_mgr.create_ticket(
         user_telegram_id=auth["user_id"],
         user_name=auth.get("first_name", "User"),
-        message=message[:2000],
+        message=message,
     )
 
 
@@ -498,13 +508,13 @@ async def my_links(request: Request):
     vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
     sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
     sub_deeplink = f"v2raytun://import/{sub_url}"
-    win_sub_deeplink = f"dem1chvpn://import/{sub_url}"
+    win_sub_deeplink = win_sub(sub_url)
 
 
     from server.subscription.app import _build_routing_header
     routing_b64 = await _build_routing_header()
     route_deeplink = f"v2raytun://import_route/{routing_b64}" if routing_b64 else None
-    win_route_deeplink = f"dem1chvpn://import_route/{routing_b64}" if routing_b64 else None
+    win_route_deeplink = win_route(routing_b64) if routing_b64 else None
 
 
     sub_redirect_url = f"{config.sub_base_url}/redirect/sub/{user.subscription_token}"
@@ -529,7 +539,7 @@ async def my_links(request: Request):
 
 
 
-@api.get("/my/account")
+@api.get("/my/account", dependencies=[Depends(require_auth)])
 async def my_account(request: Request):
 
     init_data = request.headers.get("X-Telegram-Init-Data", "")
@@ -555,7 +565,7 @@ async def my_account(request: Request):
     vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
     sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
     sub_deeplink = f"v2raytun://import/{sub_url}"
-    win_sub_deeplink = f"dem1chvpn://import/{sub_url}"
+    win_sub_deeplink = win_sub(sub_url)
 
 
     route_deeplink = None
@@ -564,7 +574,7 @@ async def my_account(request: Request):
         from server.subscription.app import _build_routing_header
         routing_b64 = await _build_routing_header()
         route_deeplink = f"v2raytun://import_route/{routing_b64}" if routing_b64 else None
-        win_route_deeplink = f"dem1chvpn://import_route/{routing_b64}" if routing_b64 else None
+        win_route_deeplink = win_route(routing_b64) if routing_b64 else None
     except Exception:
         pass
 

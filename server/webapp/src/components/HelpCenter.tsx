@@ -283,7 +283,7 @@ export default function HelpCenter({ onOpenGuide }: { onOpenGuide?: () => void }
               <div className="help-app-header">
                 <span className="help-app-name">Dem1chVPN</span>
                 <a
-                  href="https://github.com/HotFies/Dem1chVPN/releases/download/demichvpn-win-v.1.0.0/Dem1chVPN-1.0.0-Setup.exe"
+                  href="https://github.com/HotFies/Dem1chVPN/releases/latest"
                   target="_blank" rel="noopener" className="help-download-btn"
                 >
                   <ExternalLink size={13} /> Скачать
@@ -387,8 +387,8 @@ export default function HelpCenter({ onOpenGuide }: { onOpenGuide?: () => void }
               </details>
               <details className="faq-item">
                 <summary>Какие сайты идут через VPN?</summary>
-                <p>Через VPN: YouTube, Instagram, TikTok, Discord, Telegram, ChatGPT и другие заблокированные сервисы.<br/>
-                   Напрямую: VK, Яндекс, Сбер, Авито и другие российские сайты.</p>
+                <p>Через VPN обычно идут заблокированные в вашем регионе сервисы (YouTube, Instagram, TikTok, Discord, ChatGPT и др.), а российские сайты (VK, Яндекс, Сбер, Авито) — напрямую.<br/>
+                   Точный список зависит от правил маршрутизации вашей подписки и может настраиваться администратором.</p>
               </details>
               <details className="faq-item">
                 <summary>Закончился трафик — что делать?</summary>

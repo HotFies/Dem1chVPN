@@ -119,12 +119,11 @@ async def traffic_sync_task(bot: Bot):
                             )
 
                     updated_user = await mgr.get_user(user.id)
-                    if not updated_user:
+                    if not updated_user or not updated_user.is_active:
                         continue
 
                     if (
-                        updated_user.is_active
-                        and updated_user.traffic_limit
+                        updated_user.traffic_limit
                         and not updated_user.warning_sent
                         and updated_user.traffic_total >= updated_user.traffic_limit * 0.8
                     ):
@@ -156,8 +155,7 @@ async def traffic_sync_task(bot: Bot):
                                 pass
 
                     if (
-                        updated_user.is_active
-                        and updated_user.traffic_limit
+                        updated_user.traffic_limit
                         and updated_user.traffic_total >= updated_user.traffic_limit
                     ):
                         logger.info(
@@ -263,6 +261,7 @@ async def on_shutdown(bot: Bot):
 
 async def monthly_reset_task(bot: Bot):
     from datetime import datetime, timezone
+    from calendar import monthrange
 
     mgr = UserManager()
     xray_mgr = XrayConfigManager()
@@ -274,7 +273,8 @@ async def monthly_reset_task(bot: Bot):
             await asyncio.sleep(300)  # Check every 5 minutes
 
             now = datetime.now(timezone.utc)
-            reset_day = config.TRAFFIC_RESET_DAY
+            # для коротких месяцев день сброса не может превышать число дней в месяце
+            reset_day = min(config.TRAFFIC_RESET_DAY, monthrange(now.year, now.month)[1])
 
             if now.day == reset_day and last_reset_month != now.month:
                 logger.info(f"Monthly traffic reset triggered (day={reset_day})")
@@ -386,6 +386,8 @@ async def main():
 
     dp.startup.register(on_startup)
     dp.shutdown.register(on_shutdown)
+
+    dp.callback_query.outer_middleware(security.AdminCheckMiddleware())
 
     dp.include_router(security.router)
     dp.include_router(invite.router)

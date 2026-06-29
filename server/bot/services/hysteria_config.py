@@ -37,11 +37,9 @@ class HysteriaConfigManager:
             yaml.safe_dump(cfg, f, allow_unicode=True, sort_keys=False)
 
     async def _aread_config(self) -> dict:
-        import asyncio
         return await asyncio.to_thread(self._read_config)
 
     async def _awrite_config(self, cfg: dict):
-        import asyncio
         await asyncio.to_thread(self._write_config, cfg)
 
     async def add_client(self, username: str, password: str) -> bool:
@@ -56,8 +54,7 @@ class HysteriaConfigManager:
                 users[username] = password
                 auth["userpass"] = users
                 await self._awrite_config(cfg)
-                await self.reload_hysteria()
-                return True
+                return await self.reload_hysteria()
             except Exception as e:
                 logger.error(f"Error adding hysteria client: {e}")
                 return False
@@ -73,7 +70,7 @@ class HysteriaConfigManager:
                     users.pop(username)
                     cfg["auth"]["userpass"] = users
                     await self._awrite_config(cfg)
-                    await self.reload_hysteria()
+                    return await self.reload_hysteria()
                 return True
             except Exception as e:
                 logger.error(f"Error removing hysteria client: {e}")
@@ -105,8 +102,7 @@ class HysteriaConfigManager:
             f"?{query}#{encoded_remark}"
         )
 
-    async def reload_hysteria(self):
-        import asyncio
+    async def reload_hysteria(self) -> bool:
         try:
             # -n чтобы sudo сразу падал без NOPASSWD, а не висел на вводе пароля
             proc = await asyncio.create_subprocess_exec(
@@ -117,13 +113,16 @@ class HysteriaConfigManager:
             _, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
             if proc.returncode != 0:
                 logger.error(f"Error restarting Hysteria: {stderr.decode()}")
+                return False
+            return True
         except asyncio.TimeoutError:
             logger.error("Error restarting Hysteria: timeout")
+            return False
         except Exception as e:
             logger.error(f"Error restarting Hysteria: {e}")
+            return False
 
     async def get_hysteria_version(self) -> str:
-        import asyncio
         try:
             proc = await asyncio.create_subprocess_exec(
                 config.HYSTERIA_BINARY, "version",
@@ -142,7 +141,6 @@ class HysteriaConfigManager:
             return "unknown"
 
     async def is_hysteria_running(self) -> bool:
-        import asyncio
         try:
             proc = await asyncio.create_subprocess_exec(
                 "systemctl", "is-active", "dem1chvpn-hysteria",

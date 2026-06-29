@@ -9,6 +9,7 @@ from typing import Optional
 import matplotlib
 matplotlib.use("Agg")  # Non-interactive backend
 import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
 import matplotlib.dates as mdates
 from matplotlib.ticker import FuncFormatter
 import numpy as np
@@ -74,7 +75,9 @@ def generate_user_traffic_chart(
     download_data: list[tuple[datetime, int]],
 ) -> bytes:
     """Рисует график загрузки/отдачи для конкретного юзера (возвращает PNG)"""
-    fig, ax = plt.subplots(figsize=(10, 5))
+    # Figure напрямую, без pyplot — у pyplot глобальное состояние, оно ломается при рендере из потоков (to_thread)
+    fig = Figure(figsize=(10, 5))
+    ax = fig.subplots()
     _apply_style(fig, ax)
 
     if download_data:
@@ -98,12 +101,11 @@ def generate_user_traffic_chart(
               edgecolor=GRID_COLOR, fontsize=10, labelcolor=TEXT_PRIMARY)
 
     fig.autofmt_xdate()
-    plt.tight_layout()
+    fig.tight_layout()
 
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=150, bbox_inches="tight",
                 facecolor=fig.get_facecolor(), edgecolor="none")
-    plt.close(fig)
     buf.seek(0)
     return buf.getvalue()
 
@@ -112,7 +114,8 @@ def generate_overview_chart(
     users: list[dict],
 ) -> bytes:
     """Рисует общий график трафика по всем юзерам (возвращает PNG)"""
-    fig, ax = plt.subplots(figsize=(10, max(4, len(users) * 0.7 + 1.5)))
+    fig = Figure(figsize=(10, max(4, len(users) * 0.7 + 1.5)))
+    ax = fig.subplots()
     _apply_style(fig, ax)
 
     if not users:
@@ -121,7 +124,6 @@ def generate_overview_chart(
         buf = io.BytesIO()
         fig.savefig(buf, format="png", dpi=150,
                     facecolor=fig.get_facecolor(), edgecolor="none")
-        plt.close(fig)
         buf.seek(0)
         return buf.getvalue()
 
@@ -179,11 +181,10 @@ def generate_overview_chart(
     if max_val > 0:
         ax.set_xlim(right=max_val * 1.2)
 
-    plt.tight_layout()
+    fig.tight_layout()
     buf = io.BytesIO()
     fig.savefig(buf, format="png", dpi=150, bbox_inches="tight",
                 facecolor=fig.get_facecolor(), edgecolor="none")
-    plt.close(fig)
     buf.seek(0)
     return buf.getvalue()
 

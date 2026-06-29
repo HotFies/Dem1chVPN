@@ -129,7 +129,7 @@ function Lightbox({ src, alt, onClose }: { src: string; alt: string; onClose: ()
             <X size={20} />
           </IconButton>
         </div>
-        <div className="guide-lightbox-hint">Двойной тап — приблизить</div>
+        <div className="guide-lightbox-hint">Двойной тап — приблизить · потяните, чтобы двигать</div>
         <motion.img
           src={src}
           alt={alt}

@@ -50,8 +50,7 @@ class AdminCheckMiddleware(BaseMiddleware):
         return await handler(event, data)
 
 
-
-router.callback_query.middleware(AdminCheckMiddleware())
+# Регистрируется на уровне dp (main.py), иначе middleware роутера не покрывает соседние роутеры
 
 
 @router.callback_query(lambda c: any(c.data.startswith(a) for a in PROTECTED_PREFIXES))

@@ -79,10 +79,11 @@ export default function Tickets({ isAdmin }: TicketsProps) {
   useEffect(() => { loadTickets() }, [loadTickets])
 
   const handleCreate = async () => {
-    if (!newMessage.trim() || newMessage.length < 5) return
+    const msg = newMessage.trim()
+    if (msg.length < 5 || msg.length > MAX_LEN) return
     setSending(true)
     try {
-      await createTicket(newMessage)
+      await createTicket(msg)
       setNewMessage('')
       setShowCreate(false)
       toast.success('Тикет создан')
@@ -134,8 +135,6 @@ export default function Tickets({ isAdmin }: TicketsProps) {
     })
   }
 
-  const openCount = tickets.filter(t => !t.is_resolved).length
-
   return (
     <div className="tickets-page">
       <div className="section-header">
@@ -149,9 +148,9 @@ export default function Tickets({ isAdmin }: TicketsProps) {
         <div style={{ marginBottom: 12 }}>
           <Tabs<FilterTab>
             items={[
-              { key: 'open', label: 'Открытые', count: openCount },
-              { key: 'closed', label: 'Закрытые' },
-              { key: 'all', label: 'Все' },
+              { key: 'open', label: 'Открытые', count: filter === 'open' ? tickets.length : undefined },
+              { key: 'closed', label: 'Закрытые', count: filter === 'closed' ? tickets.length : undefined },
+              { key: 'all', label: 'Все', count: filter === 'all' ? tickets.length : undefined },
             ]}
             value={filter}
             onChange={setFilter}
@@ -197,7 +196,7 @@ export default function Tickets({ isAdmin }: TicketsProps) {
                 <Button
                   size="sm" variant="success"
                   loading={sending}
-                  disabled={newMessage.length < 5}
+                  disabled={newMessage.trim().length < 5}
                   leftIcon={!sending ? <Send size={14} /> : undefined}
                   onClick={handleCreate}
                 >

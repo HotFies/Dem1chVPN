@@ -5,6 +5,7 @@ import base64
 import json
 import re
 import sys
+import time
 from pathlib import Path
 from contextlib import asynccontextmanager
 from urllib.parse import quote as urlquote
@@ -29,13 +30,20 @@ from server.bot.services.xray_config import XrayConfigManager
 from server.bot.services.hysteria_config import HysteriaConfigManager
 from server.bot.services.route_manager import RouteManager
 from server.bot.database import init_db
+from server.bot.utils.deeplinks import win_sub, win_route
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
 
     await init_db()
-    
+
+    errors = config.validate()
+    if errors:
+        import logging
+        for err in errors:
+            logging.getLogger("dem1chvpn.subscription").error(f"Config error: {err}")
+
     route_mgr = RouteManager()
     synced = await route_mgr.sync_default_domains()
     if synced:
@@ -43,7 +51,15 @@ async def lifespan(app: FastAPI):
         logging.getLogger("dem1chvpn.subscription").info(
             f"Auto-synced {synced} default proxy domains"
         )
-    yield
+
+    import aiohttp
+    from server.subscription.webapp_api import set_bot_session
+    bot_session = aiohttp.ClientSession()
+    set_bot_session(bot_session)
+    try:
+        yield
+    finally:
+        await bot_session.close()
 
 
 limiter = Limiter(key_func=get_remote_address)
@@ -64,11 +80,20 @@ if config.SUB_DOMAIN:
     _cors_origins.append(f"https://{config.SUB_DOMAIN}")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_cors_origins or ["*"],
+    allow_origins=_cors_origins,
     allow_methods=["GET", "POST", "DELETE"],
     allow_headers=["Content-Type", "X-Telegram-Init-Data"],
 )
 
+
+
+def _assert_account_active(user) -> None:
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Account disabled")
+    if user.is_expired:
+        raise HTTPException(status_code=403, detail="Account expired")
+    if user.is_traffic_exceeded:
+        raise HTTPException(status_code=403, detail="Traffic limit exceeded")
 
 
 @app.get("/health")
@@ -86,14 +111,7 @@ async def get_subscription(request: Request, token: str):
     if not user:
         raise HTTPException(status_code=404, detail="Invalid subscription")
 
-    if not user.is_active:
-        raise HTTPException(status_code=403, detail="Account disabled")
-
-    if user.is_expired:
-        raise HTTPException(status_code=403, detail="Account expired")
-
-    if user.is_traffic_exceeded:
-        raise HTTPException(status_code=403, detail="Traffic limit exceeded")
+    _assert_account_active(user)
 
     xray_mgr = XrayConfigManager()
     vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
@@ -126,12 +144,15 @@ async def get_subscription(request: Request, token: str):
 
 
 @app.get("/sub/{token}/routing")
+@limiter.limit("30/minute")
 async def get_routing_config(request: Request, token: str):
     mgr = UserManager()
     user = await mgr.get_user_by_subscription_token(token)
 
     if not user:
         raise HTTPException(status_code=404, detail="Invalid subscription")
+
+    _assert_account_active(user)
 
     route_mgr = RouteManager()
     routing = await route_mgr.generate_client_routing_config()
@@ -152,11 +173,14 @@ async def get_routing_config(request: Request, token: str):
 
 
 @app.get("/sub/{token}/direct")
-async def get_direct_domains(token: str):
+@limiter.limit("30/minute")
+async def get_direct_domains(request: Request, token: str):
     mgr = UserManager()
     user = await mgr.get_user_by_subscription_token(token)
     if not user:
         raise HTTPException(status_code=404, detail="Invalid subscription")
+
+    _assert_account_active(user)
 
     route_mgr = RouteManager()
     direct = await route_mgr.get_direct_domains()
@@ -172,11 +196,14 @@ async def get_direct_domains(token: str):
 
 
 @app.get("/sub/{token}/proxy")
-async def get_proxy_domains(token: str):
+@limiter.limit("30/minute")
+async def get_proxy_domains(request: Request, token: str):
     mgr = UserManager()
     user = await mgr.get_user_by_subscription_token(token)
     if not user:
         raise HTTPException(status_code=404, detail="Invalid subscription")
+
+    _assert_account_active(user)
 
     route_mgr = RouteManager()
     proxy = await route_mgr.get_proxy_domains()
@@ -192,6 +219,7 @@ async def get_proxy_domains(token: str):
 
 
 @app.get("/sub/{token}/v2raytun")
+@limiter.limit("30/minute")
 async def get_v2raytun_deeplinks(request: Request, token: str):
     mgr = UserManager()
     user = await mgr.get_user_by_subscription_token(token)
@@ -199,13 +227,15 @@ async def get_v2raytun_deeplinks(request: Request, token: str):
     if not user:
         raise HTTPException(status_code=404, detail="Invalid subscription")
 
+    _assert_account_active(user)
+
     sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
     sub_deeplink = f"v2raytun://import/{sub_url}"
-    win_sub_deeplink = f"dem1chvpn://import/{sub_url}"
+    win_sub_deeplink = win_sub(sub_url)
 
     routing_header = await _build_routing_header()
     route_deeplink = f"v2raytun://import_route/{routing_header}" if routing_header else None
-    win_route_deeplink = f"dem1chvpn://import_route/{routing_header}" if routing_header else None
+    win_route_deeplink = win_route(routing_header) if routing_header else None
 
     return {
         "subscription": sub_deeplink,
@@ -218,9 +248,11 @@ async def get_v2raytun_deeplinks(request: Request, token: str):
 
 def _build_content_disposition(filename: str) -> str:
     # HTTP-заголовки кодируются в latin-1, для кириллицы используем RFC 5987
-    ascii_fallback = re.sub(r"[^\x20-\x7e]", "_", filename) or "subscription.txt"
-    ascii_fallback = ascii_fallback.replace('"', "_")
     encoded = urlquote(filename, safe="")
+    ascii_fallback = re.sub(r"[^\x20-\x7e]", "", filename).replace('"', "").strip()
+    # имя из одной кириллицы схлопнется в пустое/".txt" — отдаём нейтральное
+    if not ascii_fallback or ascii_fallback in (".txt", "txt"):
+        ascii_fallback = "subscription.txt"
     return f"attachment; filename=\"{ascii_fallback}\"; filename*=UTF-8''{encoded}"
 
 
@@ -240,6 +272,10 @@ def _build_userinfo(user) -> str:
     return "; ".join(parts)
 
 
+_routing_cache: dict = {"ts": 0.0, "value": None}
+_ROUTING_TTL = 60.0
+
+
 async def _build_routing_header() -> str | None:
     """Собирает JSON маршрутов в Base64 для заголовка.
 
@@ -250,6 +286,12 @@ async def _build_routing_header() -> str | None:
     - В каждом rule: id, __name__, type, outboundTag, domain/ip
     Документация: https://v2raytun.gitbook.io/overview/supported-headers#routing
     """
+    # Результат одинаков для всех юзеров и тяжёл (2 запроса в БД + сборка ~150 доменов) — кэшируем на минуту.
+    # Клиент опрашивает подписку раз в несколько часов, так что staleness в 60с незаметен.
+    now = time.monotonic()
+    if _routing_cache["value"] is not None and now - _routing_cache["ts"] < _ROUTING_TTL:
+        return _routing_cache["value"]
+
     try:
         import uuid
 
@@ -453,7 +495,10 @@ async def _build_routing_header() -> str | None:
         # Все домены, не попавшие в direct-правила из списка выше,
         # пойдут через дефолтный outbound клиента (обычно это proxy).
 
-        return base64.b64encode(json.dumps(routing).encode()).decode()
+        result = base64.b64encode(json.dumps(routing).encode()).decode()
+        _routing_cache["ts"] = now
+        _routing_cache["value"] = result
+        return result
     except Exception:
         return None
 
@@ -587,11 +632,14 @@ def _build_redirect_html(deeplink: str, action_label: str) -> str:
 
 
 @app.get("/redirect/sub/{token}")
-async def redirect_subscription(token: str):
+@limiter.limit("30/minute")
+async def redirect_subscription(request: Request, token: str):
     mgr = UserManager()
     user = await mgr.get_user_by_subscription_token(token)
     if not user:
         raise HTTPException(status_code=404, detail="Invalid subscription")
+
+    _assert_account_active(user)
 
     sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
     deeplink = f"v2raytun://import/{sub_url}"
@@ -601,11 +649,14 @@ async def redirect_subscription(token: str):
 
 
 @app.get("/redirect/route/{token}")
-async def redirect_routing(token: str):
+@limiter.limit("30/minute")
+async def redirect_routing(request: Request, token: str):
     mgr = UserManager()
     user = await mgr.get_user_by_subscription_token(token)
     if not user:
         raise HTTPException(status_code=404, detail="Invalid subscription")
+
+    _assert_account_active(user)
 
     routing_header = await _build_routing_header()
     if not routing_header:
@@ -618,31 +669,37 @@ async def redirect_routing(token: str):
 
 
 @app.get("/redirect/win/sub/{token}")
-async def redirect_win_subscription(token: str):
+@limiter.limit("30/minute")
+async def redirect_win_subscription(request: Request, token: str):
     mgr = UserManager()
     user = await mgr.get_user_by_subscription_token(token)
     if not user:
         raise HTTPException(status_code=404, detail="Invalid subscription")
 
+    _assert_account_active(user)
+
     sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
-    deeplink = f"dem1chvpn://import/{sub_url}"
+    deeplink = win_sub(sub_url)
 
     html = _build_redirect_html(deeplink, "Импорт подписки — Windows")
     return HTMLResponse(content=html)
 
 
 @app.get("/redirect/win/route/{token}")
-async def redirect_win_routing(token: str):
+@limiter.limit("30/minute")
+async def redirect_win_routing(request: Request, token: str):
     mgr = UserManager()
     user = await mgr.get_user_by_subscription_token(token)
     if not user:
         raise HTTPException(status_code=404, detail="Invalid subscription")
 
+    _assert_account_active(user)
+
     routing_header = await _build_routing_header()
     if not routing_header:
         raise HTTPException(status_code=404, detail="No routing rules configured")
 
-    deeplink = f"dem1chvpn://import_route/{routing_header}"
+    deeplink = win_route(routing_header)
 
     html = _build_redirect_html(deeplink, "Импорт маршрутов — Windows")
     return HTMLResponse(content=html)

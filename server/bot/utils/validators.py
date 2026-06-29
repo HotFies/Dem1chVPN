@@ -13,11 +13,9 @@ def validate_domain(domain: str) -> bool:
 
 def validate_ip(ip: str) -> bool:
 
-    pattern = r'^(\d{1,3}\.){3}\d{1,3}$'
-    if not re.match(pattern, ip):
-        return False
-    parts = ip.split('.')
-    return all(0 <= int(p) <= 255 for p in parts)
+    octet = r'(25[0-5]|2[0-4][0-9]|1[0-9][0-9]|[1-9]?[0-9])'
+    pattern = rf'^({octet}\.){{3}}{octet}$'
+    return bool(re.match(pattern, ip))
 
 
 def validate_uuid(uuid: str) -> bool:

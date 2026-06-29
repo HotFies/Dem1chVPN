@@ -33,10 +33,10 @@ async function apiRequest<T = any>(
   });
 
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
+    const errorData = await response.json().catch(() => ({ detail: response.statusText }));
     throw new ApiError(
       response.status,
-      errorData.detail || `HTTP ${response.status}`,
+      errorData.detail || response.statusText || `HTTP ${response.status}`,
     );
   }
 

@@ -76,7 +76,10 @@ class MTProtoManager:
 
     def get_secret(self) -> str:
         """Get MTProto secret from .env."""
-        return os.getenv("MTPROTO_SECRET", "")
+        secret = os.getenv("MTPROTO_SECRET", "")
+        if not secret:
+            logger.warning("MTPROTO_SECRET не задан — ссылки MTProto будут пустыми")
+        return secret
 
     def get_proxy_link(self) -> str:
         """Generate Telegram MTProto proxy link."""

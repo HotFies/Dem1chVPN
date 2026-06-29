@@ -1,9 +1,11 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+const basePath = (globalThis as any).process?.env?.VITE_BASE_PATH || '/webapp/'
+
 export default defineConfig({
   plugins: [react()],
-  base: '/webapp/',
+  base: basePath,
   build: {
     outDir: 'dist',
     assetsDir: 'assets',

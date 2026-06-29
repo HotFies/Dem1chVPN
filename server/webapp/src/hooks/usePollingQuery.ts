@@ -18,6 +18,10 @@ export function usePollingQuery<T>(
   const mounted = useRef(true)
   const lastFetched = useRef(0)
   const abortRef = useRef<AbortController | null>(null)
+  // fetcher держим в ref — иначе нестабильная ссылка от вызывающего давала бы устаревший вызов
+  const fetcherRef = useRef(fetcher)
+  fetcherRef.current = fetcher
+  const hasData = useRef(false)
 
   const run = useCallback(async (silent = false) => {
     // отменяем in-flight чтобы не было гонок
@@ -25,12 +29,13 @@ export function usePollingQuery<T>(
     const ac = new AbortController()
     abortRef.current = ac
 
-    if (!silent) setLoading(prev => (data == null ? true : prev))
+    if (!silent && !hasData.current) setLoading(true)
     if (silent) setRefreshing(true)
     try {
-      const v = await fetcher(ac.signal)
+      const v = await fetcherRef.current(ac.signal)
       if (!mounted.current || ac.signal.aborted) return
       setData(v)
+      hasData.current = true
       setError(null)
     } catch (e: any) {
       if (e?.name === 'AbortError') return

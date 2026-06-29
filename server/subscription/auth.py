@@ -4,11 +4,14 @@ Dem1chVPN — Аутентификация WebApp
 import hashlib
 import hmac
 import json
+import logging
 import time
 import urllib.parse
 from typing import Optional
 
 from fastapi import Request, HTTPException
+
+logger = logging.getLogger("dem1chvpn.subscription.auth")
 
 import sys
 from pathlib import Path
@@ -34,6 +37,8 @@ def validate_init_data(init_data: str) -> Optional[dict]:
         if not received_hash:
             return None
 
+        # signature — поле для сторонней Ed25519-проверки, в HMAC-строку оно не входит
+        params.pop("signature", None)
 
         data_check_parts = sorted(params.items())
         data_check_string = "\n".join(f"{k}={v}" for k, v in data_check_parts)
@@ -58,7 +63,9 @@ def validate_init_data(init_data: str) -> Optional[dict]:
 
 
         auth_date = int(params.get("auth_date", "0"))
-        if time.time() - auth_date > 86400:
+        now = time.time()
+        # auth_date из будущего (с допуском на рассинхрон часов) — отбрасываем
+        if auth_date > now + 60 or now - auth_date > 86400:
             return None
 
 
@@ -77,6 +84,7 @@ def validate_init_data(init_data: str) -> Optional[dict]:
         }
 
     except Exception:
+        logger.exception("Unexpected error validating initData")
         return None
 
 

@@ -21,7 +21,8 @@ router = Router()
 @router.callback_query(F.data.in_({"mon:status", "menu:monitoring"}))
 async def mon_status(callback: CallbackQuery):
     """Показать статус — это же главный экран мониторинга."""
-    cpu = psutil.cpu_percent(interval=1)
+    # interval=None не блокирует loop (даёт дельту с прошлого вызова), в отличие от interval=1
+    cpu = psutil.cpu_percent(interval=None)
     mem = psutil.virtual_memory()
     try:
         disk = psutil.disk_usage("/")
@@ -54,16 +55,21 @@ async def mon_status(callback: CallbackQuery):
     )
 
 
-    net = psutil.net_io_counters()
-    text += (
-        f"📈 <b>Сеть (с загрузки):</b>\n"
-        f"  ↑ {format_traffic(net.bytes_sent)}  ↓ {format_traffic(net.bytes_recv)}\n\n"
-    )
+    try:
+        net = psutil.net_io_counters()
+    except Exception:
+        net = None
+    if net:
+        text += (
+            f"📈 <b>Сеть (с загрузки):</b>\n"
+            f"  ↑ {format_traffic(net.bytes_sent)}  ↓ {format_traffic(net.bytes_recv)}\n\n"
+        )
 
 
+    xray_ver_str = f"v{xray_version}" if xray_version and xray_version != "unknown" else "(версия неизвестна)"
     text += "🔌 <b>Сервисы:</b>\n"
     text += (
-        f"  {'🟢' if xray_running else '🔴'} Xray v{xray_version}"
+        f"  {'🟢' if xray_running else '🔴'} Xray {xray_ver_str}"
         f" ({len(clients)} клиентов)\n"
     )
 
@@ -74,8 +80,9 @@ async def mon_status(callback: CallbackQuery):
             h_running = await h_mgr.is_hysteria_running()
             h_version = await h_mgr.get_hysteria_version()
             h_clients = await h_mgr.get_clients()
+            h_ver_str = f"v{h_version}" if h_version and h_version != "unknown" else "(версия неизвестна)"
             text += (
-                f"  {'🟢' if h_running else '🔴'} Hysteria2 {h_version}"
+                f"  {'🟢' if h_running else '🔴'} Hysteria2 {h_ver_str}"
                 f" ({len(h_clients)} паролей)\n"
             )
         except Exception:
@@ -100,7 +107,7 @@ async def mon_status(callback: CallbackQuery):
             blocked = ag_stats.get("num_blocked_filtering", 0)
             text += f"  {'🟢' if ag_on else '🔴'} AdGuard Home"
             if blocked:
-                text += f" ({blocked:,} заблокировано)"
+                text += f" ({blocked:,} заблокировано)".replace(",", " ")
             text += "\n"
         except Exception:
             text += "  ⚪ AdGuard (не установлен)\n"
@@ -144,11 +151,11 @@ async def mon_online(callback: CallbackQuery):
     total_users = await user_mgr.count_users()
 
     if online:
-        lines = [f"👁 <b>Онлайн-пользователи ({len(online)}/{total_users}):</b>\n"]
+        lines = [f"👁 <b>Пользователи онлайн ({len(online)}/{total_users}):</b>\n"]
         for u in online:
             lines.append(f"  🟢 <b>{u.name}</b> — {format_traffic(u.traffic_total)}")
     else:
-        lines = [f"👁 <b>Онлайн-пользователи (0/{total_users}):</b>\n"]
+        lines = [f"👁 <b>Пользователи онлайн (0/{total_users}):</b>\n"]
         lines.append("  Сейчас никто не подключён.")
 
     await safe_edit_text(
@@ -201,7 +208,7 @@ async def mon_traffic_day(callback: CallbackQuery):
         try:
             from ..services.charts import generate_overview_chart
             from aiogram.types import BufferedInputFile
-            chart_bytes = generate_overview_chart(chart_data)
+            chart_bytes = await asyncio.to_thread(generate_overview_chart, chart_data)
             chart_file = BufferedInputFile(chart_bytes, filename="traffic_chart.png")
             await callback.message.answer_photo(
                 chart_file, caption="📊 График трафика пользователей"

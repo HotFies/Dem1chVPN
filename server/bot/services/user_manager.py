@@ -157,7 +157,7 @@ class UserManager:
             result = await session.execute(select(User).where(User.id == user_id))
             user = result.scalar_one_or_none()
             if user:
-                await session.delete(user)
+                session.delete(user)
                 await session.commit()
                 return True
             return False
@@ -182,6 +182,7 @@ class UserManager:
             if user:
                 user.traffic_used_up = 0
                 user.traffic_used_down = 0
+                user.warning_sent = False
                 await session.commit()
                 await session.refresh(user)
             return user
@@ -287,7 +288,7 @@ class UserManager:
                     cur_exp = cur_exp.replace(tzinfo=timezone.utc)
                 base = cur_exp if cur_exp and cur_exp > now else now
                 user.expiry_date = base + timedelta(days=days)
-                if not user.is_active and user.expiry_date and not user.is_traffic_exceeded:
+                if not user.is_active and not user.is_expired and not user.is_traffic_exceeded:
                     user.is_active = True
                 await session.commit()
                 await session.refresh(user)

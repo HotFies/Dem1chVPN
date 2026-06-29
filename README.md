@@ -99,7 +99,7 @@ Dem1chVPN — готовый стек для своего VPN на VPS. Зато
 ## Требования
 
 - VPS: 1 vCPU, 1 GB RAM, 10 GB SSD (минимум)
-- ОС: Debian 12+ или Ubuntu 22.04+
+- ОС: Debian 11+ или Ubuntu 22.04+
 - Расположение: за пределами РФ (Нидерланды, Германия и т.п.)
 - Стоимость: примерно 400–1500 ₽/мес (например, [VDSina](https://vdsina.com))
 
@@ -167,7 +167,7 @@ chmod +x install.sh
 │            ├── /api/users/*            упр. юзерами  │
 │            ├── /api/tickets/*          тикеты        │
 │            ├── /api/routes/*           маршруты      │
-│            ├── /api/server/status      мониторинг    │
+│            ├── /api/status             мониторинг    │
 │            └── /webapp/                Mini App      │
 │                                                      │
 │   Telegram Bot (aiogram 3)  ← управление             │
@@ -304,7 +304,7 @@ Dark cyber-glass: glassmorphism с `backdrop-filter: blur`, градиенты c
 
 1. Скачать [Dem1chVPN-Setup.exe](https://github.com/HotFies/Dem1chVPN/releases/download/demichvpn-win-v.1.0.0/Dem1chVPN-1.0.0-Setup.exe).
 2. Поставить.
-3. Импортировать подписку через deeplink `dem1chvpn://sub/...` либо вставить URL руками.
+3. Импортировать подписку через deeplink `dem1chvpn://import/...` либо вставить URL руками.
 4. В Dashboard выбрать протокол (VLESS или Hysteria2) и подключиться.
 
 Подписка содержит обе ссылки — VLESS и Hysteria2. По дефолту активен Hysteria2, он сейчас стабильнее в РФ. Если на одном что-то идёт не так, второй обычно работает.
@@ -312,7 +312,7 @@ Dark cyber-glass: glassmorphism с `backdrop-filter: blur`, градиенты c
 ### Windows deeplinks
 
 ```
-Личный кабинет → «Импорт подписки» (Windows) → dem1chvpn://sub/...
+Личный кабинет → «Импорт подписки» (Windows) → dem1chvpn://import/...
 ```
 
 Подписка добавляется автоматически.

@@ -2361,6 +2361,15 @@ body::before {
   to { opacity: 1; }
 }
 
+.guide-lightbox-topbar {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  z-index: 310;
+  display: flex;
+  justify-content: flex-end;
+}
+
 .guide-lightbox-close {
   position: absolute;
   top: 16px;

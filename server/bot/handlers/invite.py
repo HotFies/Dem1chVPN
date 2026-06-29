@@ -17,8 +17,9 @@ from ..services.xray_config import XrayConfigManager
 from ..services.hysteria_config import HysteriaConfigManager
 from ..services.invite_manager import InviteManager
 
-from ..utils.formatters import format_user_info
+from ..utils.formatters import format_user_info, pluralize
 from ..utils.telegram_helpers import get_text
+from ..utils.deeplinks import win_sub
 
 router = Router()
 
@@ -136,7 +137,7 @@ async def invite_days(message: Message, state: FSMContext):
     link = f"https://t.me/{bot_info.username}?start=inv_{invite.code}"
 
     limit_str = f"{data.get('traffic_gb', 0)} GB" if data.get("traffic_limit") else "♾️"
-    days_str = f"{days} дней" if days > 0 else "♾️ Бессрочно"
+    days_str = pluralize(days, ('день', 'дня', 'дней')) if days > 0 else "♾️ Бессрочно"
 
     await message.answer(
         f"🎟️ <b>Приглашение создано!</b>\n\n"
@@ -234,6 +235,14 @@ async def invite_activate(message: Message, command: CommandObject):
         )
         return
 
+    # Сначала атомарно занимаем слот — иначе при гонке по одноразовой ссылке создастся несколько аккаунтов
+    if not await inv_mgr.use_invite(code):
+        await message.answer(
+            "❌ <b>Приглашение недействительно</b>\n\n"
+            "Ссылка истекла или уже использована. Обратитесь к администратору."
+        )
+        return
+
     user = await user_mgr.create_user(
         name=invite.name,
         traffic_limit=invite.traffic_limit,
@@ -246,8 +255,6 @@ async def invite_activate(message: Message, command: CommandObject):
     hysteria_mgr = HysteriaConfigManager()
     await hysteria_mgr.add_client(user.email, user.hysteria_password)
 
-    await inv_mgr.use_invite(code)
-
     await user_mgr.log_action(
         "user_created_via_invite",
         target_user_id=user.id,
@@ -257,7 +264,7 @@ async def invite_activate(message: Message, command: CommandObject):
     vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
     sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
     sub_deeplink = f"v2raytun://import/{sub_url}"
-    win_sub_deeplink = f"dem1chvpn://import/{sub_url}"
+    win_sub_deeplink = win_sub(sub_url)
 
     welcome = (
         f"🎉 <b>Добро пожаловать в Dem1chVPN!</b>\n\n"
@@ -270,7 +277,7 @@ async def invite_activate(message: Message, command: CommandObject):
         f"<code>{win_sub_deeplink}</code>\n\n"
         f"📡 <b>Подписка</b> (для других клиентов):\n"
         f"<code>{sub_url}</code>\n"
-        f"<i>↳ внутри две ссылки — VLESS и Hysteria2</i>\n\n"
+        f"<i>↳ внутри обе ссылки — VLESS и Hysteria2</i>\n\n"
         f"🛡 <b>VLESS + Reality</b> (роутеры, ручной импорт):\n"
         f"<code>{vless_url}</code>"
     )

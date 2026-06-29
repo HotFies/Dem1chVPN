@@ -1,6 +1,8 @@
 """
 Dem1chVPN Bot — Settings Handler
 """
+import asyncio
+import html
 from aiogram import Router, F
 from aiogram.types import CallbackQuery, BufferedInputFile
 from ..config import config
@@ -47,10 +49,10 @@ async def set_update_xray(callback: CallbackQuery):
 
 @router.callback_query(F.data == "set:update_geo")
 async def set_update_geo(callback: CallbackQuery):
-    if not await try_lock_operation(callback, "update_geo", "⏳ Обновление гео-баз уже выполняется..."):
+    if not await try_lock_operation(callback, "update_geo", "⏳ Обновление геобаз уже выполняется..."):
         return
 
-    await callback.answer("🔄 Обновление гео-баз...", show_alert=True)
+    await callback.answer("🔄 Обновление геобаз...", show_alert=True)
 
     try:
         from ..services.updater import XrayUpdater
@@ -62,14 +64,14 @@ async def set_update_geo(callback: CallbackQuery):
 
         await safe_edit_text(
             callback.message,
-            f"🌐 <b>Обновление гео-баз</b>\n\n"
+            f"🌐 <b>Обновление геобаз</b>\n\n"
             f"{geoip} geoip.dat\n{geosite} geosite.dat",
             reply_markup=settings_menu(),
         )
     except Exception as e:
         await safe_edit_text(
             callback.message,
-            f"❌ Ошибка обновления гео-баз: {e}",
+            f"❌ Ошибка обновления геобаз: {e}",
             reply_markup=settings_menu(),
         )
     finally:
@@ -104,7 +106,7 @@ async def set_backup(callback: CallbackQuery):
 
     try:
         mgr = BackupManager()
-        backup_bytes, filename = mgr.create_backup()
+        backup_bytes, filename = await asyncio.to_thread(mgr.create_backup)
 
         backup_file = BufferedInputFile(backup_bytes, filename=filename)
         await callback.message.answer_document(
@@ -114,6 +116,7 @@ async def set_backup(callback: CallbackQuery):
                 f"📅 {filename}\n"
                 f"📦 {len(backup_bytes) // 1024} KB"
             ),
+            reply_markup=settings_menu(),
         )
     except Exception as e:
         from ..utils.telegram_helpers import safe_edit_text
@@ -288,6 +291,9 @@ async def set_broadcast_send(message: Message, state: FSMContext):
     if not text.strip():
         await message.answer("❌ Пустое сообщение", reply_markup=settings_menu())
         return
+
+    # текст админа уходит в HTML-сообщение — без экранирования один '<' роняет всю рассылку
+    text = html.escape(text)
 
     from ..services.user_manager import UserManager
     mgr = UserManager()

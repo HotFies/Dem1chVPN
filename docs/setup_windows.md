@@ -13,7 +13,7 @@
 
 ### 1. Скачать
 
-1. Скачать `Dem1chVPN-Setup.exe` с [GitHub Releases](https://github.com/HotFies/Dem1chVPN/releases/download/demichvpn-win-v.1.0.0/Dem1chVPN-1.0.0-Setup.exe).
+1. Скачать `Dem1chVPN-Setup.exe` (последнюю версию) с [GitHub Releases](https://github.com/HotFies/Dem1chVPN/releases/latest).
 2. Запустить установщик.
 
 Если Windows SmartScreen ругается — «Подробнее» → «Выполнить в любом случае».
@@ -23,7 +23,7 @@
 Через deeplink:
 
 1. Открыть Личный кабинет в боте (кнопка «Открыть панель»).
-2. В разделе «Ваши ссылки» — строка «Импорт подписки (Windows)» со ссылкой `dem1chvpn://sub/...`.
+2. В разделе «Ваши ссылки» — строка «Импорт подписки (Windows)» со ссылкой `dem1chvpn://import/...`.
 3. Кликнуть, разрешить браузеру открыть приложение.
 4. Подписка добавится сама.
 
@@ -53,7 +53,7 @@
 
 ### 1. Скачать
 
-1. [github.com/2dust/v2rayN/releases](https://github.com/2dust/v2rayN/releases).
+1. [GitHub Releases](https://github.com/2dust/v2rayN/releases).
 2. Скачать `v2rayN-windows-64-SelfContained.zip` (внутри уже .NET).
 3. Распаковать в удобную папку (например, `C:\v2rayN`).
 4. Запустить `v2rayN.exe`, при запросе брандмауэра — «Разрешить».

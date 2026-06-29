@@ -29,6 +29,12 @@ DATA_DIR="${DEM1CHVPN_DIR}/data"
 VENV_DIR="${DEM1CHVPN_DIR}/venv"
 ENV_FILE="${DEM1CHVPN_DIR}/.env"
 
+# Временные файлы с секретами чистим при любом завершении, а не только в happy-path
+cleanup_secrets() {
+    rm -f /tmp/dem1chvpn_keys /tmp/dem1chvpn_first_user /tmp/dem1chvpn_routes 2>/dev/null || true
+}
+trap cleanup_secrets EXIT
+
 # ──── Вспомогательные функции ────
 
 log_info()  { echo -e "${GREEN}[✓]${NC} $1"; }
@@ -232,9 +238,14 @@ SYSCTL
     systemctl start fail2ban
     log_info "fail2ban включён"
 
-    # Опционально: смена порта SSH
+    # Опционально: смена порта SSH (только в интерактивном режиме, иначе read зависнет)
     echo ""
-    read -rp "$(echo -e "${PURPLE}Сменить порт SSH? (введите новый порт или нажмите Enter для 22): ${NC}")" NEW_SSH_PORT
+    if [ -t 0 ]; then
+        read -rp "$(echo -e "${PURPLE}Сменить порт SSH? (введите новый порт или нажмите Enter для 22): ${NC}")" NEW_SSH_PORT
+    else
+        NEW_SSH_PORT=""
+        log_warn "Неинтерактивный режим — порт SSH оставлен по умолчанию (22)"
+    fi
     if [[ -n "$NEW_SSH_PORT" ]] && validate_numeric "$NEW_SSH_PORT"; then
         if [[ "$NEW_SSH_PORT" -ge 1024 && "$NEW_SSH_PORT" -le 65535 ]]; then
             sed -i "s/^#\?Port .*/Port ${NEW_SSH_PORT}/" /etc/ssh/sshd_config
@@ -288,39 +299,48 @@ install_xray() {
 configure_xray() {
     log_step "Шаг 4: Настройка Xray-core"
 
-    # Генерация ключей Reality
-    KEYS=$($XRAY_BIN x25519)
-    # Xray 25+ выводит "PrivateKey: xxx" и "Password (PublicKey): xxx"
-    # Старые версии: "Private key: xxx" и "Public key: xxx"
-    PRIVATE_KEY=$(echo "$KEYS" | grep -i "private" | awk '{print $NF}')
-    PUBLIC_KEY=$(echo "$KEYS" | grep -i "public" | awk '{print $NF}')
-
-    if [ -z "$PRIVATE_KEY" ] || [ -z "$PUBLIC_KEY" ]; then
-        log_error "Не удалось сгенерировать ключи Reality!"
-        log_error "Вывод xray x25519: $KEYS"
-        exit 1
+    # Повторный запуск не должен менять ключи — иначе все выданные ссылки умрут
+    if [ -f "$ENV_FILE" ] && grep -q '^REALITY_PRIVATE_KEY=.' "$ENV_FILE"; then
+        PRIVATE_KEY=$(grep '^REALITY_PRIVATE_KEY=' "$ENV_FILE" | head -n1 | cut -d= -f2-)
+        PUBLIC_KEY=$(grep '^REALITY_PUBLIC_KEY=' "$ENV_FILE" | head -n1 | cut -d= -f2-)
+        SHORT_ID=$(grep '^REALITY_SHORT_ID=' "$ENV_FILE" | head -n1 | cut -d= -f2-)
+        log_info "Переиспользую ключи Reality из существующего .env"
+    else
+        KEYS=$($XRAY_BIN x25519)
+        # Xray 25+ выводит "PrivateKey: xxx" и "Password (PublicKey): xxx"
+        # Старые версии: "Private key: xxx" и "Public key: xxx"
+        PRIVATE_KEY=$(echo "$KEYS" | grep -i "private" | awk '{print $NF}')
+        PUBLIC_KEY=$(echo "$KEYS" | grep -i "public" | awk '{print $NF}')
+        if [ -z "$PRIVATE_KEY" ] || [ -z "$PUBLIC_KEY" ]; then
+            log_error "Не удалось сгенерировать ключи Reality!"
+            log_error "Вывод xray x25519: $KEYS"
+            exit 1
+        fi
+        SHORT_ID=$(openssl rand -hex 4)
     fi
-    SHORT_ID=$(openssl rand -hex 4)
     SERVER_IP=$(get_public_ip)
 
-    log_info "Ключи Reality сгенерированы"
     log_info "Публичный ключ: ${PUBLIC_KEY}"
 
-    # Создание конфига из шаблона
     TEMPLATE="${DEM1CHVPN_DIR}/server/xray/config_template.json"
-    cp "$TEMPLATE" "$XRAY_CONFIG"
+    # Не затираем живой конфиг, в котором уже есть клиенты
+    if [ -f "$XRAY_CONFIG" ] && grep -q '"id"' "$XRAY_CONFIG"; then
+        log_warn "Xray-конфиг уже содержит клиентов — оставляю как есть"
+    else
+        cp "$TEMPLATE" "$XRAY_CONFIG"
+        sed -i "s|REALITY_DEST_PLACEHOLDER|dl.google.com:443|g" "$XRAY_CONFIG"
+        sed -i "s|REALITY_SNI_PLACEHOLDER|dl.google.com|g" "$XRAY_CONFIG"
+        sed -i "s|REALITY_PRIVATE_KEY_PLACEHOLDER|${PRIVATE_KEY}|g" "$XRAY_CONFIG"
+        sed -i "s|REALITY_SHORT_ID_PLACEHOLDER|${SHORT_ID}|g" "$XRAY_CONFIG"
+        # DNS для RU-доменов; переопределяется export RUSSIAN_DNS=... перед install
+        sed -i "s|RUSSIAN_DNS_PLACEHOLDER|${RUSSIAN_DNS:-77.88.8.8}|g" "$XRAY_CONFIG"
+    fi
 
-    # Подстановка значений
-    sed -i "s|REALITY_DEST_PLACEHOLDER|dl.google.com:443|g" "$XRAY_CONFIG"
-    sed -i "s|REALITY_SNI_PLACEHOLDER|dl.google.com|g" "$XRAY_CONFIG"
-    sed -i "s|REALITY_PRIVATE_KEY_PLACEHOLDER|${PRIVATE_KEY}|g" "$XRAY_CONFIG"
-    sed -i "s|REALITY_SHORT_ID_PLACEHOLDER|${SHORT_ID}|g" "$XRAY_CONFIG"
-
-    # Сохранение ключей для .env
-    echo "XRAY_PRIVATE_KEY=${PRIVATE_KEY}" > /tmp/dem1chvpn_keys
-    echo "XRAY_PUBLIC_KEY=${PUBLIC_KEY}" >> /tmp/dem1chvpn_keys
-    echo "XRAY_SHORT_ID=${SHORT_ID}" >> /tmp/dem1chvpn_keys
-    echo "SERVER_IP=${SERVER_IP}" >> /tmp/dem1chvpn_keys
+    ( umask 077
+      echo "XRAY_PRIVATE_KEY=${PRIVATE_KEY}" > /tmp/dem1chvpn_keys
+      echo "XRAY_PUBLIC_KEY=${PUBLIC_KEY}" >> /tmp/dem1chvpn_keys
+      echo "XRAY_SHORT_ID=${SHORT_ID}" >> /tmp/dem1chvpn_keys
+      echo "SERVER_IP=${SERVER_IP}" >> /tmp/dem1chvpn_keys )
 
     # Включение и запуск Xray
     systemctl enable xray
@@ -352,8 +372,12 @@ install_hysteria_binary() {
         exit 1
     fi
 
-    # Генерация obfs-пароля (общий для всех клиентов)
-    HYSTERIA_OBFS_PASSWORD=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
+    # Переиспользуем obfs-пароль при повторном запуске, иначе отвалятся все Hysteria-клиенты
+    if [ -f "$ENV_FILE" ] && grep -q '^HYSTERIA_OBFS_PASSWORD=.' "$ENV_FILE"; then
+        HYSTERIA_OBFS_PASSWORD=$(grep '^HYSTERIA_OBFS_PASSWORD=' "$ENV_FILE" | head -n1 | cut -d= -f2-)
+    else
+        HYSTERIA_OBFS_PASSWORD=$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)
+    fi
     HYSTERIA_PORT=8444
 
     # Сохраняем для .env (используется configure_hysteria и dem1chvpn-bot)
@@ -424,7 +448,7 @@ install_bot() {
     if [ -z "$VPS_HOSTNAME" ] || [ "$VPS_HOSTNAME" = "localhost" ]; then
         VPS_HOSTNAME="$SERVER_IP"
     fi
-    log_info "Хостнейм VPS: ${VPS_HOSTNAME}"
+    log_info "Имя хоста VPS: ${VPS_HOSTNAME}"
 
     # Подбираем default-домен: hostname если он реально резолвится в наш IP, иначе nip.io
     NIP_DOMAIN="${SERVER_IP//./-}.nip.io"
@@ -432,7 +456,7 @@ install_bot() {
     if command -v dig &>/dev/null; then
         HOSTNAME_IP=$(dig +short "${VPS_HOSTNAME}" @8.8.8.8 2>/dev/null | head -1)
         if [ -z "$HOSTNAME_IP" ] || [ "$HOSTNAME_IP" != "$SERVER_IP" ]; then
-            log_warn "Хостнейм '${VPS_HOSTNAME}' не имеет публичной A-записи на ${SERVER_IP}."
+            log_warn "Имя хоста '${VPS_HOSTNAME}' не имеет публичной A-записи на ${SERVER_IP}."
             log_info "Рекомендую '${NIP_DOMAIN}' — wildcard DNS, резолвится автоматически."
             DEFAULT_DOMAIN="$NIP_DOMAIN"
         fi
@@ -471,8 +495,11 @@ install_bot() {
         log_warn "Если cert не выпустится — установка предложит переключиться на ${NIP_DOMAIN}."
     fi
 
-    # Создание файла .env
-    cat > "$ENV_FILE" << ENVFILE 
+    # На повторном запуске .env не трогаем — там рабочие ключи и настройки модулей (WARP/MTProto/AdGuard)
+    if [ -f "$ENV_FILE" ]; then
+        log_warn "$ENV_FILE уже существует — сохраняю текущие настройки и ключи"
+    else
+    cat > "$ENV_FILE" << ENVFILE
 # Конфигурация Dem1chVPN
 BOT_TOKEN=${BOT_TOKEN}
 ADMIN_IDS=${ADMIN_ID}
@@ -525,6 +552,7 @@ ENVFILE
 
     chmod 600 "$ENV_FILE"
     log_info "Файл .env создан"
+    fi
     # /tmp/dem1chvpn_keys удалится в configure_hysteria после использования
 }
 
@@ -696,7 +724,18 @@ configure_hysteria() {
     # Загружаем сохранённые ранее переменные
     [ -f /tmp/dem1chvpn_keys ] && source /tmp/dem1chvpn_keys
 
+    # на повторном запуске /tmp может быть очищен — добираем из .env
+    if [ -f "$ENV_FILE" ]; then
+        [ -z "${HYSTERIA_OBFS_PASSWORD:-}" ] && HYSTERIA_OBFS_PASSWORD=$(grep '^HYSTERIA_OBFS_PASSWORD=' "$ENV_FILE" | head -n1 | cut -d= -f2-)
+        [ -z "${HYSTERIA_PORT:-}" ] && HYSTERIA_PORT=$(grep '^HYSTERIA_PORT=' "$ENV_FILE" | head -n1 | cut -d= -f2-)
+    fi
+
     if [ -z "${HYSTERIA_OBFS_PASSWORD:-}" ] || [ -z "${HYSTERIA_PORT:-}" ]; then
+        if grep -q '^HYSTERIA_ENABLED=true' "$ENV_FILE" 2>/dev/null; then
+            log_error "Hysteria включён в .env, но HYSTERIA_OBFS_PASSWORD/PORT не найдены."
+            log_error "Не отключаю автоматически — восстановите ключи или переустановите. Настройку Hysteria пропускаю."
+            return 0
+        fi
         log_warn "HYSTERIA_OBFS_PASSWORD/PORT не найдены — пропускаю настройку Hysteria"
         # иначе бот будет пытаться писать в несуществующий /etc/hysteria/config.yaml на каждом add_client
         sed -i 's/^HYSTERIA_ENABLED=true/HYSTERIA_ENABLED=false/' "$ENV_FILE" || true
@@ -831,10 +870,15 @@ configure_hysteria() {
     HYSTERIA_BOOTSTRAP_PWD=$(openssl rand -hex 16)
 
     mkdir -p /etc/hysteria
-    cp "${DEM1CHVPN_DIR}/server/hysteria/config_template.yaml" /etc/hysteria/config.yaml
-    sed -i "s|HYSTERIA_PORT_PLACEHOLDER|${HYSTERIA_PORT}|g" /etc/hysteria/config.yaml
-    sed -i "s|HYSTERIA_OBFS_PASSWORD_PLACEHOLDER|${HYSTERIA_OBFS_PASSWORD}|g" /etc/hysteria/config.yaml
-    sed -i "s|HYSTERIA_BOOTSTRAP_PASSWORD_PLACEHOLDER|${HYSTERIA_BOOTSTRAP_PWD}|g" /etc/hysteria/config.yaml
+    # Не затираем конфиг с уже добавленными userpass-клиентами
+    if [ -f /etc/hysteria/config.yaml ]; then
+        log_warn "/etc/hysteria/config.yaml уже существует — оставляю как есть (сохраняю клиентов)"
+    else
+        cp "${DEM1CHVPN_DIR}/server/hysteria/config_template.yaml" /etc/hysteria/config.yaml
+        sed -i "s|HYSTERIA_PORT_PLACEHOLDER|${HYSTERIA_PORT}|g" /etc/hysteria/config.yaml
+        sed -i "s|HYSTERIA_OBFS_PASSWORD_PLACEHOLDER|${HYSTERIA_OBFS_PASSWORD}|g" /etc/hysteria/config.yaml
+        sed -i "s|HYSTERIA_BOOTSTRAP_PASSWORD_PLACEHOLDER|${HYSTERIA_BOOTSTRAP_PWD}|g" /etc/hysteria/config.yaml
+    fi
 
     # Сразу обновляем симлинки если cert уже есть (если нет — это сделает ExecStartPre)
     /usr/local/bin/dem1chvpn-update-cert-symlinks 2>/dev/null || true
@@ -934,7 +978,8 @@ SERVICE
     chown dem1chvpn:dem1chvpn "${ENV_FILE}"
     # Xray конфиг — dem1chvpn должен иметь доступ на запись (для добавления/удаления клиентов)
     chown dem1chvpn:dem1chvpn "${XRAY_CONFIG}"
-    chmod 664 "${XRAY_CONFIG}"
+    # 640, а не 664 — приватный ключ Reality не должен быть читаем для остальных пользователей системы
+    chmod 640 "${XRAY_CONFIG}"
 
     systemctl daemon-reload
     systemctl enable dem1chvpn-bot dem1chvpn-sub dem1chvpn-hysteria
@@ -1142,6 +1187,19 @@ SCRIPT
 0 4 * * 0 root systemctl restart dem1chvpn-hysteria >> /var/log/dem1chvpn/cron.log 2>&1
 CRON
 
+    # cron-скрипты дописывают логи каждые 5 мин — без ротации они растут бесконечно
+    cat > /etc/logrotate.d/dem1chvpn << 'LOGROTATE'
+/var/log/dem1chvpn/*.log {
+    weekly
+    rotate 4
+    missingok
+    notifempty
+    compress
+    delaycompress
+    copytruncate
+}
+LOGROTATE
+
     log_info "Cron-задачи настроены"
 }
 
@@ -1160,29 +1218,34 @@ create_first_user() {
 
     # Создание пользователя через Python (heredoc — без конфликтов с bash)
     "${VENV_DIR}/bin/python" - "${FIRST_USER_NAME}" "${SUB_DOMAIN:-}" "${SUB_EXTERNAL_PORT:-8443}" <<'PYEOF' > /tmp/dem1chvpn_first_user 2>&1
-import asyncio, sys
+import asyncio, sys, traceback
 sys.path.insert(0, '/opt/dem1chvpn')
 async def main():
-    from server.bot.database import init_db
-    from server.bot.services.user_manager import UserManager
-    from server.bot.services.xray_config import XrayConfigManager
-    await init_db()
-    user = await UserManager().create_user(sys.argv[1])
-    if not user:
-        print('ERROR: failed')
-        return
-    xray = XrayConfigManager()
-    await xray.add_client(user.uuid, user.email)
-    vless = xray.generate_vless_url(user.uuid, user.name)
-    sub = f'https://{sys.argv[2]}:{sys.argv[3]}/sub/{user.subscription_token}'
+    try:
+        from server.bot.database import init_db
+        from server.bot.services.user_manager import UserManager
+        from server.bot.services.xray_config import XrayConfigManager
+        await init_db()
+        user = await UserManager().create_user(sys.argv[1])
+        if not user:
+            print('ERROR: create_user вернул пусто')
+            return
+        xray = XrayConfigManager()
+        await xray.add_client(user.uuid, user.email)
+        vless = xray.generate_vless_url(user.uuid, user.name)
+        sub = f'https://{sys.argv[2]}:{sys.argv[3]}/sub/{user.subscription_token}'
 
-    print(f"USER_UUID='{user.uuid}'")
-    print(f"USER_EMAIL='{user.email}'")
-    print(f'VLESS_URL="{vless}"')
-    print(f'SUB_URL="{sub}"')
+        print(f"USER_UUID='{user.uuid}'")
+        print(f"USER_EMAIL='{user.email}'")
+        print(f'VLESS_URL="{vless}"')
+        print(f'SUB_URL="{sub}"')
+    except Exception as e:
+        print(f'ERROR: {e}')
+        traceback.print_exc()
 
 asyncio.run(main())
 PYEOF
+    chmod 600 /tmp/dem1chvpn_first_user 2>/dev/null || true
 
     if grep -q "USER_UUID=" /tmp/dem1chvpn_first_user; then
         eval "$(cat /tmp/dem1chvpn_first_user)"
@@ -1194,8 +1257,9 @@ PYEOF
         echo -e "  ${CYAN}URL подписки:${NC}"
         echo -e "  ${SUB_URL}"
     else
-        log_warn "Не удалось создать пользователя (можно создать через бота позже)"
+        log_error "Не удалось создать первого пользователя — см. вывод ниже:"
         cat /tmp/dem1chvpn_first_user 2>/dev/null || true
+        log_warn "Исправьте проблему (часто это .env/ключи Reality) и создайте пользователя через бота."
     fi
     rm -f /tmp/dem1chvpn_first_user
 }
@@ -1529,8 +1593,6 @@ main() {
     log_info "Настраиваю sudoers для dem1chvpn..."
     cat > /etc/sudoers.d/dem1chvpn << 'SUDOERS'
 # Dem1chVPN — allow bot user to manage services
-dem1chvpn ALL=(root) NOPASSWD: /bin/bash /tmp/xray_install.sh
-dem1chvpn ALL=(root) NOPASSWD: /usr/bin/bash /tmp/xray_install.sh
 dem1chvpn ALL=(root) NOPASSWD: /bin/bash /opt/dem1chvpn/cron/*
 dem1chvpn ALL=(root) NOPASSWD: /usr/bin/bash /opt/dem1chvpn/cron/*
 dem1chvpn ALL=(root) NOPASSWD: /usr/bin/systemctl restart xray
@@ -1539,9 +1601,10 @@ dem1chvpn ALL=(root) NOPASSWD: /usr/bin/systemctl restart dem1chvpn-bot
 dem1chvpn ALL=(root) NOPASSWD: /usr/bin/systemctl restart dem1chvpn-sub
 dem1chvpn ALL=(root) NOPASSWD: /usr/bin/systemctl restart dem1chvpn-hysteria
 dem1chvpn ALL=(root) NOPASSWD: /usr/bin/systemctl is-active *
-dem1chvpn ALL=(root) NOPASSWD: /usr/bin/docker *
-dem1chvpn ALL=(root) NOPASSWD: /usr/bin/docker-compose *
-dem1chvpn ALL=(root) NOPASSWD: /usr/local/bin/docker-compose *
+# docker: только то, что реально дёргает бот (mtproto/adguard/warp on/off + статус)
+dem1chvpn ALL=(root) NOPASSWD: /usr/bin/docker compose up -d
+dem1chvpn ALL=(root) NOPASSWD: /usr/bin/docker compose down
+dem1chvpn ALL=(root) NOPASSWD: /usr/bin/docker inspect *
 SUDOERS
     chmod 440 /etc/sudoers.d/dem1chvpn
     visudo -c -f /etc/sudoers.d/dem1chvpn && log_info "sudoers OK" || {

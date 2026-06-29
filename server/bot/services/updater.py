@@ -3,11 +3,22 @@ Dem1chVPN — Updater Service
 """
 import asyncio
 import logging
+import os
 from pathlib import Path
 
 from ..config import config
 
 logger = logging.getLogger("dem1chvpn.updater")
+
+
+async def _communicate(proc, timeout: int):
+    # при таймауте дочерний процесс надо убить, иначе wget/curl висит зомби
+    try:
+        return await asyncio.wait_for(proc.communicate(), timeout=timeout)
+    except asyncio.TimeoutError:
+        proc.kill()
+        await proc.wait()
+        raise
 
 
 class XrayUpdater:
@@ -36,7 +47,7 @@ class XrayUpdater:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=120)
+            stdout, stderr = await _communicate(proc, 120)
             output = stdout.decode() + stderr.decode()
 
             version = await self._get_version()
@@ -75,20 +86,28 @@ class XrayUpdater:
 
     async def _download_with_fallback(self, urls: list[str], dest: str) -> bool:
         """Try downloading from each URL until one succeeds."""
+        tmp = f"{dest}.tmp"
         for url in urls:
             try:
                 proc = await asyncio.create_subprocess_exec(
-                    "wget", "-qO", dest, url,
+                    "wget", "-qO", tmp, url,
                     stdout=asyncio.subprocess.PIPE,
                     stderr=asyncio.subprocess.PIPE,
                 )
-                await asyncio.wait_for(proc.communicate(), timeout=60)
-                if proc.returncode == 0:
+                await _communicate(proc, 60)
+                # подменяем рабочий файл только после полной успешной загрузки — иначе битый geo уронит Xray
+                if proc.returncode == 0 and os.path.exists(tmp) and os.path.getsize(tmp) > 0:
+                    os.replace(tmp, dest)
                     logger.info(f"Downloaded {dest} from {url}")
                     return True
             except Exception as e:
                 logger.warning(f"Download failed from {url}: {e}")
-                continue
+            finally:
+                if os.path.exists(tmp):
+                    try:
+                        os.unlink(tmp)
+                    except OSError:
+                        pass
 
         logger.error(f"All download URLs failed for {dest}")
         return False
@@ -101,7 +120,7 @@ class XrayUpdater:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=5)
+            stdout, _ = await _communicate(proc, 5)
             first_line = stdout.decode().strip().split("\n")[0]
             return first_line.split(" ")[1] if " " in first_line else "unknown"
         except Exception:
@@ -115,6 +134,6 @@ class XrayUpdater:
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
-            await asyncio.wait_for(proc.communicate(), timeout=10)
+            await _communicate(proc, 10)
         except Exception as e:
             logger.error(f"Xray restart failed: {e}")

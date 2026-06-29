@@ -33,7 +33,7 @@ class RouteManager:
             )
             rule = result.scalar_one_or_none()
             if rule:
-                await session.delete(rule)
+                session.delete(rule)
                 await session.commit()
                 return True
             return False

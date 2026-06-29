@@ -5,6 +5,7 @@ from aiogram import Router, F
 from aiogram.types import CallbackQuery, Message, BufferedInputFile
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
+import asyncio
 import base64
 import json
 import uuid
@@ -18,8 +19,9 @@ from ..services.user_manager import UserManager
 from ..services.xray_config import XrayConfigManager
 from ..services.hysteria_config import HysteriaConfigManager
 
-from ..utils.formatters import format_traffic, format_user_info
+from ..utils.formatters import format_traffic, format_user_info, pluralize
 from ..utils.telegram_helpers import safe_edit_text, action_reply, remove_keyboard, get_text
+from ..utils.deeplinks import win_sub
 
 router = Router()
 
@@ -182,7 +184,7 @@ async def users_add_traffic(message: Message, state: FSMContext):
     await state.update_data(traffic_limit=traffic_limit)
 
     await message.answer(
-        f"📊 Лимит: <b>{'♾️ Безлимит' if traffic_limit is None else f'{gb} GB'}</b>\n\n"
+        f"📊 Лимит: <b>{'♾️ Безлимит' if traffic_limit is None else f'{gb:g} ГБ'}</b>\n\n"
         "⏰ Введите срок действия в днях (или 0 для бессрочного):",
         reply_markup=cancel_button("menu:users"),
     )
@@ -220,9 +222,9 @@ async def users_add_expiry(message: Message, state: FSMContext):
 
     # Add to Xray + Hysteria2
     xray_mgr = XrayConfigManager()
-    await xray_mgr.add_client(user.uuid, user.email)
+    xray_ok = await xray_mgr.add_client(user.uuid, user.email)
     hysteria_mgr = HysteriaConfigManager()
-    await hysteria_mgr.add_client(user.email, user.hysteria_password)
+    hysteria_ok = await hysteria_mgr.add_client(user.email, user.hysteria_password)
 
     # Audit log
     await mgr.log_action(
@@ -238,7 +240,7 @@ async def users_add_expiry(message: Message, state: FSMContext):
 
     # Deeplinks
     sub_deeplink = f"v2raytun://import/{sub_url}"
-    win_sub_deeplink = f"dem1chvpn://import/{sub_url}"
+    win_sub_deeplink = win_sub(sub_url)
     route_deeplink = _build_routing_deeplink()
 
     # Send info
@@ -272,6 +274,17 @@ async def users_add_expiry(message: Message, state: FSMContext):
             user.email, user.hysteria_password, user.name
         )
         info_text += f"\n\n⚡ <b>Hysteria2 / QUIC</b>:\n<code>{h_url}</code>"
+
+    if not xray_ok or (config.HYSTERIA_ENABLED and not hysteria_ok):
+        failed = []
+        if not xray_ok:
+            failed.append("Xray")
+        if config.HYSTERIA_ENABLED and not hysteria_ok:
+            failed.append("Hysteria2")
+        info_text += (
+            f"\n\n⚠️ <b>Внимание:</b> не удалось добавить клиента в {' и '.join(failed)}. "
+            f"Юзер есть в БД, но доступ может не работать — проверьте логи и нажмите «Активировать» для повтора."
+        )
 
     await message.answer(info_text, reply_markup=user_actions(user.id, has_telegram=bool(user.telegram_id)))
 
@@ -397,7 +410,11 @@ async def user_link(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("user:toggle:"))
 async def user_toggle(callback: CallbackQuery):
     """Toggle user active status."""
-    user_id = int(callback.data.split(":")[2])
+    try:
+        user_id = int(callback.data.split(":")[2])
+    except (ValueError, IndexError):
+        await callback.answer("❌ Некорректный запрос", show_alert=True)
+        return
     mgr = UserManager()
     user = await mgr.toggle_user(user_id)
 
@@ -410,9 +427,12 @@ async def user_toggle(callback: CallbackQuery):
     # Update Xray + Hysteria2 config
     xray_mgr = XrayConfigManager()
     hysteria_mgr = HysteriaConfigManager()
+    sync_failed = []
     if user.is_active:
-        await xray_mgr.add_client(user.uuid, user.email)
-        await hysteria_mgr.add_client(user.email, user.hysteria_password)
+        if not await xray_mgr.add_client(user.uuid, user.email):
+            sync_failed.append("Xray")
+        if config.HYSTERIA_ENABLED and not await hysteria_mgr.add_client(user.email, user.hysteria_password):
+            sync_failed.append("Hysteria2")
     else:
         await xray_mgr.remove_client(user.email)
         await hysteria_mgr.remove_client(user.email)
@@ -429,6 +449,11 @@ async def user_toggle(callback: CallbackQuery):
         f"{status}: <b>{user.name}</b>\n\n"
         f"👤 <b>Пользователь: {user.name}</b>\n\n{format_user_info(user)}"
     )
+    if sync_failed:
+        text += (
+            f"\n\n⚠️ Не удалось обновить конфиг {' и '.join(sync_failed)} — "
+            f"проверьте логи и нажмите «Активировать» ещё раз."
+        )
     await action_reply(callback, text, reply_markup=user_actions(user_id, has_telegram=bool(user.telegram_id)))
 
     # Notify user if they have a linked Telegram account
@@ -495,7 +520,7 @@ async def user_subscription(callback: CallbackQuery):
 
     # Deeplinks
     sub_deeplink = f"v2raytun://import/{sub_url}"
-    win_sub_deeplink = f"dem1chvpn://import/{sub_url}"
+    win_sub_deeplink = win_sub(sub_url)
     route_deeplink = _build_routing_deeplink()
 
     # Remove old keyboard
@@ -620,7 +645,11 @@ async def users_traffic_all(callback: CallbackQuery):
 @router.callback_query(F.data.startswith("user:extend:"))
 async def user_extend_start(callback: CallbackQuery, state: FSMContext):
     """Start extending a user's expiry."""
-    user_id = int(callback.data.split(":")[2])
+    try:
+        user_id = int(callback.data.split(":")[2])
+    except (ValueError, IndexError):
+        await callback.answer("❌ Некорректный запрос", show_alert=True)
+        return
     await state.update_data(extend_user_id=user_id)
     await safe_edit_text(
         callback.message,
@@ -637,7 +666,11 @@ async def user_extend_start(callback: CallbackQuery, state: FSMContext):
 async def user_extend_cancel(callback: CallbackQuery, state: FSMContext):
     """Cancel extend."""
     await state.clear()
-    user_id = int(callback.data.split(":")[2])
+    try:
+        user_id = int(callback.data.split(":")[2])
+    except (ValueError, IndexError):
+        await callback.answer("❌ Некорректный запрос", show_alert=True)
+        return
     mgr = UserManager()
     user = await mgr.get_user(user_id)
     if user:
@@ -658,7 +691,7 @@ async def user_extend_process(message: Message, state: FSMContext):
         if days <= 0 or days > 3650:
             raise ValueError
     except (ValueError, TypeError):
-        await message.answer("❌ Введите число от 1 до 3650",
+        await message.answer("❌ Введите число дней от 1 до 3650 (макс. ~10 лет):",
                              reply_markup=back_button(f"user:info:{user_id}"))
         return
 
@@ -668,10 +701,12 @@ async def user_extend_process(message: Message, state: FSMContext):
     user = await mgr.extend_user(user_id, days)
 
     if user:
-        # Re-add to Xray + Hysteria2 if user was reactivated
+        sync_failed = []
         if user.is_active:
-            await xray_mgr.add_client(user.uuid, user.email)
-            await hysteria_mgr.add_client(user.email, user.hysteria_password)
+            if not await xray_mgr.add_client(user.uuid, user.email):
+                sync_failed.append("Xray")
+            if config.HYSTERIA_ENABLED and not await hysteria_mgr.add_client(user.email, user.hysteria_password):
+                sync_failed.append("Hysteria2")
 
         await mgr.log_action(
             "user_extended",
@@ -679,11 +714,13 @@ async def user_extend_process(message: Message, state: FSMContext):
             target_user_id=user_id,
             details=f"+{days} days",
         )
-        await message.answer(
-            f"✅ Пользователь <b>{user.name}</b> продлён на {days} дней.\n"
-            f"⏰ Новый срок: {user.expiry_date.strftime('%d.%m.%Y') if user.expiry_date else '♾️'}",
-            reply_markup=back_button(f"user:info:{user_id}"),
+        text = (
+            f"✅ Пользователь <b>{user.name}</b> продлён на {pluralize(days, ('день', 'дня', 'дней'))}.\n"
+            f"⏰ Новый срок: {user.expiry_date.strftime('%d.%m.%Y') if user.expiry_date else '♾️'}"
         )
+        if sync_failed:
+            text += f"\n⚠️ Не удалось обновить конфиг {' и '.join(sync_failed)} — проверьте логи."
+        await message.answer(text, reply_markup=back_button(f"user:info:{user_id}"))
     else:
         await message.answer("❌ Пользователь не найден",
                              reply_markup=back_button("menu:users"))
@@ -694,7 +731,11 @@ async def user_extend_process(message: Message, state: FSMContext):
 @router.callback_query(F.data.startswith("user:reset_traffic:"))
 async def user_reset_traffic(callback: CallbackQuery):
     """Reset a user's traffic counters and unblock."""
-    user_id = int(callback.data.split(":")[2])
+    try:
+        user_id = int(callback.data.split(":")[2])
+    except (ValueError, IndexError):
+        await callback.answer("❌ Некорректный запрос", show_alert=True)
+        return
     mgr = UserManager()
     xray_mgr = XrayConfigManager()
     hysteria_mgr = HysteriaConfigManager()
@@ -706,6 +747,7 @@ async def user_reset_traffic(callback: CallbackQuery):
             await mgr.set_user_active(user_id, True)
             await xray_mgr.add_client(user.uuid, user.email)
             await hysteria_mgr.add_client(user.email, user.hysteria_password)
+            user = await mgr.get_user(user_id) or user
 
         # Reset warning flag
         await mgr.set_warning_sent(user_id, False)
@@ -715,10 +757,10 @@ async def user_reset_traffic(callback: CallbackQuery):
             admin_id=callback.from_user.id,
             target_user_id=user_id,
         )
+        unblocked = "🟢 Пользователь разблокирован." if user.is_active else "🔴 Пользователь остаётся заблокирован."
         await action_reply(
             callback,
-            f"🔄 Трафик <b>{user.name}</b> сброшен!\n"
-            f"{'🟢 Пользователь разблокирован.' if user.is_active else ''}",
+            f"🔄 Трафик <b>{user.name}</b> сброшен!\n{unblocked}",
             reply_markup=back_button(f"user:info:{user_id}"),
         )
         await callback.answer()
@@ -825,7 +867,7 @@ async def user_chart(callback: CallbackQuery):
         upload_data = [(h.recorded_at, h.upload) for h in history]
         download_data = [(h.recorded_at, h.download) for h in history]
 
-        chart_bytes = generate_user_traffic_chart(user.name, upload_data, download_data)
+        chart_bytes = await asyncio.to_thread(generate_user_traffic_chart, user.name, upload_data, download_data)
 
         await remove_keyboard(callback.message)
         chart_file = BufferedInputFile(chart_bytes, filename=f"chart_{user.name}.png")

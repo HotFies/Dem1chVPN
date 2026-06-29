@@ -33,6 +33,9 @@ def main_menu(is_admin: bool = False) -> InlineKeyboardMarkup:
                 InlineKeyboardButton(text="🔗 Моя ссылка", callback_data="self:link"),
                 InlineKeyboardButton(text="📊 Мой трафик", callback_data="self:traffic"),
             ])
+            buttons.append([
+                InlineKeyboardButton(text="🎫 Тикет", callback_data="self:ticket"),
+            ])
         if config.SUB_DOMAIN:
             buttons.append([
                 InlineKeyboardButton(

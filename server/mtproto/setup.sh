@@ -49,8 +49,7 @@ if ! grep -q "MTPROTO_SECRET" /opt/dem1chvpn/.env; then
 fi
 
 echo "✅ MTProto Proxy started"
-echo "   Secret: ${MTPROTO_SECRET}"
 echo "   Port: 8800 (local), exposed via Xray fallback on 443"
 echo ""
-echo "   Telegram link:"
-echo "   tg://proxy?server=${SERVER_IP}&port=443&secret=${MTPROTO_SECRET}"
+echo "   Секрет сохранён в /opt/dem1chvpn/.env (MTPROTO_SECRET) — не публикуйте его."
+echo "   Готовую ссылку tg://proxy возьмите в боте: Мониторинг → MTProto."

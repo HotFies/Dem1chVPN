@@ -17,6 +17,13 @@ from ..utils.telegram_helpers import safe_edit_text, action_reply
 router = Router()
 
 
+def _ticket_id_from(data: str) -> int | None:
+    try:
+        return int(data.split(":")[2])
+    except (ValueError, IndexError):
+        return None
+
+
 class TicketStates(StatesGroup):
     """FSM for creating a ticket."""
     waiting_message = State()
@@ -72,9 +79,9 @@ async def self_ticket_submit(message: Message, state: FSMContext):
     await state.clear()
     text = message.text or ""
 
-    if not text.strip() or len(text) < 5:
+    if len(text.strip()) < 5:
         await message.answer(
-            "❌ Слишком короткое сообщение. Опишите проблему подробнее.",
+            "❌ Сообщение слишком короткое (минимум 5 символов). Опишите проблему подробнее.",
             reply_markup=back_button("menu:main"),
         )
         return
@@ -140,7 +147,10 @@ async def ticket_view(callback: CallbackQuery):
         await callback.answer("⛔ Нет доступа", show_alert=True)
         return
 
-    ticket_id = int(callback.data.split(":")[2])
+    ticket_id = _ticket_id_from(callback.data)
+    if ticket_id is None:
+        await callback.answer("❌ Некорректный запрос", show_alert=True)
+        return
     await _show_ticket_view(callback, ticket_id)
     await callback.answer()
 
@@ -187,7 +197,10 @@ async def _show_ticket_view(callback: CallbackQuery, ticket_id: int):
 @router.callback_query(F.data.startswith("ticket:reply:"))
 async def ticket_reply_start(callback: CallbackQuery, state: FSMContext):
     """Start replying to a ticket."""
-    ticket_id = int(callback.data.split(":")[2])
+    ticket_id = _ticket_id_from(callback.data)
+    if ticket_id is None:
+        await callback.answer("❌ Некорректный запрос", show_alert=True)
+        return
     await state.update_data(reply_ticket_id=ticket_id)
     await safe_edit_text(
         callback.message,
@@ -203,7 +216,10 @@ async def ticket_reply_start(callback: CallbackQuery, state: FSMContext):
 async def ticket_reply_cancel(callback: CallbackQuery, state: FSMContext):
     """Cancel reply."""
     await state.clear()
-    ticket_id = int(callback.data.split(":")[2])
+    ticket_id = _ticket_id_from(callback.data)
+    if ticket_id is None:
+        await callback.answer("❌ Некорректный запрос", show_alert=True)
+        return
     await _show_ticket_view(callback, ticket_id)
     await callback.answer()
 
@@ -251,7 +267,10 @@ async def ticket_close(callback: CallbackQuery):
         await callback.answer("⛔ Нет доступа", show_alert=True)
         return
 
-    ticket_id = int(callback.data.split(":")[2])
+    ticket_id = _ticket_id_from(callback.data)
+    if ticket_id is None:
+        await callback.answer("❌ Некорректный запрос", show_alert=True)
+        return
     ticket_mgr = TicketManager()
     ticket = await ticket_mgr.resolve_ticket(ticket_id)
 

@@ -90,7 +90,7 @@ export function CopyButton({ text, label, size = 'md', variant = 'plain', toastM
           </motion.span>
         )}
       </AnimatePresence>
-      {label && <span className="ui-copy-label">{copied ? 'Готово' : label}</span>}
+      {label && <span className="ui-copy-label">{copied ? 'Скопировано' : label}</span>}
     </motion.button>
   )
 }

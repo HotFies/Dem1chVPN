@@ -1,9 +1,11 @@
 """
 Dem1chVPN — Конфигуратор Xray
 """
+import asyncio
 import json
 import logging
-import subprocess
+import os
+import tempfile
 import urllib.parse
 from pathlib import Path
 from typing import Optional
@@ -21,6 +23,8 @@ class XrayConfigManager:
         if cls._instance is None:
             cls._instance = super().__new__(cls)
             cls._instance.config_path = Path(config.XRAY_CONFIG_PATH)
+            # без него параллельные add/remove/update перетрут друг друга (lost update)
+            cls._instance._write_lock = asyncio.Lock()
         return cls._instance
 
     def __init__(self):
@@ -32,62 +36,66 @@ class XrayConfigManager:
             return json.load(f)
 
     def _write_config(self, cfg: dict):
-
-        with open(self.config_path, "w") as f:
-            json.dump(cfg, f, indent=2, ensure_ascii=False)
+        # пишем во временный файл рядом и атомарно подменяем — оборванная запись не оставит битый json
+        fd, tmp = tempfile.mkstemp(dir=str(self.config_path.parent), suffix=".tmp")
+        try:
+            with os.fdopen(fd, "w") as f:
+                json.dump(cfg, f, indent=2, ensure_ascii=False)
+            os.replace(tmp, self.config_path)
+        except Exception:
+            os.unlink(tmp)
+            raise
 
     async def _aread_config(self) -> dict:
 
-        import asyncio
         return await asyncio.to_thread(self._read_config)
 
     async def _awrite_config(self, cfg: dict):
 
-        import asyncio
         await asyncio.to_thread(self._write_config, cfg)
 
     async def add_client(self, uuid: str, email: str) -> bool:
 
-        try:
-            cfg = await self._aread_config()
-            for inbound in cfg.get("inbounds", []):
-                if inbound.get("tag") == config.XRAY_INBOUND_TAG:
-                    clients = inbound.get("settings", {}).get("clients", [])
-                    if any(c.get("email") == email for c in clients):
-                        return True
-                    clients.append({
-                        "id": uuid,
-                        "email": email,
-                        "flow": "xtls-rprx-vision",
-                    })
-                    inbound["settings"]["clients"] = clients
-                    break
+        async with self._write_lock:
+            try:
+                cfg = await self._aread_config()
+                for inbound in cfg.get("inbounds", []):
+                    if inbound.get("tag") == config.XRAY_INBOUND_TAG:
+                        clients = inbound.get("settings", {}).get("clients", [])
+                        if any(c.get("email") == email for c in clients):
+                            return True
+                        clients.append({
+                            "id": uuid,
+                            "email": email,
+                            "flow": "xtls-rprx-vision",
+                        })
+                        inbound["settings"]["clients"] = clients
+                        break
 
-            await self._awrite_config(cfg)
-            await self.reload_xray()
-            return True
-        except Exception as e:
-            logger.error(f"Error adding client: {e}")
-            return False
+                await self._awrite_config(cfg)
+                return await self.reload_xray()
+            except Exception as e:
+                logger.error(f"Error adding client: {e}")
+                return False
 
     async def remove_client(self, email: str) -> bool:
 
-        try:
-            cfg = await self._aread_config()
-            for inbound in cfg.get("inbounds", []):
-                if inbound.get("tag") == config.XRAY_INBOUND_TAG:
-                    clients = inbound.get("settings", {}).get("clients", [])
-                    inbound["settings"]["clients"] = [
-                        c for c in clients if c.get("email") != email
-                    ]
-                    break
+        async with self._write_lock:
+            try:
+                cfg = await self._aread_config()
+                for inbound in cfg.get("inbounds", []):
+                    if inbound.get("tag") == config.XRAY_INBOUND_TAG:
+                        clients = inbound.get("settings", {}).get("clients", [])
+                        inbound["settings"]["clients"] = [
+                            c for c in clients if c.get("email") != email
+                        ]
+                        break
 
-            await self._awrite_config(cfg)
-            await self.reload_xray()
-            return True
-        except Exception as e:
-            logger.error(f"Error removing client: {e}")
-            return False
+                await self._awrite_config(cfg)
+                return await self.reload_xray()
+            except Exception as e:
+                logger.error(f"Error removing client: {e}")
+                return False
 
     async def get_clients(self) -> list[dict]:
 
@@ -121,9 +129,8 @@ class XrayConfigManager:
             f"?{query}#{encoded_remark}"
         )
 
-    async def reload_xray(self):
+    async def reload_xray(self) -> bool:
 
-        import asyncio
         try:
             proc = await asyncio.create_subprocess_exec(
                 "sudo", "systemctl", "restart", "xray",
@@ -133,14 +140,17 @@ class XrayConfigManager:
             _, stderr = await asyncio.wait_for(proc.communicate(), timeout=10)
             if proc.returncode != 0:
                 logger.error(f"Error restarting Xray: {stderr.decode()}")
+                return False
+            return True
         except asyncio.TimeoutError:
             logger.error("Error restarting Xray: timeout")
+            return False
         except Exception as e:
             logger.error(f"Error restarting Xray: {e}")
+            return False
 
     async def get_xray_version(self) -> str:
 
-        import asyncio
         try:
             proc = await asyncio.create_subprocess_exec(
                 config.XRAY_BINARY, "version",
@@ -155,7 +165,6 @@ class XrayConfigManager:
 
     async def is_xray_running(self) -> bool:
 
-        import asyncio
         try:
             proc = await asyncio.create_subprocess_exec(
                 "systemctl", "is-active", "xray",
@@ -175,17 +184,18 @@ class XrayConfigManager:
         short_id: Optional[str] = None,
     ):
 
-        cfg = await self._aread_config()
-        for inbound in cfg.get("inbounds", []):
-            if inbound.get("tag") == config.XRAY_INBOUND_TAG:
-                reality = inbound.get("streamSettings", {}).get("realitySettings", {})
-                if dest:
-                    reality["dest"] = dest
-                if sni:
-                    reality["serverNames"] = [sni]
-                if private_key:
-                    reality["privateKey"] = private_key
-                if short_id:
-                    reality["shortIds"] = [short_id]
-                break
-        await self._awrite_config(cfg)
+        async with self._write_lock:
+            cfg = await self._aread_config()
+            for inbound in cfg.get("inbounds", []):
+                if inbound.get("tag") == config.XRAY_INBOUND_TAG:
+                    reality = inbound.get("streamSettings", {}).get("realitySettings", {})
+                    if dest:
+                        reality["dest"] = dest
+                    if sni:
+                        reality["serverNames"] = [sni]
+                    if private_key:
+                        reality["privateKey"] = private_key
+                    if short_id:
+                        reality["shortIds"] = [short_id]
+                    break
+            await self._awrite_config(cfg)

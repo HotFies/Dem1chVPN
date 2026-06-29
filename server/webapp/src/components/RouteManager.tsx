@@ -66,7 +66,7 @@ export default function RouteManager() {
     try {
       await addRoute(v, type)
       setNewDomain('')
-      toast.success(type === 'proxy' ? 'Через прокси' : 'Напрямую')
+      toast.success(`Маршрут добавлен (${type === 'proxy' ? 'через прокси' : 'напрямую'})`)
       loadRules()
     } catch {
       toast.error('Не удалось добавить домен')

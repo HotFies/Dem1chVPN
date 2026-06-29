@@ -10,6 +10,7 @@ from ..services.user_manager import UserManager
 from ..services.xray_config import XrayConfigManager
 from ..services.hysteria_config import HysteriaConfigManager
 from ..utils.telegram_helpers import safe_edit_text, remove_keyboard
+from ..utils.deeplinks import win_sub
 
 router = Router()
 
@@ -26,7 +27,7 @@ async def self_link(callback: CallbackQuery):
     vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
     sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
     sub_deeplink = f"v2raytun://import/{sub_url}"
-    win_sub_deeplink = f"dem1chvpn://import/{sub_url}"
+    win_sub_deeplink = win_sub(sub_url)
 
     text = (
         f"🔗 <b>Ваши ссылки подключения:</b>\n\n"
@@ -91,7 +92,7 @@ async def wizard_step(callback: CallbackQuery):
             f"📱 Для вашей платформы нужно:\n\n"
             f"1. Скачайте <b>{app_name}</b>:\n"
             f'   📥 <a href="{url}">Скачать {app_name}</a>\n\n'
-            f"Уже скачали?",
+            f"Готово? Выберите способ подключения:",
             reply_markup=wizard_connect_method(),
             disable_web_page_preview=True,
         )
@@ -132,11 +133,11 @@ async def wizard_step(callback: CallbackQuery):
                 f"3. Включите VPN ▶️\n\n"
                 f"Готово? Проверьте: откройте youtube.com 🎉"
             )
-            await callback.message.answer(link_text)
+            await callback.message.answer(link_text, reply_markup=back_button("menu:main"))
         elif method == "sub":
             sub_url = f"{config.sub_base_url}/sub/{user.subscription_token}"
             sub_deeplink = f"v2raytun://import/{sub_url}"
-            win_sub_deeplink = f"dem1chvpn://import/{sub_url}"
+            win_sub_deeplink = win_sub(sub_url)
             await callback.message.answer(
                 f"📡 <b>Шаг 3: Подписка (рекомендуется)</b>\n\n"
                 f"📱 <b>iOS (v2RayTun):</b>\n"
@@ -151,7 +152,8 @@ async def wizard_step(callback: CallbackQuery):
                 f'2. В приложении: "Подписка" → "Добавить"\n'
                 f"3. Вставьте URL → Обновить\n"
                 f"4. Включите VPN ▶️\n\n"
-                f"✅ Конфигурация обновляется автоматически!"
+                f"✅ Конфигурация обновляется автоматически!",
+                reply_markup=back_button("menu:main"),
             )
 
     await callback.answer()

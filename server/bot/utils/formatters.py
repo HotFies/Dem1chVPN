@@ -5,6 +5,17 @@ from datetime import datetime, timezone
 from typing import Optional
 
 
+def pluralize(n: int, forms: tuple[str, str, str]) -> str:
+    n = abs(n)
+    if n % 10 == 1 and n % 100 != 11:
+        word = forms[0]
+    elif 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14:
+        word = forms[1]
+    else:
+        word = forms[2]
+    return f"{n} {word}"
+
+
 def format_traffic(bytes_val: Optional[int]) -> str:
 
     if bytes_val is None:
@@ -54,10 +65,13 @@ def format_user_info(user) -> str:
         if exp.tzinfo is None:
             exp = exp.replace(tzinfo=timezone.utc)
         remaining = exp - datetime.now(timezone.utc)
-        if remaining.days > 0:
-            expiry = f"{remaining.days}д осталось"
-        else:
+        if remaining.total_seconds() <= 0:
             expiry = "⏰ Истёк"
+        elif remaining.days >= 1:
+            expiry = f"{pluralize(remaining.days, ('день', 'дня', 'дней'))} осталось"
+        else:
+            hours = int(remaining.total_seconds() // 3600)
+            expiry = f"{pluralize(hours, ('час', 'часа', 'часов'))} осталось"
 
     created = user.created_at.strftime("%d.%m.%Y") if user.created_at else "—"
 

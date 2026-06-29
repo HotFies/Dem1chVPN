@@ -34,7 +34,7 @@
         "skipFallback": true
       },
       {
-        "address": "77.88.8.8",
+        "address": "RUSSIAN_DNS_PLACEHOLDER",
         "domains": ["geosite:category-ru"],
         "skipFallback": true
       }
