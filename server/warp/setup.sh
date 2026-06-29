@@ -46,10 +46,21 @@ if ! command -v warp-cli &> /dev/null; then
     curl -fsSL https://pkg.cloudflareclient.com/pubkey.gpg \
         | gpg --yes --dearmor -o /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg
 
-    # Определяем кодовое имя дистрибутива
-    CODENAME="${VERSION_CODENAME:-$(lsb_release -cs 2>/dev/null || echo 'noble')}"
+    # Cloudflare публикует WARP не для всех релизов — для свежих/неизвестных берём ближайший поддерживаемый
+    RAW_CODENAME="${VERSION_CODENAME:-$(lsb_release -cs 2>/dev/null || echo '')}"
+    if [ -n "${WARP_CODENAME:-}" ]; then
+        CODENAME="$WARP_CODENAME"
+    else
+        case "${ID:-}" in
+            ubuntu) case "$RAW_CODENAME" in focal|jammy|noble) CODENAME="$RAW_CODENAME";; *) CODENAME="noble";; esac ;;
+            debian) case "$RAW_CODENAME" in bullseye|bookworm) CODENAME="$RAW_CODENAME";; *) CODENAME="bookworm";; esac ;;
+            *) CODENAME="${RAW_CODENAME:-noble}" ;;
+        esac
+    fi
+    if [ "$CODENAME" != "$RAW_CODENAME" ]; then
+        log_warn "Cloudflare WARP не публикует ветку '${RAW_CODENAME}' — использую '${CODENAME}' (переопределить: WARP_CODENAME=...)"
+    fi
 
-    # Добавляем репозиторий
     echo "deb [arch=amd64 signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ ${CODENAME} main" \
         > /etc/apt/sources.list.d/cloudflare-client.list
 
