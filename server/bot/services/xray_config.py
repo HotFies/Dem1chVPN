@@ -41,6 +41,8 @@ class XrayConfigManager:
         try:
             with os.fdopen(fd, "w") as f:
                 json.dump(cfg, f, indent=2, ensure_ascii=False)
+            # mkstemp даёт 0600, но xray бежит под nobody — без o+r будет permission denied после подмены inode
+            os.chmod(tmp, 0o644)
             os.replace(tmp, self.config_path)
         except Exception:
             os.unlink(tmp)
