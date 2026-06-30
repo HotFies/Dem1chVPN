@@ -870,6 +870,7 @@ configure_hysteria() {
     cat > /etc/systemd/system/dem1chvpn-hysteria-cert.service << 'UNIT'
 [Unit]
 Description=Relink Caddy cert and (re)start Hysteria
+StartLimitIntervalSec=0
 
 [Service]
 Type=oneshot
@@ -877,12 +878,12 @@ ExecStart=/usr/local/bin/dem1chvpn-update-cert-symlinks
 ExecStart=/bin/systemctl try-restart dem1chvpn-hysteria
 UNIT
 
+    # Только PathChanged (на запись/ротацию). PathExists зациклил бы oneshot, пока серт существует.
     cat > /etc/systemd/system/dem1chvpn-hysteria-cert.path << UNIT
 [Unit]
 Description=Watch Caddy cert for ${SUB_DOMAIN}
 
 [Path]
-PathExists=${HYSTERIA_CERT_PATH}
 PathChanged=${HYSTERIA_CERT_PATH}
 Unit=dem1chvpn-hysteria-cert.service
 
