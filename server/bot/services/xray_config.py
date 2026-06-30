@@ -111,6 +111,8 @@ class XrayConfigManager:
             return []
 
     def generate_vless_url(self, uuid: str, remark: str = "Dem1chVPN") -> str:
+        if not config.REALITY_PUBLIC_KEY or not config.REALITY_SHORT_ID:
+            raise ValueError("REALITY_PUBLIC_KEY/REALITY_SHORT_ID пусты — ссылка VLESS не поднимет Reality")
 
         params = {
             "encryption": "none",

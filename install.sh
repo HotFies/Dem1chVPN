@@ -865,15 +865,43 @@ configure_hysteria() {
     install -m 0755 "${DEM1CHVPN_DIR}/server/hysteria/update-cert-symlinks.sh" \
         /usr/local/bin/dem1chvpn-update-cert-symlinks
 
+    # Когда Caddy выпустит/обновит cert — сами перелинкуем и поднимем Hysteria.
+    # Иначе при провале ACME на старте Hysteria крэш-лупит без серта, и её никто не перезапускает.
+    cat > /etc/systemd/system/dem1chvpn-hysteria-cert.service << 'UNIT'
+[Unit]
+Description=Relink Caddy cert and (re)start Hysteria
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/dem1chvpn-update-cert-symlinks
+ExecStart=/bin/systemctl try-restart dem1chvpn-hysteria
+UNIT
+
+    cat > /etc/systemd/system/dem1chvpn-hysteria-cert.path << UNIT
+[Unit]
+Description=Watch Caddy cert for ${SUB_DOMAIN}
+
+[Path]
+PathExists=${HYSTERIA_CERT_PATH}
+PathChanged=${HYSTERIA_CERT_PATH}
+Unit=dem1chvpn-hysteria-cert.service
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
     # Случайный пароль для bootstrap-юзера. Hysteria не стартует с пустым userpass — этот placeholder лечит.
     # Залогиниться по __bootstrap__ невозможно, пароль никому не известен.
     HYSTERIA_BOOTSTRAP_PWD=$(openssl rand -hex 16)
 
     mkdir -p /etc/hysteria
-    # Не затираем конфиг с уже добавленными userpass-клиентами
-    if [ -f /etc/hysteria/config.yaml ]; then
-        log_warn "/etc/hysteria/config.yaml уже существует — оставляю как есть (сохраняю клиентов)"
+    # Сохраняем только НАШ конфиг (salamander + tls.cert, без acme). Дефолтный пример от upstream-установщика
+    # (acme: your.domain.net) иначе остаётся и Hysteria крэш-лупит на rate-limit LE.
+    if [ -f /etc/hysteria/config.yaml ] && grep -q 'salamander' /etc/hysteria/config.yaml && ! grep -q '^acme:' /etc/hysteria/config.yaml; then
+        log_warn "/etc/hysteria/config.yaml — наш конфиг с клиентами, оставляю как есть"
     else
+        [ -f /etc/hysteria/config.yaml ] && cp -a /etc/hysteria/config.yaml "/etc/hysteria/config.yaml.bak.$(date +%s)" \
+            && log_warn "Найден чужой/дефолтный конфиг Hysteria — заменяю шаблоном проекта (бэкап рядом)"
         cp "${DEM1CHVPN_DIR}/server/hysteria/config_template.yaml" /etc/hysteria/config.yaml
         sed -i "s|HYSTERIA_PORT_PLACEHOLDER|${HYSTERIA_PORT}|g" /etc/hysteria/config.yaml
         sed -i "s|HYSTERIA_OBFS_PASSWORD_PLACEHOLDER|${HYSTERIA_OBFS_PASSWORD}|g" /etc/hysteria/config.yaml
@@ -987,6 +1015,11 @@ SERVICE
     # Hysteria стартуем только если конфиг существует (configure_hysteria мог пропуститься)
     if [ -f /etc/hysteria/config.yaml ]; then
         systemctl start dem1chvpn-hysteria || log_warn "Hysteria2 не стартанула — проверьте journalctl -u dem1chvpn-hysteria"
+    fi
+    # Слежение за cert: поднимет Hysteria сама, как только появится серт (или после ротации)
+    if [ -f /etc/systemd/system/dem1chvpn-hysteria-cert.path ]; then
+        systemctl enable --now dem1chvpn-hysteria-cert.path 2>/dev/null \
+            || log_warn "dem1chvpn-hysteria-cert.path не активировался"
     fi
 
     log_info "Сервисы созданы и запущены (пользователь: dem1chvpn)"

@@ -96,6 +96,21 @@ def _assert_account_active(user) -> None:
         raise HTTPException(status_code=403, detail="Traffic limit exceeded")
 
 
+_hysteria_cache: dict = {"ts": 0.0, "value": False}
+_HYSTERIA_TTL = 30.0
+
+
+async def _hysteria_serving() -> bool:
+    # is-active не требует root и не зависит от прав на cert; без серта Hysteria крэш-лупит и не бывает active
+    now = time.monotonic()
+    if now - _hysteria_cache["ts"] < _HYSTERIA_TTL:
+        return _hysteria_cache["value"]
+    value = await HysteriaConfigManager().is_hysteria_running()
+    _hysteria_cache["ts"] = now
+    _hysteria_cache["value"] = value
+    return value
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok"}
@@ -117,7 +132,8 @@ async def get_subscription(request: Request, token: str):
     vless_url = xray_mgr.generate_vless_url(user.uuid, user.name)
 
     lines = [vless_url]
-    if config.HYSTERIA_ENABLED and getattr(user, "hysteria_password", None):
+    # Hysteria-ссылку отдаём только если служба реально жива — иначе клиент по умолчанию выберет мёртвый протокол
+    if config.HYSTERIA_ENABLED and getattr(user, "hysteria_password", None) and await _hysteria_serving():
         h2_url = HysteriaConfigManager().generate_hysteria_url(
             user.email, user.hysteria_password, user.name
         )

@@ -25,7 +25,7 @@ KEY=$(find "$CADDY_STORE"  -name "${SUB_DOMAIN}.key" -not -path "*staging*" 2>/d
 
 if [ -z "$CERT" ] || [ -z "$KEY" ]; then
     echo "Серт для ${SUB_DOMAIN} ещё не выпущен Caddy — пропускаю обновление симлинков" >&2
-    echo "Hysteria стартанёт и упадёт на отсутствии файла — это ожидаемо" >&2
+    echo "Hysteria крэш-лупит без серта; dem1chvpn-hysteria-cert.path поднимет её, как только Caddy выпустит серт" >&2
     exit 0
 fi
 
